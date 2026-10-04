@@ -1,0 +1,184 @@
+<UserControl x:Class="DoctorRx.Presentation.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:vm="clr-namespace:DoctorRx.Presentation.ViewModels"
+             mc:Ignorable="d" 
+             d:DataContext="{d:DesignInstance Type=vm:DashboardViewModel}"
+             d:DesignHeight="750" d:DesignWidth="1100">
+
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="30,24,30,40">
+
+            <!-- Top Banner / Header -->
+            <Grid Margin="0,0,0,24">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="Welcome back to DoctorRx" Style="{StaticResource HeadingLarge}" />
+                    <TextBlock Text="Local clinic workstation • Ready for prescriptions and patient records" 
+                               Style="{StaticResource BodyMuted}" Margin="0,4,0,0" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Style="{StaticResource SecondaryButton}" 
+                            Command="{Binding RefreshCommand}"
+                            Margin="0,0,12,0" Padding="14,9">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="↻" FontSize="14" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Refresh" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <Button Style="{StaticResource PrimaryButton}" 
+                            Command="{Binding NewPrescriptionCommand}"
+                            Padding="18,9">
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="+" FontSize="16" FontWeight="Bold" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="New Prescription" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <!-- 4 Metric Cards -->
+            <Grid Margin="0,0,0,28">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="18" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Metric 1: Total Patients -->
+                <Border Grid.Column="0" Style="{StaticResource StatCard}">
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="TOTAL PATIENTS" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" FontSize="11" />
+                            <TextBlock Text="{Binding TotalPatients}" FontSize="32" FontWeight="Bold" 
+                                       Foreground="{StaticResource SlateDarkestBrush}" Margin="0,6,0,2" />
+                            <TextBlock Text="Registered in local database" Style="{StaticResource BodyMuted}" FontSize="11.5" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Metric 2: Prescriptions Today -->
+                <Border Grid.Column="2" Style="{StaticResource StatCard}">
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="PRESCRIPTIONS TODAY" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" FontSize="11" />
+                            <TextBlock Text="{Binding PrescriptionsToday}" FontSize="32" FontWeight="Bold" 
+                                       Foreground="{StaticResource PrimaryTealDarkBrush}" Margin="0,6,0,2" />
+                            <TextBlock Text="Issued today" Style="{StaticResource BodyMuted}" FontSize="11.5" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Metric 3: Total Prescriptions -->
+                <Border Grid.Column="4" Style="{StaticResource StatCard}">
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="ALL-TIME PRESCRIPTIONS" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" FontSize="11" />
+                            <TextBlock Text="{Binding TotalPrescriptions}" FontSize="32" FontWeight="Bold" 
+                                       Foreground="{StaticResource SlateDarkestBrush}" Margin="0,6,0,2" />
+                            <TextBlock Text="Preserved in history" Style="{StaticResource BodyMuted}" FontSize="11.5" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+                <!-- Metric 4: Medicines in Catalog -->
+                <Border Grid.Column="6" Style="{StaticResource StatCard}">
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="CATALOG MEDICINES" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" FontSize="11" />
+                            <TextBlock Text="{Binding TotalMedicinesInCatalog}" FontSize="32" FontWeight="Bold" 
+                                       Foreground="{StaticResource SlateDarkestBrush}" Margin="0,6,0,2" />
+                            <TextBlock Text="Available formulations" Style="{StaticResource BodyMuted}" FontSize="11.5" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
+            </Grid>
+
+            <!-- 2 Column Section: Recent Prescriptions & Recent Patients -->
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="6*" />
+                    <ColumnDefinition Width="20" />
+                    <ColumnDefinition Width="5*" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Recent Prescriptions Table -->
+                <Border Grid.Column="0" Style="{StaticResource CardContainer}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,16">
+                            <TextBlock Text="Recent Prescriptions" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource SecondaryButton}" 
+                                    Command="{Binding ViewAllPrescriptionsCommand}"
+                                    HorizontalAlignment="Right"
+                                    Padding="10,4" FontSize="12">
+                                <TextBlock Text="View Archive →" />
+                            </Button>
+                        </Grid>
+
+                        <DataGrid ItemsSource="{Binding RecentPrescriptions}"
+                                  Style="{StaticResource ModernDataGrid}"
+                                  MaxHeight="320">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="RX Number" Binding="{Binding PrescriptionNumber}" Width="150" />
+                                <DataGridTextColumn Header="Patient" Binding="{Binding PatientName}" Width="*" />
+                                <DataGridTextColumn Header="Date" Binding="{Binding PrescriptionDate, StringFormat='dd MMM yyyy'}" Width="110" />
+                                <DataGridTemplateColumn Header="Status" Width="100">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Border Background="{StaticResource SuccessGreenLightBrush}"
+                                                    CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                                                <TextBlock Text="{Binding Status}" 
+                                                           Foreground="{StaticResource SuccessGreenBrush}" 
+                                                           FontSize="11.5" FontWeight="SemiBold" />
+                                            </Border>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                                <DataGridTextColumn Header="Items" Binding="{Binding MedicineCount}" Width="60" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+
+                <!-- Recent Patients Table -->
+                <Border Grid.Column="2" Style="{StaticResource CardContainer}">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,16">
+                            <TextBlock Text="Recent Patients" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource SecondaryButton}" 
+                                    Command="{Binding ViewAllPatientsCommand}"
+                                    HorizontalAlignment="Right"
+                                    Padding="10,4" FontSize="12">
+                                <TextBlock Text="All Patients →" />
+                            </Button>
+                        </Grid>
+
+                        <DataGrid ItemsSource="{Binding RecentPatients}"
+                                  Style="{StaticResource ModernDataGrid}"
+                                  MaxHeight="320">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="MRN" Binding="{Binding Id, StringFormat='#{0}'}" Width="65" />
+                                <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*" />
+                                <DataGridTextColumn Header="Age / Gender" Binding="{Binding DisplayAgeGender}" Width="120" />
+                                <DataGridTextColumn Header="Phone" Binding="{Binding FormattedPhone}" Width="120" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

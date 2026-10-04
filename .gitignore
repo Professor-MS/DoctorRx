@@ -1,0 +1,23 @@
+## Build and Output
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+## Visual Studio
+.vs/
+.vscode/
+
+## Database and local test artifacts
+*.db
+*.db-shm
+*.db-wal
+doctorrx_design.db
+
+## OS Generated
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
