@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
@@ -11,16 +12,67 @@ using DoctorRx.Presentation.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace DoctorRx.Presentation;
 
 public partial class App : System.Windows.Application
 {
+    private const string MutexName = @"Local\DoctorRx_SingleInstance_Mutex";
+    private const string EventName = @"Local\DoctorRx_SingleInstance_Event";
+
+    private Mutex? _singleInstanceMutex;
+    private EventWaitHandle? _activateEvent;
+    private RegisteredWaitHandle? _registeredWait;
     private IHost? _host;
 
     protected override async void OnStartup(StartupEventArgs e)
     {
         base.OnStartup(e);
+
+        // 1. Single Instance Check via Local named Mutex
+        _singleInstanceMutex = new Mutex(true, MutexName, out bool isOnlyInstance);
+        if (!isOnlyInstance)
+        {
+            // Another instance is already running; signal it to activate its window and exit
+            try
+            {
+                using var activateEvent = EventWaitHandle.OpenExisting(EventName);
+                activateEvent.Set();
+            }
+            catch
+            {
+                // Event might not exist yet if the first instance is starting up
+            }
+
+            Shutdown(0);
+            return;
+        }
+
+        // Set up event wait handle so a secondary instance can activate this window
+        _activateEvent = new EventWaitHandle(false, EventResetMode.AutoReset, EventName);
+        _registeredWait = ThreadPool.RegisterWaitForSingleObject(
+            _activateEvent,
+            (state, timedOut) =>
+            {
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (MainWindow != null)
+                    {
+                        if (MainWindow.WindowState == WindowState.Minimized)
+                        {
+                            MainWindow.WindowState = WindowState.Normal;
+                        }
+                        MainWindow.Activate();
+                        MainWindow.Topmost = true;
+                        MainWindow.Topmost = false;
+                        MainWindow.Focus();
+                    }
+                });
+            },
+            null,
+            -1,
+            false);
 
         // Register Global Exception Handlers
         SetupGlobalExceptionHandling();
@@ -107,6 +159,14 @@ public partial class App : System.Windows.Application
 
     protected override async void OnExit(ExitEventArgs e)
     {
+        _registeredWait?.Unregister(null);
+        _activateEvent?.Dispose();
+        if (_singleInstanceMutex != null)
+        {
+            try { _singleInstanceMutex.ReleaseMutex(); } catch { }
+            _singleInstanceMutex.Dispose();
+        }
+
         if (_host != null)
         {
             await _host.StopAsync();
