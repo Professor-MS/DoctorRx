@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Services;
@@ -7,6 +8,8 @@ using DoctorRx.Domain.Entities;
 using DoctorRx.Domain.Enums;
 using DoctorRx.Infrastructure.Data;
 using DoctorRx.Infrastructure.Repositories;
+using DoctorRx.Infrastructure.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
@@ -34,28 +37,60 @@ public class TestDbContextFactory : IDbContextFactory<DoctorRxDbContext>
     }
 }
 
-public class PatientServiceTests
+public class PatientServiceTests : IDisposable
 {
-    private (PatientService service, TestDbContextFactory factory) CreateSut()
+    private readonly string _testDir;
+    private readonly TestAppPaths _appPaths;
+    private readonly TestDbContextFactory _factory;
+    private readonly PatientService _service;
+
+    public PatientServiceTests()
     {
+        _testDir = Path.Combine(Path.GetTempPath(), "DoctorRx_PatTests_" + Guid.NewGuid().ToString("N"));
+        _appPaths = new TestAppPaths(_testDir);
+
+        var builder = new SqliteConnectionStringBuilder
+        {
+            DataSource = _appPaths.DatabasePath,
+            Mode = SqliteOpenMode.ReadWriteCreate
+        };
+
         var options = new DbContextOptionsBuilder<DoctorRxDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseSqlite(builder.ConnectionString)
+            .AddInterceptors(new SqlitePragmaInterceptor())
             .Options;
 
-        var factory = new TestDbContextFactory(options);
-        var uowFactory = new UnitOfWorkFactory(factory);
-        var logger = NullLogger<PatientService>.Instance;
-        var clock = new DoctorRx.Infrastructure.Services.SystemClock();
-        var service = new PatientService(uowFactory, clock, logger);
+        _factory = new TestDbContextFactory(options);
 
-        return (service, factory);
+        var migrator = new DatabaseMigrator(_factory, _appPaths, NullLogger<DatabaseMigrator>.Instance);
+        migrator.MigrateDatabaseAsync().GetAwaiter().GetResult();
+
+        var uowFactory = new UnitOfWorkFactory(_factory);
+        var logger = NullLogger<PatientService>.Instance;
+        var clock = new SystemClock();
+        _service = new PatientService(uowFactory, clock, logger);
+    }
+
+    public void Dispose()
+    {
+        SqliteConnection.ClearAllPools();
+        try
+        {
+            if (Directory.Exists(_testDir))
+            {
+                Directory.Delete(_testDir, recursive: true);
+            }
+        }
+        catch
+        {
+            // Best effort cleanup in temp directory
+        }
     }
 
     [Fact]
     public async Task CreatePatient_WithValidData_ReturnsSuccessAndPersists()
     {
         // Arrange
-        var (service, _) = CreateSut();
         var dto = new CreatePatientDto
         {
             Name = "Muhammad Ali",
@@ -67,7 +102,7 @@ public class PatientServiceTests
         };
 
         // Act
-        var result = await service.CreatePatientAsync(dto);
+        var result = await _service.CreatePatientAsync(dto);
 
         // Assert
         Assert.True(result.IsSuccess);
@@ -82,7 +117,6 @@ public class PatientServiceTests
     public async Task CreatePatient_WithEmptyName_ReturnsFailure()
     {
         // Arrange
-        var (service, _) = CreateSut();
         var dto = new CreatePatientDto
         {
             Name = "   ",
@@ -90,7 +124,7 @@ public class PatientServiceTests
         };
 
         // Act
-        var result = await service.CreatePatientAsync(dto);
+        var result = await _service.CreatePatientAsync(dto);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -101,7 +135,6 @@ public class PatientServiceTests
     public async Task CreatePatient_WithInvalidAge_ReturnsFailure()
     {
         // Arrange
-        var (service, _) = CreateSut();
         var dto = new CreatePatientDto
         {
             Name = "Ahmad",
@@ -109,7 +142,7 @@ public class PatientServiceTests
         };
 
         // Act
-        var result = await service.CreatePatientAsync(dto);
+        var result = await _service.CreatePatientAsync(dto);
 
         // Assert
         Assert.False(result.IsSuccess);
@@ -119,34 +152,28 @@ public class PatientServiceTests
     [Fact]
     public async Task ConcurrentServices_NeverShareDbContextInstance()
     {
-        // Arrange
-        var (service, factory) = CreateSut();
-
-        // Seed 1 patient
-        await service.CreatePatientAsync(new CreatePatientDto { Name = "Patient 1", Age = 30 });
+        // Arrange: Seed 1 patient
+        await _service.CreatePatientAsync(new CreatePatientDto { Name = "Patient 1", Age = 30 });
 
         // Act: Run two concurrent reads
-        var task1 = Task.Run(() => service.GetPatientsPagedAsync(1, 50));
-        var task2 = Task.Run(() => service.GetPatientsPagedAsync(1, 50));
+        var task1 = Task.Run(() => _service.GetPatientsPagedAsync(1, 50));
+        var task2 = Task.Run(() => _service.GetPatientsPagedAsync(1, 50));
         await Task.WhenAll(task1, task2);
 
         // Assert: Distinct DbContext instances were generated
-        Assert.True(factory.CreatedContexts.Count >= 3); // 1 for create, 2 for concurrent reads
-        var lastTwoContexts = factory.CreatedContexts.GetRange(factory.CreatedContexts.Count - 2, 2);
+        Assert.True(_factory.CreatedContexts.Count >= 3); // 1 for create, 2 for concurrent reads
+        var lastTwoContexts = _factory.CreatedContexts.GetRange(_factory.CreatedContexts.Count - 2, 2);
         Assert.NotSame(lastTwoContexts[0], lastTwoContexts[1]);
     }
 
     [Fact]
     public async Task FailedSave_DoesNotPoisonSubsequentSave()
     {
-        // Arrange
-        var (service, factory) = CreateSut();
-
-        // Force a failed save directly through UoW factory
-        var uowFactory = new UnitOfWorkFactory(factory);
+        // Arrange: Force a failed save directly through UoW factory
+        var uowFactory = new UnitOfWorkFactory(_factory);
         await using (var failUow = uowFactory.Create())
         {
-            // Adding patient with null required field to induce save error in InMemory
+            // Adding patient with null required field to induce save error in SQLite (NOT NULL constraint)
             var brokenPatient = new Patient { Name = null! };
             await failUow.Patients.AddAsync(brokenPatient);
             await Assert.ThrowsAnyAsync<Exception>(() => failUow.CommitAsync());
@@ -159,7 +186,7 @@ public class PatientServiceTests
             Age = 40,
             Gender = Gender.Female
         };
-        var result = await service.CreatePatientAsync(goodDto);
+        var result = await _service.CreatePatientAsync(goodDto);
 
         // Assert: Succeeds without poison
         Assert.True(result.IsSuccess);

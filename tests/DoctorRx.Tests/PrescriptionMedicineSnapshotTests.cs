@@ -85,18 +85,32 @@ public class PrescriptionMedicineSnapshotTests
     [Fact]
     public async Task Prescription_DtoLevelSnapshotTest_ReturnsSnapshotsAfterLiveEntitiesChange()
     {
-        // Arrange
+        var testDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "DoctorRx_SnapTests_" + Guid.NewGuid().ToString("N"));
+        var appPaths = new TestAppPaths(testDir);
+
+        var builder = new Microsoft.Data.Sqlite.SqliteConnectionStringBuilder
+        {
+            DataSource = appPaths.DatabasePath,
+            Mode = Microsoft.Data.Sqlite.SqliteOpenMode.ReadWriteCreate
+        };
+
         var options = new DbContextOptionsBuilder<DoctorRxDbContext>()
-            .UseInMemoryDatabase(databaseName: Guid.NewGuid().ToString())
+            .UseSqlite(builder.ConnectionString)
+            .AddInterceptors(new SqlitePragmaInterceptor())
             .Options;
 
         var factory = new TestDbContextFactory(options);
+        var migrator = new DatabaseMigrator(factory, appPaths, NullLogger<DatabaseMigrator>.Instance);
+        await migrator.MigrateDatabaseAsync();
+
         var uowFactory = new UnitOfWorkFactory(factory);
         var clock = new SystemClock();
         var logger = NullLogger<PrescriptionService>.Instance;
 
-        // Seed initial doctor and patient
-        await using (var context = factory.CreateDbContext())
+        try
+        {
+            // Seed initial doctor and patient
+            await using (var context = factory.CreateDbContext())
         {
             var doc = new Doctor
             {
@@ -193,5 +207,18 @@ public class PrescriptionMedicineSnapshotTests
         Assert.Equal("Original Med", fetchedRx.Items[0].MedicineName);
         Assert.Equal("10 mg", fetchedRx.Items[0].Strength);
         Assert.Equal("Tablet", fetchedRx.Items[0].Form);
+        }
+        finally
+        {
+            Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            try
+            {
+                if (System.IO.Directory.Exists(testDir))
+                {
+                    System.IO.Directory.Delete(testDir, recursive: true);
+                }
+            }
+            catch { }
+        }
     }
 }
