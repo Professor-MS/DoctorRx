@@ -13,11 +13,16 @@ namespace DoctorRx.Infrastructure.Data;
 public class DatabaseInitializer : IDatabaseInitializer
 {
     private readonly IDbContextFactory<DoctorRxDbContext> _contextFactory;
+    private readonly IDatabaseMigrator _databaseMigrator;
     private readonly ILogger<DatabaseInitializer> _logger;
 
-    public DatabaseInitializer(IDbContextFactory<DoctorRxDbContext> contextFactory, ILogger<DatabaseInitializer> logger)
+    public DatabaseInitializer(
+        IDbContextFactory<DoctorRxDbContext> contextFactory,
+        IDatabaseMigrator databaseMigrator,
+        ILogger<DatabaseInitializer> logger)
     {
         _contextFactory = contextFactory;
+        _databaseMigrator = databaseMigrator;
         _logger = logger;
     }
 
@@ -25,10 +30,10 @@ public class DatabaseInitializer : IDatabaseInitializer
     {
         try
         {
-            _logger.LogInformation("Ensuring SQLite database is created and initialized...");
-            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            await context.Database.EnsureCreatedAsync(cancellationToken);
+            _logger.LogInformation("Applying SQLite database migrations...");
+            await _databaseMigrator.MigrateDatabaseAsync(cancellationToken);
 
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
             await SeedDataAsync(context, cancellationToken);
         }
         catch (Exception ex)

@@ -78,3 +78,30 @@ This document records architectural and technical decisions made during the Doct
 - **Alternatives Rejected**:
   - Allocating completely unrelated new prescription numbers: Obscures which prescription is being amended.
   - Overwriting the existing prescription row: Violates medical immutability and audit trails.
+
+---
+
+## ADR 007: SQLite Triggers for Anti-Tamper Immutability and State Transitions
+- **Status**: Accepted
+- **Decision**: SQLite triggers enforce immutability at the physical storage engine layer:
+  - `trg_prevent_prescription_tamper`: Prohibits updates to clinical and snapshot columns. Allows only valid status transitions (`Finalized` (1) -> `Cancelled` (2) or `Superseded` (3)). Allows `Version` (concurrency token) and `UpdatedAtUtc` to be incremented. Prohibits any updates once status is terminal (`Cancelled` or `Superseded`).
+  - `trg_prevent_prescription_delete`: Prohibits deletion of prescription rows.
+  - `trg_prevent_prescription_medicine_delete`: Prohibits deletion of prescribed medicines.
+  - `trg_prevent_prescription_medicine_update`: Prohibits modifying prescribed medicine rows.
+  - `trg_prevent_prescription_medicine_insert_after_terminal`: Prohibits inserting new medicine items into a cancelled or superseded prescription. Prescription items are created atomically alongside the prescription in a single creation transaction; subsequent amendment creates a fresh prescription.
+  - `FK_PrescriptionMedicines_Medicines_MedicineId` configured with `ON DELETE RESTRICT` to prevent deleting medicines that have been prescribed.
+- **Reason**:
+  - Medical software cannot rely solely on in-memory application guards. Defense-in-depth requires that even raw SQL queries or buggy code cannot mutate historical medical charts.
+
+---
+
+## ADR 008: Safe Pre-Migration Backup, Retention, and Legacy Database Guard
+- **Status**: Accepted
+- **Decision**: 
+  - `DatabaseMigrator` creates a pre-migration backup (`%LOCALAPPDATA%\DoctorRx\Backups\pre-migration-{timestamp}.db`) using SQLite Online Backup API ONLY when an existing database has pending migrations (never on fresh setup).
+  - Keeps only the last 5 pre-migration backups, automatically pruning older ones.
+  - If a migration fails, the migrator clears connection pools, restores the pre-migration backup over the database file so that the original file is left untouched, and re-throws the error.
+  - Detects legacy databases created via `EnsureCreated` (user tables exist without `__EFMigrationsHistory`) and halts with an actionable error rather than crashing.
+- **Reason**:
+  - Ensures physicians never lose clinical data during schema updates.
+
