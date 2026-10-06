@@ -1,25 +1,70 @@
-## Build and Output
-bin/
-obj/
-*.user
-*.suo
-*.userosscache
-*.sln.docstates
+## Build, Binaries, and Intermediate Output
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa]rm/
+[Aa]rm64/
+bld/
+[Bb]uild/
+[Bb]uildResults/
+[Tt]est[Rr]esults/
 
-## Visual Studio
+## Visual Studio & IDE Tooling
 .vs/
 .vscode/
+.idea/
+_ReSharper*/
+*.DotSettings.user
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+*.launchSettings.json.user
 
-## Database and local test artifacts
+## NuGet Packages and Caches
+*.nupkg
+*.snupkg
+*.nuget.props
+*.nuget.targets
+project.lock.json
+project.assets.json
+
+## Local SQLite Databases, WAL, and Local Data Files
 *.db
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
 doctorrx_design.db
+doctorrx.db
+doctorrx-dev.db
+*.bak
 
-## OS Generated
+## Local Logs, Local Backups, and Diagnostics
+[Ll]ogs/
+[Ll]og/
+*.log
+[Bb]ackups/
+[Dd]rafts/
+*.crashdump
+*.dmp
+
+## Secrets, Credentials, and Environment Overrides
+*.env
+*.env.*
+*.pfx
+*.p12
+
+## OS & Archive Artifacts
 Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
 *.zip
+*.tar.gz
+*.7z
 project_tree.txt
