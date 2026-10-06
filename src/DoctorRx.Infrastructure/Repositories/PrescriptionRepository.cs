@@ -55,22 +55,32 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
         return await DbSet.CountAsync(p => p.PrescriptionDate == date, cancellationToken);
     }
 
-    public async Task<string> GenerateNextPrescriptionNumberAsync(CancellationToken cancellationToken = default)
+    public async Task<string> GenerateNextPrescriptionNumberAsync(DateOnly? date = null, CancellationToken cancellationToken = default)
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
-        var prefix = $"RX-{today:yyyyMMdd}-";
+        var targetDate = date ?? DateOnly.FromDateTime(DateTime.UtcNow);
+        var key = $"RX-{targetDate:yyyyMMdd}";
 
-        var todayCount = await DbSet.CountAsync(p => p.PrescriptionDate == today, cancellationToken);
-        var sequence = todayCount + 1;
-
-        var candidateNumber = $"{prefix}{sequence:D4}";
-
-        while (await DbSet.AnyAsync(p => p.PrescriptionNumber == candidateNumber, cancellationToken))
+        var seq = await Context.NumberSequences.FindAsync(new object[] { key }, cancellationToken);
+        if (seq == null)
         {
-            sequence++;
-            candidateNumber = $"{prefix}{sequence:D4}";
+            var maxExisting = await DbSet
+                .Where(p => p.PrescriptionDate == targetDate && !p.PrescriptionNumber.Contains("-A"))
+                .CountAsync(cancellationToken);
+
+            seq = new NumberSequence
+            {
+                SequenceKey = key,
+                CurrentValue = maxExisting + 1,
+                UpdatedAtUtc = DateTime.UtcNow
+            };
+            await Context.NumberSequences.AddAsync(seq, cancellationToken);
+        }
+        else
+        {
+            seq.CurrentValue++;
+            seq.UpdatedAtUtc = DateTime.UtcNow;
         }
 
-        return candidateNumber;
+        return $"{key}-{seq.CurrentValue:D4}";
     }
 }
