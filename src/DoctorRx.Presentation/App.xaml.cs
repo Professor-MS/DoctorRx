@@ -27,7 +27,25 @@ public partial class App : System.Windows.Application
 
         try
         {
+            var baseDir = Environment.GetEnvironmentVariable("DOCTORRX_DATA_DIR")
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DoctorRx");
+            var logDir = Path.Combine(baseDir, "Logs");
+            Directory.CreateDirectory(logDir);
+
+            Serilog.Log.Logger = new Serilog.LoggerConfiguration()
+                .MinimumLevel.Information()
+                .MinimumLevel.Override("Microsoft", Serilog.Events.LogEventLevel.Warning)
+                .MinimumLevel.Override("Microsoft.EntityFrameworkCore", Serilog.Events.LogEventLevel.Warning)
+                .Enrich.FromLogContext()
+                .WriteTo.File(
+                    path: Path.Combine(logDir, "doctorrx-.log"),
+                    rollingInterval: Serilog.RollingInterval.Day,
+                    retainedFileCountLimit: 30,
+                    outputTemplate: "[{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} {Level:u3}] {Message:lj}{NewLine}{Exception}")
+                .CreateLogger();
+
             _host = Host.CreateDefaultBuilder(e.Args)
+                .UseSerilog()
                 .UseDefaultServiceProvider((context, options) =>
                 {
 #if DEBUG
@@ -57,11 +75,6 @@ public partial class App : System.Windows.Application
                     // Register Windows
                     services.AddSingleton<MainWindow>();
                 })
-                .ConfigureLogging(logging =>
-                {
-                    logging.ClearProviders();
-                    logging.AddDebug();
-                })
                 .Build();
 
             await _host.StartAsync();
@@ -79,8 +92,11 @@ public partial class App : System.Windows.Application
         }
         catch (Exception ex)
         {
+            var errorRef = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            Serilog.Log.Fatal(ex, "Fatal startup error [Ref: {ErrorRef}]", errorRef);
+
             MessageBox.Show(
-                $"Failed to start DoctorRx workstation.\n\nError: {ex.Message}",
+                $"Failed to start DoctorRx workstation.\n\nError Reference ID: {errorRef}\nPlease quote this ID if contacting technical support.",
                 "DoctorRx Startup Error",
                 MessageBoxButton.OK,
                 MessageBoxImage.Error);
@@ -97,6 +113,7 @@ public partial class App : System.Windows.Application
             _host.Dispose();
         }
 
+        Serilog.Log.CloseAndFlush();
         base.OnExit(e);
     }
 
@@ -122,14 +139,21 @@ public partial class App : System.Windows.Application
         TaskScheduler.UnobservedTaskException += (s, args) =>
         {
             args.SetObserved();
+            if (args.Exception != null)
+            {
+                var errorRef = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+                Serilog.Log.Warning(args.Exception, "Unobserved background task exception [Ref: {ErrorRef}]", errorRef);
+            }
         };
     }
 
     private static void ShowSafeErrorDialog(string userFriendlyMessage, Exception ex)
     {
-        // Avoid leaking raw stack traces to the clinic user; provide friendly notice and log message
+        var errorRef = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+        Serilog.Log.Error(ex, "Unhandled application error [Ref: {ErrorRef}]", errorRef);
+
         MessageBox.Show(
-            $"{userFriendlyMessage}\n\nNotice: {ex.Message}",
+            $"{userFriendlyMessage}\n\nError Reference ID: {errorRef}\nPlease quote this ID if contacting technical support.",
             "DoctorRx System Notice",
             MessageBoxButton.OK,
             MessageBoxImage.Warning);
