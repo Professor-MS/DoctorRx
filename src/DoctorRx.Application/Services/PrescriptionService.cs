@@ -8,6 +8,7 @@ using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Interfaces;
 using DoctorRx.Domain.Entities;
 using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.Exceptions;
 using DoctorRx.Domain.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -16,11 +17,13 @@ namespace DoctorRx.Application.Services;
 public class PrescriptionService : IPrescriptionService
 {
     private readonly IUnitOfWorkFactory _uowFactory;
+    private readonly IClock _clock;
     private readonly ILogger<PrescriptionService> _logger;
 
-    public PrescriptionService(IUnitOfWorkFactory uowFactory, ILogger<PrescriptionService> logger)
+    public PrescriptionService(IUnitOfWorkFactory uowFactory, IClock clock, ILogger<PrescriptionService> logger)
     {
         _uowFactory = uowFactory;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -45,154 +48,288 @@ public class PrescriptionService : IPrescriptionService
         return list.Select(MapToSummaryDto).ToList();
     }
 
-    public async Task<Result<PrescriptionDetailDto>> CreatePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<PrescriptionDetailDto>> FinalizePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default)
     {
         if (dto.PatientId <= 0)
         {
             return Result<PrescriptionDetailDto>.Failure("A valid patient must be selected.");
         }
 
-        await using var uow = _uowFactory.Create();
-
-        if (dto.DoctorId <= 0)
-        {
-            var activeDoctor = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
-            if (activeDoctor == null)
-            {
-                return Result<PrescriptionDetailDto>.Failure("No active doctor profile found in system settings.");
-            }
-            dto.DoctorId = activeDoctor.Id;
-        }
-
         if (dto.Items == null || dto.Items.Count == 0)
         {
-            return Result<PrescriptionDetailDto>.Failure("At least one prescribed medicine is required.");
+            return Result<PrescriptionDetailDto>.Failure("Prescription must contain at least one prescribed medicine.");
+        }
+
+        // Strict medicine row validation - no silent skips and no silent fallbacks
+        for (int i = 0; i < dto.Items.Count; i++)
+        {
+            var item = dto.Items[i];
+            int rowNumber = i + 1;
+
+            if (string.IsNullOrWhiteSpace(item.MedicineName))
+            {
+                return Result<PrescriptionDetailDto>.Failure($"Medicine line #{rowNumber}: Medicine name cannot be blank.");
+            }
+            if (string.IsNullOrWhiteSpace(item.Dose))
+            {
+                return Result<PrescriptionDetailDto>.Failure($"Medicine line #{rowNumber} ('{item.MedicineName}'): Dose is required.");
+            }
+            if (string.IsNullOrWhiteSpace(item.Frequency))
+            {
+                return Result<PrescriptionDetailDto>.Failure($"Medicine line #{rowNumber} ('{item.MedicineName}'): Frequency is required.");
+            }
+            if (string.IsNullOrWhiteSpace(item.Form))
+            {
+                return Result<PrescriptionDetailDto>.Failure($"Medicine line #{rowNumber} ('{item.MedicineName}'): Formulation form is required.");
+            }
         }
 
         try
         {
+            await using var uow = _uowFactory.Create();
+            await using var tx = await uow.BeginWriteTransactionAsync(cancellationToken);
+
             var patient = await uow.Patients.GetByIdAsync(dto.PatientId, cancellationToken);
             if (patient == null)
             {
-                return Result<PrescriptionDetailDto>.Failure("Selected patient does not exist.");
+                return Result<PrescriptionDetailDto>.Failure("Selected patient was not found.");
             }
 
-            var doctor = await uow.Doctors.GetByIdAsync(dto.DoctorId, cancellationToken);
+            var doctorId = dto.DoctorId;
+            Doctor? doctor = null;
+            if (doctorId > 0)
+            {
+                doctor = await uow.Doctors.GetByIdAsync(doctorId, cancellationToken);
+            }
             if (doctor == null)
             {
-                return Result<PrescriptionDetailDto>.Failure("Selected doctor profile was not found.");
+                doctor = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
+                if (doctor == null)
+                {
+                    return Result<PrescriptionDetailDto>.Failure("No active doctor profile found in system settings.");
+                }
+                doctorId = doctor.Id;
             }
+
+            var prescriptionDate = dto.PrescriptionDate == default ? _clock.Today : dto.PrescriptionDate;
+            var doctorSnapshot = doctor.ToSnapshot();
+            var patientSnapshot = patient.ToSnapshot(prescriptionDate);
 
             var prescriptionNumber = await uow.Prescriptions.GenerateNextPrescriptionNumberAsync(cancellationToken);
 
-            var prescription = new Prescription
-            {
-                PrescriptionNumber = prescriptionNumber,
-                PatientId = dto.PatientId,
-                DoctorId = dto.DoctorId,
-                PrescriptionDate = dto.PrescriptionDate,
-                ChiefComplaints = dto.ChiefComplaints?.Trim(),
-                BloodPressure = dto.BloodPressure?.Trim(),
-                PulseRate = dto.PulseRate?.Trim(),
-                Temperature = dto.Temperature?.Trim(),
-                WeightKg = dto.WeightKg?.Trim(),
-                ClinicalNotes = dto.ClinicalNotes?.Trim(),
-                GeneralAdvice = dto.GeneralAdvice?.Trim(),
-                FollowUpDate = dto.FollowUpDate,
-                Status = PrescriptionStatus.Draft,
-                CreatedAtUtc = DateTime.UtcNow
-            };
+            var rx = Prescription.CreateFinalized(
+                prescriptionNumber: prescriptionNumber,
+                patientId: patient.Id,
+                doctorId: doctor.Id,
+                prescriptionDate: prescriptionDate,
+                doctorSnapshot: doctorSnapshot,
+                patientSnapshot: patientSnapshot,
+                finalizedAtUtc: _clock.UtcNow,
+                chiefComplaints: dto.ChiefComplaints,
+                bloodPressure: dto.BloodPressure,
+                pulseRate: dto.PulseRate,
+                temperature: dto.Temperature,
+                weightKg: dto.WeightKg,
+                clinicalNotes: dto.ClinicalNotes,
+                generalAdvice: dto.GeneralAdvice,
+                followUpDate: dto.FollowUpDate
+            );
 
-            int order = 1;
             foreach (var itemDto in dto.Items)
             {
-                if (string.IsNullOrWhiteSpace(itemDto.MedicineName))
-                {
-                    continue;
-                }
-
-                var item = new PrescriptionMedicine
+                rx.AddMedicine(new PrescriptionMedicine
                 {
                     MedicineId = itemDto.MedicineId,
                     MedicineName = itemDto.MedicineName.Trim(),
                     GenericName = itemDto.GenericName?.Trim(),
-                    Form = string.IsNullOrWhiteSpace(itemDto.Form) ? "Tablet" : itemDto.Form.Trim(),
+                    Form = itemDto.Form.Trim(),
                     Strength = itemDto.Strength?.Trim() ?? string.Empty,
-                    Dose = itemDto.Dose?.Trim() ?? string.Empty,
-                    Frequency = itemDto.Frequency?.Trim() ?? string.Empty,
+                    Dose = itemDto.Dose.Trim(),
+                    Frequency = itemDto.Frequency.Trim(),
                     Timing = itemDto.Timing?.Trim(),
                     MealRelation = itemDto.MealRelation,
                     CustomMealRelationText = itemDto.CustomMealRelationText?.Trim(),
-                    Route = string.IsNullOrWhiteSpace(itemDto.Route) ? "Oral" : itemDto.Route.Trim(),
+                    WithWhat = itemDto.WithWhat?.Trim(),
+                    Route = itemDto.Route?.Trim() ?? string.Empty,
                     Duration = itemDto.Duration?.Trim() ?? string.Empty,
-                    Instructions = itemDto.Instructions?.Trim(),
-                    SortOrder = order++
-                };
-
-                prescription.AddMedicine(item);
+                    Instructions = itemDto.Instructions?.Trim()
+                });
             }
 
-            await uow.Prescriptions.AddAsync(prescription, cancellationToken);
+            await uow.Prescriptions.AddAsync(rx, cancellationToken);
+
+            // Update patient's last visit date on finalization (Amendment 10)
+            patient.LastVisitDate = prescriptionDate;
+            patient.UpdatedAtUtc = _clock.UtcNow;
+            await uow.Patients.UpdateAsync(patient, cancellationToken);
+
             await uow.CommitAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
 
-            _logger.LogInformation("Prescription created successfully with ID {PrescriptionId}", prescription.Id);
+            _logger.LogInformation("Prescription #{PrescriptionId} finalized successfully", rx.Id);
 
-            var saved = await uow.Prescriptions.GetDetailedAsync(prescription.Id, cancellationToken);
+            var saved = await uow.Prescriptions.GetDetailedAsync(rx.Id, cancellationToken);
             return Result<PrescriptionDetailDto>.Success(MapToDetailDto(saved!));
         }
+        catch (DomainRuleException dex)
+        {
+            return Result<PrescriptionDetailDto>.Failure(dex.Message);
+        }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to create prescription");
-            return Result<PrescriptionDetailDto>.Failure("Unable to save prescription. Please review the details and try again.");
+            _logger.LogError(ex, "Failed to finalize prescription");
+            return Result<PrescriptionDetailDto>.Failure("Unable to finalize prescription due to an unexpected storage error.");
         }
     }
 
-    public async Task<Result> FinalizePrescriptionAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<Result<PrescriptionDetailDto>> AmendPrescriptionAsync(int originalId, CreatePrescriptionDto newContent, CancellationToken cancellationToken = default)
     {
         try
         {
             await using var uow = _uowFactory.Create();
-            var rx = await uow.Prescriptions.GetByIdAsync(id, cancellationToken);
+            await using var tx = await uow.BeginWriteTransactionAsync(cancellationToken);
+
+            var original = await uow.Prescriptions.GetDetailedAsync(originalId, cancellationToken);
+            if (original == null)
+            {
+                return Result<PrescriptionDetailDto>.Failure($"Original prescription #{originalId} not found.");
+            }
+
+            if (original.Status != PrescriptionStatus.Finalized)
+            {
+                return Result<PrescriptionDetailDto>.Failure($"Cannot amend prescription with status {original.Status}. Only finalized prescriptions can be amended.");
+            }
+
+            // Create amendment number format: RX-YYYYMMDD-####-A1
+            var nextAmendmentNumber = original.AmendmentNumber + 1;
+            var baseNumber = original.PrescriptionNumber.Contains("-A")
+                ? original.PrescriptionNumber.Substring(0, original.PrescriptionNumber.LastIndexOf("-A", StringComparison.Ordinal))
+                : original.PrescriptionNumber;
+            var amendedNumber = $"{baseNumber}-A{nextAmendmentNumber}";
+
+            // Mark original as superseded
+            original.MarkSuperseded(_clock.UtcNow);
+            await uow.Prescriptions.UpdateAsync(original, cancellationToken);
+
+            // Create new prescription linked to parent
+            var patient = await uow.Patients.GetByIdAsync(original.PatientId, cancellationToken);
+            var doctor = await uow.Doctors.GetByIdAsync(original.DoctorId, cancellationToken);
+            if (patient == null || doctor == null)
+            {
+                return Result<PrescriptionDetailDto>.Failure("Associated patient or doctor profile not found.");
+            }
+
+            var prescriptionDate = newContent.PrescriptionDate == default ? _clock.Today : newContent.PrescriptionDate;
+            var amendedRx = Prescription.CreateFinalized(
+                prescriptionNumber: amendedNumber,
+                patientId: original.PatientId,
+                doctorId: original.DoctorId,
+                prescriptionDate: prescriptionDate,
+                doctorSnapshot: doctor.ToSnapshot(),
+                patientSnapshot: patient.ToSnapshot(prescriptionDate),
+                finalizedAtUtc: _clock.UtcNow,
+                parentPrescriptionId: original.Id,
+                amendmentNumber: nextAmendmentNumber,
+                chiefComplaints: newContent.ChiefComplaints,
+                bloodPressure: newContent.BloodPressure,
+                pulseRate: newContent.PulseRate,
+                temperature: newContent.Temperature,
+                weightKg: newContent.WeightKg,
+                clinicalNotes: newContent.ClinicalNotes,
+                generalAdvice: newContent.GeneralAdvice,
+                followUpDate: newContent.FollowUpDate
+            );
+
+            foreach (var itemDto in newContent.Items)
+            {
+                amendedRx.AddMedicine(new PrescriptionMedicine
+                {
+                    MedicineId = itemDto.MedicineId,
+                    MedicineName = itemDto.MedicineName.Trim(),
+                    GenericName = itemDto.GenericName?.Trim(),
+                    Form = itemDto.Form.Trim(),
+                    Strength = itemDto.Strength?.Trim() ?? string.Empty,
+                    Dose = itemDto.Dose.Trim(),
+                    Frequency = itemDto.Frequency.Trim(),
+                    Timing = itemDto.Timing?.Trim(),
+                    MealRelation = itemDto.MealRelation,
+                    CustomMealRelationText = itemDto.CustomMealRelationText?.Trim(),
+                    WithWhat = itemDto.WithWhat?.Trim(),
+                    Route = itemDto.Route?.Trim() ?? string.Empty,
+                    Duration = itemDto.Duration?.Trim() ?? string.Empty,
+                    Instructions = itemDto.Instructions?.Trim()
+                });
+            }
+
+            await uow.Prescriptions.AddAsync(amendedRx, cancellationToken);
+
+            patient.LastVisitDate = prescriptionDate;
+            patient.UpdatedAtUtc = _clock.UtcNow;
+            await uow.Patients.UpdateAsync(patient, cancellationToken);
+
+            await uow.CommitAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
+
+            _logger.LogInformation("Prescription #{OriginalId} superseded by amendment #{AmendedId}", original.Id, amendedRx.Id);
+
+            var saved = await uow.Prescriptions.GetDetailedAsync(amendedRx.Id, cancellationToken);
+            return Result<PrescriptionDetailDto>.Success(MapToDetailDto(saved!));
+        }
+        catch (DomainRuleException dex)
+        {
+            return Result<PrescriptionDetailDto>.Failure(dex.Message);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to amend prescription #{OriginalId}", originalId);
+            return Result<PrescriptionDetailDto>.Failure("Unable to amend prescription.");
+        }
+    }
+
+    public async Task<Result> CancelPrescriptionAsync(int id, string reason, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            return Result.Failure("A cancellation reason is required.");
+        }
+
+        try
+        {
+            await using var uow = _uowFactory.Create();
+            await using var tx = await uow.BeginWriteTransactionAsync(cancellationToken);
+
+            var rx = await uow.Prescriptions.GetDetailedAsync(id, cancellationToken);
             if (rx == null)
             {
                 return Result.Failure($"Prescription #{id} not found.");
             }
 
-            rx.FinalizePrescription();
-            rx.UpdatedAtUtc = DateTime.UtcNow;
-
+            rx.Cancel(reason, _clock.UtcNow);
             await uow.Prescriptions.UpdateAsync(rx, cancellationToken);
-            await uow.CommitAsync(cancellationToken);
 
-            _logger.LogInformation("Prescription #{PrescriptionId} finalized", rx.Id);
-            return Result.Success();
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to finalize prescription #{Id}", id);
-            return Result.Failure("Failed to finalize prescription.");
-        }
-    }
-
-    public async Task<Result> CancelPrescriptionAsync(int id, CancellationToken cancellationToken = default)
-    {
-        try
-        {
-            await using var uow = _uowFactory.Create();
-            var rx = await uow.Prescriptions.GetByIdAsync(id, cancellationToken);
-            if (rx == null)
+            // Recalculate patient's last visit date on cancel (Amendment 10)
+            var patient = await uow.Patients.GetWithPrescriptionsAsync(rx.PatientId, cancellationToken);
+            if (patient != null)
             {
-                return Result.Failure($"Prescription #{id} not found.");
+                var remainingActive = patient.Prescriptions
+                    .Where(p => p.Id != id && p.Status == PrescriptionStatus.Finalized)
+                    .OrderByDescending(p => p.PrescriptionDate)
+                    .FirstOrDefault();
+
+                patient.LastVisitDate = remainingActive?.PrescriptionDate;
+                patient.UpdatedAtUtc = _clock.UtcNow;
+                await uow.Patients.UpdateAsync(patient, cancellationToken);
             }
 
-            rx.Status = PrescriptionStatus.Cancelled;
-            rx.UpdatedAtUtc = DateTime.UtcNow;
-
-            await uow.Prescriptions.UpdateAsync(rx, cancellationToken);
             await uow.CommitAsync(cancellationToken);
+            await tx.CommitAsync(cancellationToken);
 
-            _logger.LogInformation("Prescription #{PrescriptionId} cancelled", rx.Id);
+            _logger.LogInformation("Prescription #{PrescriptionId} cancelled successfully", rx.Id);
             return Result.Success();
+        }
+        catch (DomainRuleException dex)
+        {
+            return Result.Failure(dex.Message);
         }
         catch (Exception ex)
         {
@@ -207,47 +344,19 @@ public class PrescriptionService : IPrescriptionService
             p.Id,
             p.PrescriptionNumber,
             p.PatientId,
-            p.Patient?.Name ?? "Unknown Patient",
-            p.Patient?.CalculatedAge ?? 0,
-            p.Patient?.Gender ?? Gender.NotSpecified,
+            p.PatientSnapshot.Name,
+            p.PatientSnapshot.AgeText,
+            p.PatientSnapshot.Gender,
             p.PrescriptionDate,
             p.Status,
             p.Items?.Count ?? 0,
-            p.FollowUpDate
+            p.FollowUpDate,
+            p.AmendmentNumber
         );
     }
 
     private static PrescriptionDetailDto MapToDetailDto(Prescription p)
     {
-        var patientDto = new PatientDto(
-            p.Patient!.Id,
-            p.Patient.Name,
-            p.Patient.DateOfBirth,
-            p.Patient.CalculatedAge,
-            p.Patient.Gender,
-            p.Patient.Phone,
-            p.Patient.Address,
-            p.Patient.MedicalHistoryNotes,
-            p.Patient.KnownAllergies,
-            p.Patient.CreatedAtUtc,
-            p.PrescriptionDate
-        );
-
-        var doctorDto = new DoctorDto(
-            p.Doctor!.Id,
-            p.Doctor.Name,
-            p.Doctor.Qualification,
-            p.Doctor.RegistrationNumber,
-            p.Doctor.Specialization,
-            p.Doctor.Phone,
-            p.Doctor.Email,
-            p.Doctor.ClinicName,
-            p.Doctor.ClinicAddress,
-            p.Doctor.ClinicPhone,
-            p.Doctor.HeaderText,
-            p.Doctor.FooterText
-        );
-
         var items = p.Items.OrderBy(i => i.SortOrder).Select(i => new PrescriptionMedicineDto(
             i.Id,
             i.MedicineId,
@@ -260,6 +369,7 @@ public class PrescriptionService : IPrescriptionService
             i.Timing,
             i.MealRelation,
             i.CustomMealRelationText,
+            i.WithWhat,
             i.Route,
             i.Duration,
             i.Instructions,
@@ -270,9 +380,9 @@ public class PrescriptionService : IPrescriptionService
             p.Id,
             p.PrescriptionNumber,
             p.PatientId,
-            patientDto,
+            p.PatientSnapshot,
             p.DoctorId,
-            doctorDto,
+            p.DoctorSnapshot,
             p.PrescriptionDate,
             p.ChiefComplaints,
             p.BloodPressure,
@@ -283,8 +393,13 @@ public class PrescriptionService : IPrescriptionService
             p.GeneralAdvice,
             p.FollowUpDate,
             p.Status,
-            items,
-            p.CreatedAtUtc
+            p.FinalizedAtUtc,
+            p.CancelledAtUtc,
+            p.CancellationReason,
+            p.ParentPrescriptionId,
+            p.AmendmentNumber,
+            p.Version,
+            items
         );
     }
 }

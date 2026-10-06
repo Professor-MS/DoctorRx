@@ -34,9 +34,12 @@ public class PatientsViewModel : ViewModelBase
     private bool _isDrawerOpen;
     private bool _isEditing;
 
+    private bool _showArchived;
+
     // Form fields
     private int _editingPatientId;
     private string _formName = string.Empty;
+    private DateTime? _formDateOfBirth;
     private int? _formAge;
     private Gender _formGender = Gender.Male;
     private string? _formPhone;
@@ -44,6 +47,36 @@ public class PatientsViewModel : ViewModelBase
     private string? _formMedicalHistory;
     private string? _formKnownAllergies;
     private string? _formErrorMessage;
+
+    public bool ShowArchived
+    {
+        get => _showArchived;
+        set
+        {
+            if (SetProperty(ref _showArchived, value))
+            {
+                _ = LoadPatientsAsync(reset: true);
+            }
+        }
+    }
+
+    public DateTime? FormDateOfBirth
+    {
+        get => _formDateOfBirth;
+        set
+        {
+            if (SetProperty(ref _formDateOfBirth, value))
+            {
+                if (value.HasValue)
+                {
+                    var today = DateTime.Today;
+                    var age = today.Year - value.Value.Year;
+                    if (value.Value.Date > today.AddYears(-age)) age--;
+                    FormAge = Math.Max(0, age);
+                }
+            }
+        }
+    }
 
     public string SearchQuery
     {
@@ -175,6 +208,8 @@ public class PatientsViewModel : ViewModelBase
     public ICommand CloseDrawerCommand { get; }
     public ICommand SavePatientCommand { get; }
     public ICommand DeletePatientCommand { get; }
+    public ICommand ArchivePatientCommand { get; }
+    public ICommand RestorePatientCommand { get; }
     public ICommand ClearSearchCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand LoadMorePatientsCommand { get; }
@@ -196,6 +231,8 @@ public class PatientsViewModel : ViewModelBase
         CloseDrawerCommand = new RelayCommand(CloseDrawer);
         SavePatientCommand = new AsyncRelayCommand(SavePatientAsync);
         DeletePatientCommand = new AsyncRelayCommand<PatientDto>(DeletePatientAsync);
+        ArchivePatientCommand = new AsyncRelayCommand<PatientDto>(ArchivePatientAsync);
+        RestorePatientCommand = new AsyncRelayCommand<PatientDto>(RestorePatientAsync);
         ClearSearchCommand = new RelayCommand(ClearSearch);
         RefreshCommand = new AsyncRelayCommand(() => LoadPatientsAsync(reset: true));
         LoadMorePatientsCommand = new AsyncRelayCommand(LoadMorePatientsAsync);
@@ -244,7 +281,7 @@ public class PatientsViewModel : ViewModelBase
                 Patients.Clear();
             }
 
-            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize);
+            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize, showArchived: ShowArchived);
             TotalPatientsCount = paged.TotalCount;
             HasMorePatients = paged.HasMore;
 
@@ -273,7 +310,7 @@ public class PatientsViewModel : ViewModelBase
             IsLoadingMore = true;
             _currentPage++;
 
-            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize);
+            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize, showArchived: ShowArchived);
             TotalPatientsCount = paged.TotalCount;
             HasMorePatients = paged.HasMore;
 
@@ -306,7 +343,7 @@ public class PatientsViewModel : ViewModelBase
                 return;
             }
 
-            var results = await _patientService.SearchPatientsAsync(SearchQuery, maxResults: 50, cancellationToken);
+            var results = await _patientService.SearchPatientsAsync(SearchQuery, maxResults: 50, showArchived: ShowArchived, cancellationToken: cancellationToken);
             if (cancellationToken.IsCancellationRequested) return;
 
             // Dispatch to UI collection
@@ -338,6 +375,7 @@ public class PatientsViewModel : ViewModelBase
         IsEditing = false;
         _editingPatientId = 0;
         FormName = string.Empty;
+        FormDateOfBirth = null;
         FormAge = null;
         FormGender = Gender.Male;
         FormPhone = string.Empty;
@@ -355,6 +393,7 @@ public class PatientsViewModel : ViewModelBase
         IsEditing = true;
         _editingPatientId = patient.Id;
         FormName = patient.Name;
+        FormDateOfBirth = patient.DateOfBirth.HasValue ? patient.DateOfBirth.Value.ToDateTime(TimeOnly.MinValue) : null;
         FormAge = patient.Age;
         FormGender = patient.Gender;
         FormPhone = patient.Phone;
@@ -390,12 +429,15 @@ public class PatientsViewModel : ViewModelBase
             IsBusy = true;
             FormErrorMessage = null;
 
+            DateOnly? dob = FormDateOfBirth.HasValue ? DateOnly.FromDateTime(FormDateOfBirth.Value) : null;
+
             if (IsEditing)
             {
                 var updateDto = new UpdatePatientDto
                 {
                     Id = _editingPatientId,
                     Name = FormName,
+                    DateOfBirth = dob,
                     Age = FormAge,
                     Gender = FormGender,
                     Phone = FormPhone,
@@ -421,6 +463,7 @@ public class PatientsViewModel : ViewModelBase
                 var createDto = new CreatePatientDto
                 {
                     Name = FormName,
+                    DateOfBirth = dob,
                     Age = FormAge,
                     Gender = FormGender,
                     Phone = FormPhone,
@@ -436,6 +479,31 @@ public class PatientsViewModel : ViewModelBase
                     CloseDrawer();
                     await LoadPatientsAsync(reset: true);
                 }
+                else if (result.ErrorMessage != null && result.ErrorMessage.Contains("duplicate", StringComparison.OrdinalIgnoreCase))
+                {
+                    bool proceed = _dialogService.ShowConfirmation(
+                        "Potential Duplicate Patient",
+                        $"{result.ErrorMessage}\n\nDo you want to proceed and register this patient anyway?");
+
+                    if (proceed)
+                    {
+                        var dupResult = await _patientService.CreatePatientAsync(createDto, allowDuplicate: true);
+                        if (dupResult.IsSuccess)
+                        {
+                            _dialogService.ShowInformation("Patient Registered", $"Patient '{dupResult.Value?.Name}' registered.");
+                            CloseDrawer();
+                            await LoadPatientsAsync(reset: true);
+                        }
+                        else
+                        {
+                            FormErrorMessage = dupResult.ErrorMessage;
+                        }
+                    }
+                    else
+                    {
+                        FormErrorMessage = result.ErrorMessage;
+                    }
+                }
                 else
                 {
                     FormErrorMessage = result.ErrorMessage;
@@ -445,6 +513,44 @@ public class PatientsViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+        }
+    }
+
+    private async Task ArchivePatientAsync(PatientDto? patient)
+    {
+        if (patient == null) return;
+
+        bool confirm = _dialogService.ShowConfirmation(
+            "Archive Patient",
+            $"Archive record for '{patient.Name}'? This patient will be hidden from default views.");
+
+        if (!confirm) return;
+
+        var result = await _patientService.ArchivePatientAsync(patient.Id);
+        if (result.IsSuccess)
+        {
+            _dialogService.ShowInformation("Patient Archived", $"Patient '{patient.Name}' has been archived.");
+            await LoadPatientsAsync(reset: true);
+        }
+        else
+        {
+            _dialogService.ShowWarning("Archive Failed", result.ErrorMessage ?? "Could not archive patient.");
+        }
+    }
+
+    private async Task RestorePatientAsync(PatientDto? patient)
+    {
+        if (patient == null) return;
+
+        var result = await _patientService.RestorePatientAsync(patient.Id);
+        if (result.IsSuccess)
+        {
+            _dialogService.ShowInformation("Patient Restored", $"Patient '{patient.Name}' has been restored.");
+            await LoadPatientsAsync(reset: true);
+        }
+        else
+        {
+            _dialogService.ShowWarning("Restore Failed", result.ErrorMessage ?? "Could not restore patient.");
         }
     }
 

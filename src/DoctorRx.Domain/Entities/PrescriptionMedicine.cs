@@ -22,22 +22,24 @@ public class PrescriptionMedicine : EntityBase
     // Snapshot fields preserved for medical and legal accuracy:
     public string MedicineName { get; set; } = string.Empty;
     public string? GenericName { get; set; }
-    public string Form { get; set; } = "Tablet";
+    public string Form { get; set; } = string.Empty;
     public string Strength { get; set; } = string.Empty;
 
-    // Prescription directions:
+    // Prescription directions (Must be entered by the doctor - zero clinical defaults):
     public string Dose { get; set; } = string.Empty;
     public string Frequency { get; set; } = string.Empty;
     public string? Timing { get; set; }
     public MealRelation MealRelation { get; set; } = MealRelation.AsDirected;
     public string? CustomMealRelationText { get; set; }
-    public string Route { get; set; } = "Oral";
+    public string? WithWhat { get; set; }
+    public string Route { get; set; } = string.Empty;
     public string Duration { get; set; } = string.Empty;
     public string? Instructions { get; set; }
     public int SortOrder { get; set; }
 
     /// <summary>
     /// Creates an immutable prescription item from a master medicine entity.
+    /// Fills catalog identification only (name, generic, form, strength). Clinical directions stay empty.
     /// </summary>
     public static PrescriptionMedicine FromMedicine(Medicine medicine, int sortOrder = 0)
     {
@@ -48,10 +50,11 @@ public class PrescriptionMedicine : EntityBase
             GenericName = medicine.GenericName,
             Form = medicine.Form,
             Strength = medicine.Strength,
-            Dose = medicine.DefaultDose ?? "1",
-            Frequency = medicine.DefaultFrequency ?? "1-0-1",
-            Route = medicine.DefaultRoute ?? "Oral",
-            Instructions = medicine.DefaultInstructions,
+            Dose = string.Empty,
+            Frequency = string.Empty,
+            Route = string.Empty,
+            Duration = string.Empty,
+            Instructions = null,
             SortOrder = sortOrder
         };
     }

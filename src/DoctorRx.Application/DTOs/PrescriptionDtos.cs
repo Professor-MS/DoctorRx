@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.ValueObjects;
 
 namespace DoctorRx.Application.DTOs;
 
@@ -16,6 +17,7 @@ public record PrescriptionMedicineDto(
     string? Timing,
     MealRelation MealRelation,
     string? CustomMealRelationText,
+    string? WithWhat,
     string Route,
     string Duration,
     string? Instructions,
@@ -30,22 +32,23 @@ public record PrescriptionSummaryDto(
     string PrescriptionNumber,
     int PatientId,
     string PatientName,
-    int PatientAge,
+    string PatientAge,
     Gender PatientGender,
-    DateTime PrescriptionDate,
+    DateOnly PrescriptionDate,
     PrescriptionStatus Status,
     int MedicineCount,
-    DateTime? FollowUpDate
+    DateOnly? FollowUpDate,
+    int AmendmentNumber
 );
 
 public record PrescriptionDetailDto(
     int Id,
     string PrescriptionNumber,
     int PatientId,
-    PatientDto Patient,
+    PatientSnapshot PatientSnapshot,
     int DoctorId,
-    DoctorDto Doctor,
-    DateTime PrescriptionDate,
+    DoctorSnapshot DoctorSnapshot,
+    DateOnly PrescriptionDate,
     string? ChiefComplaints,
     string? BloodPressure,
     string? PulseRate,
@@ -53,17 +56,22 @@ public record PrescriptionDetailDto(
     string? WeightKg,
     string? ClinicalNotes,
     string? GeneralAdvice,
-    DateTime? FollowUpDate,
+    DateOnly? FollowUpDate,
     PrescriptionStatus Status,
-    IReadOnlyList<PrescriptionMedicineDto> Items,
-    DateTime CreatedAtUtc
+    DateTime FinalizedAtUtc,
+    DateTime? CancelledAtUtc,
+    string? CancellationReason,
+    int? ParentPrescriptionId,
+    int AmendmentNumber,
+    int Version,
+    IReadOnlyList<PrescriptionMedicineDto> Items
 );
 
 public class CreatePrescriptionDto
 {
     public int PatientId { get; set; }
     public int DoctorId { get; set; }
-    public DateTime PrescriptionDate { get; set; } = DateTime.Today;
+    public DateOnly PrescriptionDate { get; set; }
     public string? ChiefComplaints { get; set; }
     public string? BloodPressure { get; set; }
     public string? PulseRate { get; set; }
@@ -71,7 +79,7 @@ public class CreatePrescriptionDto
     public string? WeightKg { get; set; }
     public string? ClinicalNotes { get; set; }
     public string? GeneralAdvice { get; set; }
-    public DateTime? FollowUpDate { get; set; }
+    public DateOnly? FollowUpDate { get; set; }
     public List<CreatePrescriptionMedicineDto> Items { get; set; } = new();
 }
 
@@ -80,14 +88,15 @@ public class CreatePrescriptionMedicineDto
     public int? MedicineId { get; set; }
     public string MedicineName { get; set; } = string.Empty;
     public string? GenericName { get; set; }
-    public string Form { get; set; } = "Tablet";
+    public string Form { get; set; } = string.Empty;
     public string Strength { get; set; } = string.Empty;
     public string Dose { get; set; } = string.Empty;
     public string Frequency { get; set; } = string.Empty;
     public string? Timing { get; set; }
     public MealRelation MealRelation { get; set; } = MealRelation.AsDirected;
     public string? CustomMealRelationText { get; set; }
-    public string Route { get; set; } = "Oral";
+    public string? WithWhat { get; set; }
+    public string Route { get; set; } = string.Empty;
     public string Duration { get; set; } = string.Empty;
     public string? Instructions { get; set; }
     public int SortOrder { get; set; }

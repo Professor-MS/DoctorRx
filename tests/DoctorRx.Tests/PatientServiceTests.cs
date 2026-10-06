@@ -45,7 +45,8 @@ public class PatientServiceTests
         var factory = new TestDbContextFactory(options);
         var uowFactory = new UnitOfWorkFactory(factory);
         var logger = NullLogger<PatientService>.Instance;
-        var service = new PatientService(uowFactory, logger);
+        var clock = new DoctorRx.Infrastructure.Services.SystemClock();
+        var service = new PatientService(uowFactory, clock, logger);
 
         return (service, factory);
     }

@@ -15,11 +15,13 @@ namespace DoctorRx.Application.Services;
 public class MedicineService : IMedicineService
 {
     private readonly IUnitOfWorkFactory _uowFactory;
+    private readonly IClock _clock;
     private readonly ILogger<MedicineService> _logger;
 
-    public MedicineService(IUnitOfWorkFactory uowFactory, ILogger<MedicineService> logger)
+    public MedicineService(IUnitOfWorkFactory uowFactory, IClock clock, ILogger<MedicineService> logger)
     {
         _uowFactory = uowFactory;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -74,15 +76,12 @@ public class MedicineService : IMedicineService
             var medicine = new Medicine
             {
                 Name = dto.Name.Trim(),
+                NormalizedName = SearchNormalizer.Normalize(dto.Name),
                 GenericName = dto.GenericName?.Trim(),
                 Form = dto.Form.Trim(),
                 Strength = dto.Strength?.Trim() ?? string.Empty,
-                DefaultDose = dto.DefaultDose?.Trim(),
-                DefaultFrequency = dto.DefaultFrequency?.Trim(),
-                DefaultRoute = dto.DefaultRoute?.Trim(),
-                DefaultInstructions = dto.DefaultInstructions?.Trim(),
                 IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = _clock.UtcNow
             };
 
             await uow.Medicines.AddAsync(medicine, cancellationToken);
@@ -122,15 +121,12 @@ public class MedicineService : IMedicineService
             }
 
             medicine.Name = dto.Name.Trim();
+            medicine.NormalizedName = SearchNormalizer.Normalize(dto.Name);
             medicine.GenericName = dto.GenericName?.Trim();
             medicine.Form = dto.Form.Trim();
-            medicine.Strength = dto.Strength.Trim();
-            medicine.DefaultDose = dto.DefaultDose?.Trim();
-            medicine.DefaultFrequency = dto.DefaultFrequency?.Trim();
-            medicine.DefaultRoute = dto.DefaultRoute?.Trim();
-            medicine.DefaultInstructions = dto.DefaultInstructions?.Trim();
+            medicine.Strength = dto.Strength?.Trim() ?? string.Empty;
             medicine.IsActive = dto.IsActive;
-            medicine.UpdatedAtUtc = DateTime.UtcNow;
+            medicine.UpdatedAtUtc = _clock.UtcNow;
 
             await uow.Medicines.UpdateAsync(medicine, cancellationToken);
             await uow.CommitAsync(cancellationToken);
@@ -153,7 +149,7 @@ public class MedicineService : IMedicineService
             if (medicine == null) return Result.Failure("Medicine not found.");
 
             medicine.IsActive = false;
-            medicine.UpdatedAtUtc = DateTime.UtcNow;
+            medicine.UpdatedAtUtc = _clock.UtcNow;
 
             await uow.Medicines.UpdateAsync(medicine, cancellationToken);
             await uow.CommitAsync(cancellationToken);
@@ -168,17 +164,19 @@ public class MedicineService : IMedicineService
     }
 
     private static MedicineDto MapToDto(Medicine m) =>
-        new(m.Id, m.Name, m.GenericName, m.Form, m.Strength, m.DefaultDose, m.DefaultFrequency, m.DefaultRoute, m.DefaultInstructions, m.IsActive);
+        new(m.Id, m.Name, m.GenericName, m.Form, m.Strength, m.IsActive);
 }
 
 public class DoctorService : IDoctorService
 {
     private readonly IUnitOfWorkFactory _uowFactory;
+    private readonly IClock _clock;
     private readonly ILogger<DoctorService> _logger;
 
-    public DoctorService(IUnitOfWorkFactory uowFactory, ILogger<DoctorService> logger)
+    public DoctorService(IUnitOfWorkFactory uowFactory, IClock clock, ILogger<DoctorService> logger)
     {
         _uowFactory = uowFactory;
+        _clock = clock;
         _logger = logger;
     }
 
@@ -220,7 +218,7 @@ public class DoctorService : IDoctorService
                 HeaderText = dto.HeaderText?.Trim(),
                 FooterText = dto.FooterText?.Trim(),
                 IsActive = true,
-                CreatedAtUtc = DateTime.UtcNow
+                CreatedAtUtc = _clock.UtcNow
             };
 
             await uow.Doctors.AddAsync(doc, cancellationToken);
@@ -271,7 +269,7 @@ public class DoctorService : IDoctorService
             doc.ClinicPhone = dto.ClinicPhone?.Trim();
             doc.HeaderText = dto.HeaderText?.Trim();
             doc.FooterText = dto.FooterText?.Trim();
-            doc.UpdatedAtUtc = DateTime.UtcNow;
+            doc.UpdatedAtUtc = _clock.UtcNow;
 
             await uow.Doctors.UpdateAsync(doc, cancellationToken);
             await uow.CommitAsync(cancellationToken);
@@ -293,19 +291,21 @@ public class DoctorService : IDoctorService
 public class DashboardService : IDashboardService
 {
     private readonly IUnitOfWorkFactory _uowFactory;
+    private readonly IClock _clock;
 
-    public DashboardService(IUnitOfWorkFactory uowFactory)
+    public DashboardService(IUnitOfWorkFactory uowFactory, IClock clock)
     {
         _uowFactory = uowFactory;
+        _clock = clock;
     }
 
     public async Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default)
     {
         await using var uow = _uowFactory.Create();
 
-        var totalPatients = await uow.Patients.CountAsync(cancellationToken: cancellationToken);
+        var totalPatients = await uow.Patients.GetTotalCountAsync(showArchived: false, cancellationToken: cancellationToken);
         var totalPrescriptions = await uow.Prescriptions.CountAsync(cancellationToken: cancellationToken);
-        var prescriptionsToday = await uow.Prescriptions.GetCountForDateAsync(DateTime.Today, cancellationToken);
+        var prescriptionsToday = await uow.Prescriptions.GetCountForDateAsync(_clock.Today, cancellationToken);
         var totalMedicines = await uow.Medicines.CountAsync(m => m.IsActive, cancellationToken);
 
         var recentPrescriptions = await uow.Prescriptions.GetRecentPrescriptionsAsync(8, cancellationToken);
@@ -315,27 +315,31 @@ public class DashboardService : IDashboardService
             p.Id,
             p.PrescriptionNumber,
             p.PatientId,
-            p.Patient?.Name ?? "Unknown Patient",
-            p.Patient?.CalculatedAge ?? 0,
-            p.Patient?.Gender ?? Domain.Enums.Gender.NotSpecified,
+            p.PatientSnapshot.Name,
+            p.PatientSnapshot.AgeText,
+            p.PatientSnapshot.Gender,
             p.PrescriptionDate,
             p.Status,
             p.Items?.Count ?? 0,
-            p.FollowUpDate
+            p.FollowUpDate,
+            p.AmendmentNumber
         )).ToList();
 
         var patientDtos = recentPatients.Select(p => new PatientDto(
             p.Id,
+            p.RecordNumber,
             p.Name,
             p.DateOfBirth,
-            p.CalculatedAge,
+            p.CalculateAge(_clock.Today),
             p.Gender,
             p.Phone,
             p.Address,
             p.MedicalHistoryNotes,
             p.KnownAllergies,
             p.CreatedAtUtc,
-            p.Prescriptions?.OrderByDescending(x => x.PrescriptionDate).FirstOrDefault()?.PrescriptionDate
+            p.LastVisitDate,
+            p.IsArchived,
+            p.ArchivedAtUtc
         )).ToList();
 
         return new DashboardStatsDto(

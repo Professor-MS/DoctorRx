@@ -21,3 +21,5 @@ Thumbs.db
 ehthumbs.db
 Desktop.ini
 $RECYCLE.BIN/
+*.zip
+project_tree.txt

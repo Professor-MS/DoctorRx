@@ -6,10 +6,6 @@ public record MedicineDto(
     string? GenericName,
     string Form,
     string Strength,
-    string? DefaultDose,
-    string? DefaultFrequency,
-    string? DefaultRoute,
-    string? DefaultInstructions,
     bool IsActive
 )
 {
@@ -22,12 +18,8 @@ public class CreateMedicineDto
 {
     public string Name { get; set; } = string.Empty;
     public string? GenericName { get; set; }
-    public string Form { get; set; } = "Tablet";
+    public string Form { get; set; } = string.Empty;
     public string Strength { get; set; } = string.Empty;
-    public string? DefaultDose { get; set; }
-    public string? DefaultFrequency { get; set; }
-    public string? DefaultRoute { get; set; } = "Oral";
-    public string? DefaultInstructions { get; set; }
 }
 
 public class UpdateMedicineDto : CreateMedicineDto

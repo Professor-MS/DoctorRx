@@ -16,11 +16,14 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
     {
     }
 
+    public override Task DeleteAsync(Prescription entity, CancellationToken cancellationToken = default)
+    {
+        throw new NotSupportedException("Prescriptions are immutable medical records and can never be deleted.");
+    }
+
     public async Task<Prescription?> GetDetailedAsync(int id, CancellationToken cancellationToken = default)
     {
         return await DbSet
-            .Include(p => p.Patient)
-            .Include(p => p.Doctor)
             .Include(p => p.Items)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
     }
@@ -29,7 +32,6 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
     {
         return await DbSet
             .AsNoTracking()
-            .Include(p => p.Patient)
             .Include(p => p.Items)
             .OrderByDescending(p => p.PrescriptionDate)
             .ThenByDescending(p => p.Id)
@@ -44,27 +46,25 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
             .Include(p => p.Items)
             .Where(p => p.PatientId == patientId)
             .OrderByDescending(p => p.PrescriptionDate)
+            .ThenByDescending(p => p.Id)
             .ToListAsync(cancellationToken);
     }
 
-    public async Task<int> GetCountForDateAsync(DateTime date, CancellationToken cancellationToken = default)
+    public async Task<int> GetCountForDateAsync(DateOnly date, CancellationToken cancellationToken = default)
     {
-        var targetDate = date.Date;
-        return await DbSet.CountAsync(p => p.PrescriptionDate.Date == targetDate, cancellationToken);
+        return await DbSet.CountAsync(p => p.PrescriptionDate == date, cancellationToken);
     }
 
     public async Task<string> GenerateNextPrescriptionNumberAsync(CancellationToken cancellationToken = default)
     {
-        var today = DateTime.Today;
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
         var prefix = $"RX-{today:yyyyMMdd}-";
 
-        // Count how many prescriptions created today to generate sequential number
-        var todayCount = await DbSet.CountAsync(p => p.PrescriptionDate.Date == today, cancellationToken);
+        var todayCount = await DbSet.CountAsync(p => p.PrescriptionDate == today, cancellationToken);
         var sequence = todayCount + 1;
 
         var candidateNumber = $"{prefix}{sequence:D4}";
 
-        // Ensure uniqueness just in case
         while (await DbSet.AnyAsync(p => p.PrescriptionNumber == candidateNumber, cancellationToken))
         {
             sequence++;

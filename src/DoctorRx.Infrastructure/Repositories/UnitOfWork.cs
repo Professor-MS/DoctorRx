@@ -38,24 +38,29 @@ public class UnitOfWork : IUnitOfWork
 
     public async Task<IDbTransactionScope> BeginWriteTransactionAsync(CancellationToken cancellationToken = default)
     {
-        var rawConn = _context.Database.GetDbConnection();
-        if (rawConn is SqliteConnection sqliteConn)
+        if (_context.Database.IsRelational())
         {
-            if (sqliteConn.State != System.Data.ConnectionState.Open)
+            var rawConn = _context.Database.GetDbConnection();
+            if (rawConn is SqliteConnection sqliteConn)
             {
-                await sqliteConn.OpenAsync(cancellationToken);
+                if (sqliteConn.State != System.Data.ConnectionState.Open)
+                {
+                    await sqliteConn.OpenAsync(cancellationToken);
+                }
+                var sqliteTx = sqliteConn.BeginTransaction(deferred: false);
+                var efTx = await _context.Database.UseTransactionAsync(sqliteTx, cancellationToken);
+                if (efTx is null)
+                {
+                    throw new InvalidOperationException("Failed to bind SQLite transaction to EF Core DbContext.");
+                }
+                return new EfTransactionScope(efTx);
             }
-            var sqliteTx = sqliteConn.BeginTransaction(deferred: false);
-            var efTx = await _context.Database.UseTransactionAsync(sqliteTx, cancellationToken);
-            if (efTx is null)
-            {
-                throw new InvalidOperationException("Failed to bind SQLite transaction to EF Core DbContext.");
-            }
-            return new EfTransactionScope(efTx);
+
+            var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
+            return new EfTransactionScope(tx);
         }
 
-        var tx = await _context.Database.BeginTransactionAsync(cancellationToken);
-        return new EfTransactionScope(tx);
+        return new NoOpTransactionScope();
     }
 
     public async ValueTask DisposeAsync()
@@ -70,3 +75,12 @@ public class UnitOfWork : IUnitOfWork
         GC.SuppressFinalize(this);
     }
 }
+
+internal sealed class NoOpTransactionScope : IDbTransactionScope
+{
+    public Task CommitAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public Task RollbackAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+    public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    public void Dispose() { }
+}
+

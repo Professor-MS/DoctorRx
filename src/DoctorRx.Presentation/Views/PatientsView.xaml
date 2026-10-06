@@ -50,7 +50,13 @@
                 </Grid>
 
                 <!-- Action Buttons -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                    <CheckBox Content="Show Archived" 
+                              IsChecked="{Binding ShowArchived}" 
+                              VerticalAlignment="Center" 
+                              Margin="0,0,16,0" 
+                              FontSize="12" />
+
                     <Button Style="{StaticResource SecondaryButton}"
                             Command="{Binding RefreshCommand}"
                             Margin="0,0,10,0" Padding="14,8">
@@ -98,7 +104,7 @@
                               SelectedItem="{Binding SelectedPatient}"
                               Style="{StaticResource ModernDataGrid}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="MRN" Binding="{Binding Id, StringFormat='#{0}'}" Width="80" />
+                            <DataGridTextColumn Header="Record #" Binding="{Binding RecordNumber}" Width="95" />
                             <DataGridTextColumn Header="Patient Name" Binding="{Binding Name}" Width="1.5*" />
                             <DataGridTextColumn Header="Age" Binding="{Binding Age, StringFormat='{}{0} yrs'}" Width="90" />
                             <DataGridTemplateColumn Header="Gender" Width="100">
@@ -114,7 +120,7 @@
                             <DataGridTextColumn Header="Address / City" Binding="{Binding Address}" Width="1.5*" />
                             
                             <!-- Row Actions Column -->
-                            <DataGridTemplateColumn Header="Actions" Width="160">
+                            <DataGridTemplateColumn Header="Actions" Width="220">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -122,13 +128,27 @@
                                                     Style="{StaticResource SecondaryButton}"
                                                     Command="{Binding DataContext.EditPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                     CommandParameter="{Binding}"
-                                                    Padding="8,3" FontSize="11.5" Margin="0,0,6,0" />
+                                                    Padding="8,3" FontSize="11.5" Margin="0,0,4,0" />
                                             
                                             <Button Content="+ Rx"
                                                     Style="{StaticResource PrimaryButton}"
                                                     Command="{Binding DataContext.CreatePrescriptionForPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
                                                     CommandParameter="{Binding}"
-                                                    Padding="10,3" FontSize="11.5" />
+                                                    Padding="10,3" FontSize="11.5" Margin="0,0,4,0" />
+
+                                            <Button Content="Archive"
+                                                    Style="{StaticResource SecondaryButton}"
+                                                    Command="{Binding DataContext.ArchivePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding IsArchived, Converter={StaticResource InverseBoolToVisConverter}}"
+                                                    Padding="6,3" FontSize="11" />
+
+                                            <Button Content="Restore"
+                                                    Style="{StaticResource SecondaryButton}"
+                                                    Command="{Binding DataContext.RestorePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Visibility="{Binding IsArchived, Converter={StaticResource BoolToVisConverter}}"
+                                                    Padding="6,3" FontSize="11" />
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -192,7 +212,7 @@
                     <TextBox Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" 
                              Style="{StaticResource ModernTextBox}" Margin="0,0,0,14" />
 
-                    <!-- Age and Gender Row -->
+                    <!-- Date of Birth and Age Row -->
                     <Grid Margin="0,0,0,14">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -201,18 +221,24 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0">
+                            <TextBlock Text="Date of Birth" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                            <DatePicker SelectedDate="{Binding FormDateOfBirth}" />
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="2">
                             <TextBlock Text="Age (Years)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
                             <TextBox Text="{Binding FormAge, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" 
                                      Style="{StaticResource ModernTextBox}" />
                         </StackPanel>
-
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Gender" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <ComboBox ItemsSource="{Binding AvailableGenders}"
-                                      SelectedItem="{Binding FormGender}"
-                                      Style="{StaticResource ModernComboBox}" />
-                        </StackPanel>
                     </Grid>
+
+                    <!-- Gender Row -->
+                    <StackPanel Margin="0,0,0,14">
+                        <TextBlock Text="Gender" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
+                        <ComboBox ItemsSource="{Binding AvailableGenders}"
+                                  SelectedItem="{Binding FormGender}"
+                                  Style="{StaticResource ModernComboBox}" />
+                    </StackPanel>
 
                     <!-- Phone Number -->
                     <TextBlock Text="Contact Number" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />

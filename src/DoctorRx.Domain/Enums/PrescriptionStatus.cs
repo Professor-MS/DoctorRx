@@ -2,7 +2,7 @@ namespace DoctorRx.Domain.Enums;
 
 public enum PrescriptionStatus
 {
-    Draft = 0,
     Finalized = 1,
-    Cancelled = 2
+    Cancelled = 2,
+    Superseded = 3
 }

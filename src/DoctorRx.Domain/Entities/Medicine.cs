@@ -4,17 +4,16 @@ namespace DoctorRx.Domain.Entities;
 
 /// <summary>
 /// Master repository record for medicines and formulations.
+/// Adheres strictly to the safety principle: stores only formulation identifiers.
+/// No clinical defaults or dosage advice are stored in the catalog.
 /// </summary>
 public class Medicine : AuditableEntity
 {
     public string Name { get; set; } = string.Empty;
+    public string NormalizedName { get; set; } = string.Empty;
     public string? GenericName { get; set; }
-    public string Form { get; set; } = "Tablet";
+    public string Form { get; set; } = string.Empty;
     public string Strength { get; set; } = string.Empty;
-    public string? DefaultDose { get; set; }
-    public string? DefaultFrequency { get; set; }
-    public string? DefaultRoute { get; set; } = "Oral";
-    public string? DefaultInstructions { get; set; }
     public bool IsActive { get; set; } = true;
 
     /// <summary>

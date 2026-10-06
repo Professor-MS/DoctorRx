@@ -34,6 +34,9 @@ public static class DependencyInjection
             options.AddInterceptors(pragmaInterceptor);
         });
 
+        // Register Clock
+        services.AddSingleton<IClock, SystemClock>();
+
         // Register UnitOfWorkFactory
         services.AddSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
 

@@ -2,6 +2,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DoctorRx.Application.Common;
 using DoctorRx.Domain.Entities;
 using DoctorRx.Domain.Interfaces;
 using DoctorRx.Infrastructure.Data;
@@ -17,12 +18,12 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
 
     public async Task<IReadOnlyList<Medicine>> SearchAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
     {
-        var cleanQuery = query.Trim().ToLower();
+        var cleanQuery = SearchNormalizer.Normalize(query);
 
         return await DbSet
             .AsNoTracking()
             .Where(m => m.IsActive &&
-                       (m.Name.ToLower().Contains(cleanQuery) ||
+                       (m.NormalizedName.Contains(cleanQuery) ||
                        (m.GenericName != null && m.GenericName.ToLower().Contains(cleanQuery))))
             .OrderBy(m => m.Name)
             .Take(maxResults)

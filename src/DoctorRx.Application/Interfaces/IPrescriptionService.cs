@@ -11,7 +11,7 @@ public interface IPrescriptionService
     Task<PrescriptionDetailDto?> GetPrescriptionByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PrescriptionSummaryDto>> GetRecentPrescriptionsAsync(int count = 10, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PrescriptionSummaryDto>> GetPrescriptionsByPatientIdAsync(int patientId, CancellationToken cancellationToken = default);
-    Task<Result<PrescriptionDetailDto>> CreatePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default);
-    Task<Result> FinalizePrescriptionAsync(int id, CancellationToken cancellationToken = default);
-    Task<Result> CancelPrescriptionAsync(int id, CancellationToken cancellationToken = default);
+    Task<Result<PrescriptionDetailDto>> FinalizePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default);
+    Task<Result<PrescriptionDetailDto>> AmendPrescriptionAsync(int originalId, CreatePrescriptionDto newContent, CancellationToken cancellationToken = default);
+    Task<Result> CancelPrescriptionAsync(int id, string reason, CancellationToken cancellationToken = default);
 }

@@ -209,8 +209,168 @@
                 </Grid>
             </Border>
 
-            <!-- Current View Host -->
-            <ContentControl Grid.Row="1" Content="{Binding CurrentView}" />
+            <!-- Screen Body with Doctor Profile Setup Banner and Drawer Overlay -->
+            <Grid Grid.Row="1">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Warning Banner: Doctor Profile Not Set Up -->
+                <Border Grid.Row="0" Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="0,0,0,1"
+                        Padding="24,10"
+                        Visibility="{Binding HasActiveDoctor, Converter={StaticResource InverseBoolToVisConverter}}">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                            <TextBlock Text="⚠️" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <TextBlock Text="{Binding DoctorBannerText}" 
+                                       Foreground="#92400E" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <Button Grid.Column="1" Content="Set Up Profile" Style="{StaticResource PrimaryButton}"
+                                Command="{Binding OpenDoctorSetupCommand}" Padding="14,6" FontSize="12" />
+                    </Grid>
+                </Border>
+
+                <!-- Current View Host -->
+                <ContentControl Grid.Row="1" Content="{Binding CurrentView}" />
+
+                <!-- Doctor Profile Setup Modal Drawer Overlay -->
+                <Grid Grid.Row="0" Grid.RowSpan="2" 
+                      Visibility="{Binding IsDoctorSetupOpen, Converter={StaticResource BoolToVisConverter}}">
+                    <!-- Semi-transparent backdrop -->
+                    <Border Background="#80000000" />
+
+                    <!-- Centered Modal Card -->
+                    <Border Width="560" MaxHeight="680" 
+                            Style="{StaticResource CardContainer}" 
+                            HorizontalAlignment="Center" VerticalAlignment="Center"
+                            Padding="28">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto">
+                            <StackPanel>
+                                <Grid Margin="0,0,0,18">
+                                    <TextBlock Text="Doctor &amp; Clinic Profile Setup" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Command="{Binding CloseDoctorSetupCommand}"
+                                            HorizontalAlignment="Right" Padding="8,4" BorderThickness="0">
+                                        <TextBlock Text="✕" FontSize="12" />
+                                    </Button>
+                                </Grid>
+
+                                <!-- Error Alert Banner -->
+                                <Border Background="{StaticResource DangerRedLightBrush}"
+                                        BorderBrush="{StaticResource DangerRedBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="12,8"
+                                        Margin="0,0,0,16"
+                                        Visibility="{Binding HasDoctorSetupError, Converter={StaticResource BoolToVisConverter}}">
+                                    <TextBlock Text="{Binding DoctorSetupErrorMessage}" 
+                                               Foreground="{StaticResource DangerRedBrush}" 
+                                               FontSize="12" TextWrapping="Wrap" />
+                                </Border>
+
+                                <!-- Doctor Name -->
+                                <TextBlock Text="Doctor Full Name *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding DoctorSetupName, UpdateSourceTrigger=PropertyChanged}" 
+                                         Style="{StaticResource ModernTextBox}" Margin="0,0,0,12" />
+
+                                <!-- Qualification and Registration Row -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Qualification * (e.g., MBBS, FCPS)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupQualification, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Registration # * (e.g., PMDC)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupRegistrationNumber, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Specialization and Clinic Name Row -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Specialization *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupSpecialization, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Clinic Name *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupClinicName, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Clinic Address -->
+                                <TextBlock Text="Clinic Address" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding DoctorSetupClinicAddress, UpdateSourceTrigger=PropertyChanged}" 
+                                         Style="{StaticResource ModernTextBox}" Margin="0,0,0,12" />
+
+                                <!-- Contact Row -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Doctor Phone" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupPhone, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Clinic Phone" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupClinicPhone, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" />
+                                    </StackPanel>
+                                </Grid>
+
+                                <!-- Email -->
+                                <TextBlock Text="Email Address" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding DoctorSetupEmail, UpdateSourceTrigger=PropertyChanged}" 
+                                         Style="{StaticResource ModernTextBox}" Margin="0,0,0,12" />
+
+                                <!-- Header / Footer Text -->
+                                <TextBlock Text="Prescription Header Text" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding DoctorSetupHeaderText, UpdateSourceTrigger=PropertyChanged}" 
+                                         Style="{StaticResource ModernTextBox}" Margin="0,0,0,12" />
+
+                                <TextBlock Text="Prescription Footer Text" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding DoctorSetupFooterText, UpdateSourceTrigger=PropertyChanged}" 
+                                         Style="{StaticResource ModernTextBox}" Margin="0,0,0,20" />
+
+                                <!-- Actions -->
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Button Grid.Column="0" Content="Cancel" Style="{StaticResource SecondaryButton}"
+                                            Command="{Binding CloseDoctorSetupCommand}" />
+                                    <Button Grid.Column="2" Content="Save Doctor Profile" Style="{StaticResource PrimaryButton}"
+                                            Command="{Binding SaveDoctorSetupCommand}" />
+                                </Grid>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+                </Grid>
+            </Grid>
 
             <!-- Bottom Status Bar -->
             <Border Grid.Row="2" Background="{StaticResource SurfaceWhiteBrush}" 

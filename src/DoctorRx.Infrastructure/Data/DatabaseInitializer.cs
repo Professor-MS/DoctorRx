@@ -70,16 +70,16 @@ public class DatabaseInitializer : IDatabaseInitializer
         {
             var medicines = new List<Medicine>
             {
-                new() { Name = "Panadol", GenericName = "Paracetamol", Form = "Tablet", Strength = "500 mg", DefaultDose = "1-2 tablets", DefaultFrequency = "TDS (8 hourly)", DefaultRoute = "Oral", DefaultInstructions = "Take after meals for fever/pain", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Augmentin", GenericName = "Amoxicillin + Clavulanic Acid", Form = "Tablet", Strength = "625 mg", DefaultDose = "1 tablet", DefaultFrequency = "BD (12 hourly)", DefaultRoute = "Oral", DefaultInstructions = "Complete 5 days antibiotic course", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Flagyl", GenericName = "Metronidazole", Form = "Tablet", Strength = "400 mg", DefaultDose = "1 tablet", DefaultFrequency = "TDS (8 hourly)", DefaultRoute = "Oral", DefaultInstructions = "Take after meal, avoid empty stomach", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Risek", GenericName = "Omeprazole", Form = "Capsule", Strength = "20 mg", DefaultDose = "1 capsule", DefaultFrequency = "OD (Once daily)", DefaultRoute = "Oral", DefaultInstructions = "Take 30 minutes before breakfast", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Brufen", GenericName = "Ibuprofen", Form = "Tablet", Strength = "400 mg", DefaultDose = "1 tablet", DefaultFrequency = "BD (After meals)", DefaultRoute = "Oral", DefaultInstructions = "Do not take on empty stomach", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Ponstan", GenericName = "Mefenamic Acid", Form = "Tablet", Strength = "500 mg", DefaultDose = "1 tablet", DefaultFrequency = "SOS (When needed)", DefaultRoute = "Oral", DefaultInstructions = "For acute pain relief", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Glucophage", GenericName = "Metformin HCl", Form = "Tablet", Strength = "500 mg", DefaultDose = "1 tablet", DefaultFrequency = "BD (With meals)", DefaultRoute = "Oral", DefaultInstructions = "Take with or immediately after meals", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Arinac Forte", GenericName = "Ibuprofen + Pseudoephedrine", Form = "Tablet", Strength = "400/60 mg", DefaultDose = "1 tablet", DefaultFrequency = "BD (12 hourly)", DefaultRoute = "Oral", DefaultInstructions = "For nasal congestion and headache", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Hydryllin", GenericName = "Aminophylline Compound", Form = "Syrup", Strength = "120 ml", DefaultDose = "2 teaspoons", DefaultFrequency = "TDS (8 hourly)", DefaultRoute = "Oral", DefaultInstructions = "For productive chest cough", CreatedAtUtc = DateTime.UtcNow },
-                new() { Name = "Ciproxin", GenericName = "Ciprofloxacin", Form = "Tablet", Strength = "500 mg", DefaultDose = "1 tablet", DefaultFrequency = "BD (12 hourly)", DefaultRoute = "Oral", DefaultInstructions = "Drink plenty of water", CreatedAtUtc = DateTime.UtcNow }
+                new() { Name = "Panadol", GenericName = "Paracetamol", Form = "Tablet", Strength = "500 mg", NormalizedName = "panadol", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Augmentin", GenericName = "Amoxicillin + Clavulanic Acid", Form = "Tablet", Strength = "625 mg", NormalizedName = "augmentin", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Flagyl", GenericName = "Metronidazole", Form = "Tablet", Strength = "400 mg", NormalizedName = "flagyl", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Risek", GenericName = "Omeprazole", Form = "Capsule", Strength = "20 mg", NormalizedName = "risek", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Brufen", GenericName = "Ibuprofen", Form = "Tablet", Strength = "400 mg", NormalizedName = "brufen", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Ponstan", GenericName = "Mefenamic Acid", Form = "Tablet", Strength = "500 mg", NormalizedName = "ponstan", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Glucophage", GenericName = "Metformin HCl", Form = "Tablet", Strength = "500 mg", NormalizedName = "glucophage", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Arinac Forte", GenericName = "Ibuprofen + Pseudoephedrine", Form = "Tablet", Strength = "400/60 mg", NormalizedName = "arinac forte", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Hydryllin", GenericName = "Aminophylline Compound", Form = "Syrup", Strength = "120 ml", NormalizedName = "hydryllin", CreatedAtUtc = DateTime.UtcNow },
+                new() { Name = "Ciproxin", GenericName = "Ciprofloxacin", Form = "Tablet", Strength = "500 mg", NormalizedName = "ciproxin", CreatedAtUtc = DateTime.UtcNow }
             };
 
             await context.Medicines.AddRangeAsync(medicines, cancellationToken);
@@ -94,11 +94,14 @@ public class DatabaseInitializer : IDatabaseInitializer
             {
                 new()
                 {
+                    RecordNumber = "P-000001",
                     Name = "Abdul Rehman",
-                    DateOfBirth = new DateTime(1982, 5, 14),
+                    NormalizedName = "abdul rehman",
+                    DateOfBirth = new DateOnly(1982, 5, 14),
                     Age = 44,
                     Gender = Gender.Male,
                     Phone = "+92 333 4567890",
+                    PhoneDigits = "923334567890",
                     Address = "House 12, Street 7, Sector F-10/2, Islamabad",
                     MedicalHistoryNotes = "Hypertension diagnosed 2022. Well controlled.",
                     KnownAllergies = "Sulfa drugs",
@@ -106,11 +109,14 @@ public class DatabaseInitializer : IDatabaseInitializer
                 },
                 new()
                 {
+                    RecordNumber = "P-000002",
                     Name = "Fatima Bibi",
-                    DateOfBirth = new DateTime(1995, 11, 23),
+                    NormalizedName = "fatima bibi",
+                    DateOfBirth = new DateOnly(1995, 11, 23),
                     Age = 30,
                     Gender = Gender.Female,
                     Phone = "+92 301 9876543",
+                    PhoneDigits = "923019876543",
                     Address = "Apartment 302, Silver Oaks, F-10, Islamabad",
                     MedicalHistoryNotes = "No major chronic illnesses reported.",
                     KnownAllergies = "Penicillin (rash)",
@@ -118,11 +124,14 @@ public class DatabaseInitializer : IDatabaseInitializer
                 },
                 new()
                 {
+                    RecordNumber = "P-000003",
                     Name = "Muhammad Usman",
-                    DateOfBirth = new DateTime(2012, 3, 8),
+                    NormalizedName = "muhammad usman",
+                    DateOfBirth = new DateOnly(2012, 3, 8),
                     Age = 14,
                     Gender = Gender.Male,
                     Phone = "+92 321 5551234",
+                    PhoneDigits = "923215551234",
                     Address = "Sector G-9/1, Islamabad",
                     MedicalHistoryNotes = "Occasional seasonal allergic rhinitis.",
                     KnownAllergies = "None reported",
@@ -138,23 +147,23 @@ public class DatabaseInitializer : IDatabaseInitializer
             var doctor = await context.Doctors.FirstAsync(cancellationToken);
             var samplePatient = patients[0];
 
-            var rx = new Prescription
-            {
-                PrescriptionNumber = $"RX-{DateTime.Today:yyyyMMdd}-0001",
-                PatientId = samplePatient.Id,
-                DoctorId = doctor.Id,
-                PrescriptionDate = DateTime.Today,
-                ChiefComplaints = "Fever and mild throat soreness for 2 days",
-                BloodPressure = "120/80",
-                PulseRate = "78 bpm",
-                Temperature = "100.4 F",
-                WeightKg = "76 kg",
-                ClinicalNotes = "Pharyngeal erythema observed. Chest clear to auscultation.",
-                GeneralAdvice = "Drink warm fluids, salt water gargles 3 times daily. Complete rest.",
-                FollowUpDate = DateTime.Today.AddDays(5),
-                Status = PrescriptionStatus.Finalized,
-                CreatedAtUtc = DateTime.UtcNow
-            };
+            var rx = Prescription.CreateFinalized(
+                prescriptionNumber: $"RX-{DateTime.Today:yyyyMMdd}-0001",
+                patientId: samplePatient.Id,
+                doctorId: doctor.Id,
+                prescriptionDate: DateOnly.FromDateTime(DateTime.Today),
+                doctorSnapshot: doctor.ToSnapshot(),
+                patientSnapshot: samplePatient.ToSnapshot(DateOnly.FromDateTime(DateTime.Today)),
+                finalizedAtUtc: DateTime.UtcNow,
+                chiefComplaints: "Fever and mild throat soreness for 2 days",
+                bloodPressure: "120/80",
+                pulseRate: "78 bpm",
+                temperature: "100.4 F",
+                weightKg: "76 kg",
+                clinicalNotes: "Pharyngeal erythema observed. Chest clear to auscultation.",
+                generalAdvice: "Drink warm fluids, salt water gargles 3 times daily. Complete rest.",
+                followUpDate: DateOnly.FromDateTime(DateTime.Today.AddDays(5))
+            );
 
             rx.AddMedicine(new PrescriptionMedicine
             {
@@ -188,6 +197,7 @@ public class DatabaseInitializer : IDatabaseInitializer
                 SortOrder = 2
             });
 
+            samplePatient.LastVisitDate = rx.PrescriptionDate;
             await context.Prescriptions.AddAsync(rx, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded sample initial prescription.");

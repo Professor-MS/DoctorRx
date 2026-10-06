@@ -5,8 +5,9 @@ namespace DoctorRx.Application.DTOs;
 
 public record PatientDto(
     int Id,
+    string RecordNumber,
     string Name,
-    DateTime? DateOfBirth,
+    DateOnly? DateOfBirth,
     int Age,
     Gender Gender,
     string? Phone,
@@ -14,7 +15,9 @@ public record PatientDto(
     string? MedicalHistoryNotes,
     string? KnownAllergies,
     DateTime CreatedAtUtc,
-    DateTime? LastVisitDateUtc
+    DateOnly? LastVisitDate,
+    bool IsArchived,
+    DateTime? ArchivedAtUtc
 )
 {
     public string DisplayAgeGender => $"{Age} yrs / {Gender}";
@@ -24,7 +27,7 @@ public record PatientDto(
 public class CreatePatientDto
 {
     public string Name { get; set; } = string.Empty;
-    public DateTime? DateOfBirth { get; set; }
+    public DateOnly? DateOfBirth { get; set; }
     public int? Age { get; set; }
     public Gender Gender { get; set; } = Gender.NotSpecified;
     public string? Phone { get; set; }

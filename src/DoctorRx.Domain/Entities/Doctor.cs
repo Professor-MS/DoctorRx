@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using DoctorRx.Domain.Common;
+using DoctorRx.Domain.ValueObjects;
 
 namespace DoctorRx.Domain.Entities;
 
@@ -25,4 +26,20 @@ public class Doctor : AuditableEntity
 
     // Navigation properties
     public ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+
+    public DoctorSnapshot ToSnapshot()
+    {
+        return new DoctorSnapshot(
+            Name,
+            Qualification,
+            RegistrationNumber,
+            Specialization,
+            Phone,
+            ClinicName,
+            ClinicAddress,
+            ClinicPhone,
+            HeaderText,
+            FooterText
+        );
+    }
 }
