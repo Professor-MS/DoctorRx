@@ -19,13 +19,14 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
     public async Task<IReadOnlyList<Medicine>> SearchAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
     {
         var cleanQuery = SearchNormalizer.Normalize(query);
+        var prefixPattern = $"{cleanQuery}%";
 
         return await DbSet
             .AsNoTracking()
             .Where(m => m.IsActive &&
-                       (m.NormalizedName.Contains(cleanQuery) ||
-                       (m.GenericName != null && m.GenericName.ToLower().Contains(cleanQuery))))
-            .OrderBy(m => m.Name)
+                       (EF.Functions.Like(m.NormalizedName, prefixPattern) ||
+                       (m.GenericName != null && EF.Functions.Like(m.GenericName, prefixPattern))))
+            .OrderBy(m => m.NormalizedName)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
     }

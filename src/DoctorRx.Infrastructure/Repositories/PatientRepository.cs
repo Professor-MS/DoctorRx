@@ -27,10 +27,13 @@ public class PatientRepository : Repository<Patient>, IPatientRepository
             dbQuery = dbQuery.Where(p => !p.IsArchived);
         }
 
+        var prefixPattern = $"{normalizedQuery}%";
+        var phonePrefix = !string.IsNullOrEmpty(phoneDigits) ? $"{phoneDigits}%" : null;
+
         return await dbQuery
-            .Where(p => p.NormalizedName.Contains(normalizedQuery) ||
-                        (!string.IsNullOrEmpty(phoneDigits) && p.PhoneDigits != null && p.PhoneDigits.Contains(phoneDigits)))
-            .OrderByDescending(p => p.Id)
+            .Where(p => EF.Functions.Like(p.NormalizedName, prefixPattern) ||
+                        (phonePrefix != null && p.PhoneDigits != null && EF.Functions.Like(p.PhoneDigits, phonePrefix)))
+            .OrderBy(p => p.NormalizedName)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
     }

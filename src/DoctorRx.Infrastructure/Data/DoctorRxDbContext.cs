@@ -33,7 +33,7 @@ public class DoctorRxDbContext : DbContext
             entity.HasIndex(e => e.RecordNumber).IsUnique().HasDatabaseName("IX_Patients_RecordNumber");
 
             entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
-            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(150);
+            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(150).UseCollation("NOCASE");
             entity.HasIndex(e => e.NormalizedName).HasDatabaseName("IX_Patients_NormalizedName");
 
             entity.Property(e => e.Phone).HasMaxLength(30);
@@ -72,8 +72,8 @@ public class DoctorRxDbContext : DbContext
             entity.ToTable("Medicines");
             entity.HasKey(e => e.Id);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
-            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(150);
-            entity.Property(e => e.GenericName).HasMaxLength(150);
+            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(150).UseCollation("NOCASE");
+            entity.Property(e => e.GenericName).HasMaxLength(150).UseCollation("NOCASE");
             entity.Property(e => e.Form).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Strength).HasMaxLength(50);
 
