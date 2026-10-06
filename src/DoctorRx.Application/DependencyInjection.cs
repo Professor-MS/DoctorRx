@@ -8,11 +8,12 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(this IServiceCollection services)
     {
-        services.AddScoped<IPatientService, PatientService>();
-        services.AddScoped<IPrescriptionService, PrescriptionService>();
-        services.AddScoped<IMedicineService, MedicineService>();
-        services.AddScoped<IDoctorService, DoctorService>();
-        services.AddScoped<IDashboardService, DashboardService>();
+        // Application services are stateless and use IUnitOfWorkFactory for short-lived DbContext lifetimes
+        services.AddSingleton<IPatientService, PatientService>();
+        services.AddSingleton<IPrescriptionService, PrescriptionService>();
+        services.AddSingleton<IMedicineService, MedicineService>();
+        services.AddSingleton<IDoctorService, DoctorService>();
+        services.AddSingleton<IDashboardService, DashboardService>();
 
         return services;
     }

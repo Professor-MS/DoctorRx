@@ -45,4 +45,20 @@ public class PatientRepository : Repository<Patient>, IPatientRepository
             .Include(p => p.Prescriptions)
             .FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
     }
+
+    public async Task<IReadOnlyList<Patient>> GetPagedAsync(int pageNumber, int pageSize, CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .AsNoTracking()
+            .Include(p => p.Prescriptions)
+            .OrderByDescending(p => p.Id)
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+    }
+
+    public async Task<int> GetTotalCountAsync(CancellationToken cancellationToken = default)
+    {
+        return await DbSet.CountAsync(cancellationToken);
+    }
 }

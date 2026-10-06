@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace DoctorRx.Domain.Interfaces;
 
-public interface IUnitOfWork : IDisposable
+public interface IUnitOfWork : IAsyncDisposable, IDisposable
 {
     IPatientRepository Patients { get; }
     IPrescriptionRepository Prescriptions { get; }
@@ -12,4 +12,5 @@ public interface IUnitOfWork : IDisposable
     IDoctorRepository Doctors { get; }
 
     Task<int> CommitAsync(CancellationToken cancellationToken = default);
+    Task<IDbTransactionScope> BeginWriteTransactionAsync(CancellationToken cancellationToken = default);
 }

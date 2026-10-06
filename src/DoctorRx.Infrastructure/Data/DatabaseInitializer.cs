@@ -12,12 +12,12 @@ namespace DoctorRx.Infrastructure.Data;
 
 public class DatabaseInitializer : IDatabaseInitializer
 {
-    private readonly DoctorRxDbContext _context;
+    private readonly IDbContextFactory<DoctorRxDbContext> _contextFactory;
     private readonly ILogger<DatabaseInitializer> _logger;
 
-    public DatabaseInitializer(DoctorRxDbContext context, ILogger<DatabaseInitializer> logger)
+    public DatabaseInitializer(IDbContextFactory<DoctorRxDbContext> contextFactory, ILogger<DatabaseInitializer> logger)
     {
-        _context = context;
+        _contextFactory = contextFactory;
         _logger = logger;
     }
 
@@ -26,9 +26,10 @@ public class DatabaseInitializer : IDatabaseInitializer
         try
         {
             _logger.LogInformation("Ensuring SQLite database is created and initialized...");
-            await _context.Database.EnsureCreatedAsync(cancellationToken);
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+            await context.Database.EnsureCreatedAsync(cancellationToken);
 
-            await SeedDataAsync(cancellationToken);
+            await SeedDataAsync(context, cancellationToken);
         }
         catch (Exception ex)
         {
@@ -37,10 +38,10 @@ public class DatabaseInitializer : IDatabaseInitializer
         }
     }
 
-    private async Task SeedDataAsync(CancellationToken cancellationToken)
+    private async Task SeedDataAsync(DoctorRxDbContext context, CancellationToken cancellationToken)
     {
         // 1. Seed Doctor if none exists
-        if (!await _context.Doctors.AnyAsync(cancellationToken))
+        if (!await context.Doctors.AnyAsync(cancellationToken))
         {
             var doctor = new Doctor
             {
@@ -59,13 +60,13 @@ public class DatabaseInitializer : IDatabaseInitializer
                 CreatedAtUtc = DateTime.UtcNow
             };
 
-            await _context.Doctors.AddAsync(doctor, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await context.Doctors.AddAsync(doctor, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded default active doctor profile.");
         }
 
         // 2. Seed Medicines catalog if empty
-        if (!await _context.Medicines.AnyAsync(cancellationToken))
+        if (!await context.Medicines.AnyAsync(cancellationToken))
         {
             var medicines = new List<Medicine>
             {
@@ -81,13 +82,13 @@ public class DatabaseInitializer : IDatabaseInitializer
                 new() { Name = "Ciproxin", GenericName = "Ciprofloxacin", Form = "Tablet", Strength = "500 mg", DefaultDose = "1 tablet", DefaultFrequency = "BD (12 hourly)", DefaultRoute = "Oral", DefaultInstructions = "Drink plenty of water", CreatedAtUtc = DateTime.UtcNow }
             };
 
-            await _context.Medicines.AddRangeAsync(medicines, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await context.Medicines.AddRangeAsync(medicines, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded initial medicine catalog.");
         }
 
         // 3. Seed Sample Patients if empty
-        if (!await _context.Patients.AnyAsync(cancellationToken))
+        if (!await context.Patients.AnyAsync(cancellationToken))
         {
             var patients = new List<Patient>
             {
@@ -129,12 +130,12 @@ public class DatabaseInitializer : IDatabaseInitializer
                 }
             };
 
-            await _context.Patients.AddRangeAsync(patients, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await context.Patients.AddRangeAsync(patients, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded sample patients.");
 
             // Create a sample prescription for Abdul Rehman
-            var doctor = await _context.Doctors.FirstAsync(cancellationToken);
+            var doctor = await context.Doctors.FirstAsync(cancellationToken);
             var samplePatient = patients[0];
 
             var rx = new Prescription
@@ -187,8 +188,8 @@ public class DatabaseInitializer : IDatabaseInitializer
                 SortOrder = 2
             });
 
-            await _context.Prescriptions.AddAsync(rx, cancellationToken);
-            await _context.SaveChangesAsync(cancellationToken);
+            await context.Prescriptions.AddAsync(rx, cancellationToken);
+            await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded sample initial prescription.");
         }
     }

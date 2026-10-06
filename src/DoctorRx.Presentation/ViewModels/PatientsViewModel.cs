@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
@@ -8,6 +9,7 @@ using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Interfaces;
 using DoctorRx.Domain.Enums;
 using DoctorRx.Presentation.Services;
+using Microsoft.Extensions.Logging;
 
 namespace DoctorRx.Presentation.ViewModels;
 
@@ -16,8 +18,18 @@ public class PatientsViewModel : ViewModelBase
     private readonly IPatientService _patientService;
     private readonly IDialogService _dialogService;
     private readonly INavigationService _navigationService;
+    private readonly ILogger<PatientsViewModel> _logger;
+
+    private const int PageSize = 50;
+    private int _currentPage = 1;
+    private int _totalPatientsCount;
+    private bool _hasMorePatients;
+    private bool _isLoadingMore;
 
     private string _searchQuery = string.Empty;
+    private CancellationTokenSource? _searchCts;
+    private string? _searchErrorMessage;
+
     private PatientDto? _selectedPatient;
     private bool _isDrawerOpen;
     private bool _isEditing;
@@ -40,9 +52,42 @@ public class PatientsViewModel : ViewModelBase
         {
             if (SetProperty(ref _searchQuery, value))
             {
-                _ = SearchPatientsAsync();
+                OnPropertyChanged(nameof(HasSearchQuery));
+                TriggerDebouncedSearch();
             }
         }
+    }
+
+    public string? SearchErrorMessage
+    {
+        get => _searchErrorMessage;
+        set
+        {
+            if (SetProperty(ref _searchErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasSearchError));
+            }
+        }
+    }
+
+    public bool HasSearchError => !string.IsNullOrWhiteSpace(SearchErrorMessage);
+
+    public int TotalPatientsCount
+    {
+        get => _totalPatientsCount;
+        set => SetProperty(ref _totalPatientsCount, value);
+    }
+
+    public bool HasMorePatients
+    {
+        get => _hasMorePatients;
+        set => SetProperty(ref _hasMorePatients, value);
+    }
+
+    public bool IsLoadingMore
+    {
+        get => _isLoadingMore;
+        set => SetProperty(ref _isLoadingMore, value);
     }
 
     public PatientDto? SelectedPatient
@@ -132,16 +177,19 @@ public class PatientsViewModel : ViewModelBase
     public ICommand DeletePatientCommand { get; }
     public ICommand ClearSearchCommand { get; }
     public ICommand RefreshCommand { get; }
+    public ICommand LoadMorePatientsCommand { get; }
     public ICommand CreatePrescriptionForPatientCommand { get; }
 
     public PatientsViewModel(
         IPatientService patientService,
         IDialogService dialogService,
-        INavigationService navigationService)
+        INavigationService navigationService,
+        ILogger<PatientsViewModel> logger)
     {
         _patientService = patientService;
         _dialogService = dialogService;
         _navigationService = navigationService;
+        _logger = logger;
 
         OpenNewPatientDrawerCommand = new RelayCommand(OpenNewPatientDrawer);
         EditPatientCommand = new RelayCommand<PatientDto>(OpenEditPatientDrawer);
@@ -149,28 +197,66 @@ public class PatientsViewModel : ViewModelBase
         SavePatientCommand = new AsyncRelayCommand(SavePatientAsync);
         DeletePatientCommand = new AsyncRelayCommand<PatientDto>(DeletePatientAsync);
         ClearSearchCommand = new RelayCommand(ClearSearch);
-        RefreshCommand = new AsyncRelayCommand(LoadPatientsAsync);
+        RefreshCommand = new AsyncRelayCommand(() => LoadPatientsAsync(reset: true));
+        LoadMorePatientsCommand = new AsyncRelayCommand(LoadMorePatientsAsync);
         CreatePrescriptionForPatientCommand = new RelayCommand<PatientDto>(CreatePrescriptionForPatient);
     }
 
     public override async Task InitializeAsync(object? parameter = null)
     {
-        await LoadPatientsAsync();
+        await LoadPatientsAsync(reset: true);
     }
 
-    private async Task LoadPatientsAsync()
+    private void TriggerDebouncedSearch()
+    {
+        _searchCts?.Cancel();
+        _searchCts?.Dispose();
+        _searchCts = new CancellationTokenSource();
+        var token = _searchCts.Token;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(250, token);
+                if (token.IsCancellationRequested) return;
+
+                await SearchPatientsAsync(token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Ignored - newer keystroke arrived
+            }
+        }, token);
+    }
+
+    private async Task LoadPatientsAsync(bool reset = true)
     {
         try
         {
             IsBusy = true;
+            SearchErrorMessage = null;
             BusyMessage = "Loading patient records...";
 
-            var list = await _patientService.GetAllPatientsAsync();
-            Patients.Clear();
-            foreach (var p in list)
+            if (reset)
+            {
+                _currentPage = 1;
+                Patients.Clear();
+            }
+
+            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize);
+            TotalPatientsCount = paged.TotalCount;
+            HasMorePatients = paged.HasMore;
+
+            foreach (var p in paged.Items)
             {
                 Patients.Add(p);
             }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to load patient records (page {Page})", _currentPage);
+            SearchErrorMessage = "Unable to load patient records. Please try again.";
         }
         finally
         {
@@ -178,20 +264,67 @@ public class PatientsViewModel : ViewModelBase
         }
     }
 
-    private async Task SearchPatientsAsync()
+    public async Task LoadMorePatientsAsync()
+    {
+        if (IsLoadingMore || !HasMorePatients) return;
+
+        try
+        {
+            IsLoadingMore = true;
+            _currentPage++;
+
+            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize);
+            TotalPatientsCount = paged.TotalCount;
+            HasMorePatients = paged.HasMore;
+
+            foreach (var p in paged.Items)
+            {
+                Patients.Add(p);
+            }
+        }
+        catch (Exception ex)
+        {
+            _currentPage--;
+            _logger.LogError(ex, "Failed to load additional patient records (page {Page})", _currentPage + 1);
+            SearchErrorMessage = "Unable to load more patients. Please try again.";
+        }
+        finally
+        {
+            IsLoadingMore = false;
+        }
+    }
+
+    private async Task SearchPatientsAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var results = await _patientService.SearchPatientsAsync(SearchQuery);
+            SearchErrorMessage = null;
+
+            if (string.IsNullOrWhiteSpace(SearchQuery))
+            {
+                await LoadPatientsAsync(reset: true);
+                return;
+            }
+
+            var results = await _patientService.SearchPatientsAsync(SearchQuery, maxResults: 50, cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return;
+
+            // Dispatch to UI collection
             Patients.Clear();
             foreach (var p in results)
             {
                 Patients.Add(p);
             }
+            HasMorePatients = false;
         }
-        catch (Exception)
+        catch (OperationCanceledException)
         {
-            // Handled
+            // Ignored - superseded by newer query
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Patient search failed");
+            SearchErrorMessage = "Search failed. Please try again.";
         }
     }
 
@@ -276,7 +409,7 @@ public class PatientsViewModel : ViewModelBase
                 {
                     _dialogService.ShowInformation("Patient Updated", $"Details for '{result.Value?.Name}' updated successfully.");
                     CloseDrawer();
-                    await LoadPatientsAsync();
+                    await LoadPatientsAsync(reset: true);
                 }
                 else
                 {
@@ -299,9 +432,9 @@ public class PatientsViewModel : ViewModelBase
                 var result = await _patientService.CreatePatientAsync(createDto);
                 if (result.IsSuccess)
                 {
-                    _dialogService.ShowInformation("Patient Registered", $"Patient '{result.Value?.Name}' (MRN #{result.Value?.Id}) has been registered.");
+                    _dialogService.ShowInformation("Patient Registered", $"Patient '{result.Value?.Name}' has been registered.");
                     CloseDrawer();
-                    await LoadPatientsAsync();
+                    await LoadPatientsAsync(reset: true);
                 }
                 else
                 {
@@ -321,7 +454,7 @@ public class PatientsViewModel : ViewModelBase
 
         bool confirm = _dialogService.ShowConfirmation(
             "Confirm Delete",
-            $"Are you sure you want to delete patient '{patient.Name}' (MRN #{patient.Id})? This action cannot be undone.");
+            $"Are you sure you want to delete patient '{patient.Name}'? This action cannot be undone.");
 
         if (!confirm) return;
 
@@ -329,7 +462,7 @@ public class PatientsViewModel : ViewModelBase
         if (result.IsSuccess)
         {
             _dialogService.ShowInformation("Patient Removed", $"Patient '{patient.Name}' has been removed.");
-            await LoadPatientsAsync();
+            await LoadPatientsAsync(reset: true);
         }
         else
         {

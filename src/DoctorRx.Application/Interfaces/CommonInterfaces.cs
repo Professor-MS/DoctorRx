@@ -8,8 +8,8 @@ namespace DoctorRx.Application.Interfaces;
 
 public interface IMedicineService
 {
-    Task<IReadOnlyList<MedicineDto>> GetAllMedicinesAsync(CancellationToken cancellationToken = default);
-    Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default);
     Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default);
     Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, CancellationToken cancellationToken = default);
     Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, CancellationToken cancellationToken = default);
@@ -19,6 +19,7 @@ public interface IMedicineService
 public interface IDoctorService
 {
     Task<DoctorDto?> GetActiveDoctorAsync(CancellationToken cancellationToken = default);
+    Task<Result<DoctorDto>> CreateDoctorAsync(CreateDoctorDto dto, CancellationToken cancellationToken = default);
     Task<Result<DoctorDto>> UpdateDoctorAsync(UpdateDoctorDto dto, CancellationToken cancellationToken = default);
 }
 

@@ -18,6 +18,21 @@ public record DoctorDto(
     public string DisplayCredentials => $"{Name} ({Qualification}) - {Specialization}";
 }
 
+public class CreateDoctorDto
+{
+    public string Name { get; set; } = string.Empty;
+    public string Qualification { get; set; } = string.Empty;
+    public string RegistrationNumber { get; set; } = string.Empty;
+    public string Specialization { get; set; } = string.Empty;
+    public string? Phone { get; set; }
+    public string? Email { get; set; }
+    public string ClinicName { get; set; } = string.Empty;
+    public string? ClinicAddress { get; set; }
+    public string? ClinicPhone { get; set; }
+    public string? HeaderText { get; set; }
+    public string? FooterText { get; set; }
+}
+
 public class UpdateDoctorDto
 {
     public int Id { get; set; }

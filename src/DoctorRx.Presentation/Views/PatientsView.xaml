@@ -71,49 +71,87 @@
                 </StackPanel>
             </Grid>
 
+            <!-- Search Error Banner -->
+            <Border Grid.Row="0" Background="{StaticResource DangerRedLightBrush}"
+                    BorderBrush="{StaticResource DangerRedBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="12,8"
+                    Margin="0,0,0,14"
+                    VerticalAlignment="Bottom"
+                    Visibility="{Binding HasSearchError, Converter={StaticResource BoolToVisConverter}}">
+                <TextBlock Text="{Binding SearchErrorMessage}" 
+                           Foreground="{StaticResource DangerRedBrush}" 
+                           FontSize="12" TextWrapping="Wrap" />
+            </Border>
+
             <!-- Patients Table -->
             <Border Grid.Row="1" Style="{StaticResource CardContainer}" Padding="0">
-                <DataGrid ItemsSource="{Binding Patients}"
-                          SelectedItem="{Binding SelectedPatient}"
-                          Style="{StaticResource ModernDataGrid}">
-                    <DataGrid.Columns>
-                        <DataGridTextColumn Header="MRN" Binding="{Binding Id, StringFormat='#{0}'}" Width="80" />
-                        <DataGridTextColumn Header="Patient Name" Binding="{Binding Name}" Width="1.5*" />
-                        <DataGridTextColumn Header="Age" Binding="{Binding Age, StringFormat='{}{0} yrs'}" Width="90" />
-                        <DataGridTemplateColumn Header="Gender" Width="100">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <Border Background="#F1F5F9" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                        <TextBlock Text="{Binding Gender}" FontSize="12" Foreground="{StaticResource SlateDarkBrush}" />
-                                    </Border>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Phone" Binding="{Binding FormattedPhone}" Width="130" />
-                        <DataGridTextColumn Header="Address / City" Binding="{Binding Address}" Width="1.5*" />
-                        
-                        <!-- Row Actions Column -->
-                        <DataGridTemplateColumn Header="Actions" Width="160">
-                            <DataGridTemplateColumn.CellTemplate>
-                                <DataTemplate>
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <Button Content="Edit"
-                                                Style="{StaticResource SecondaryButton}"
-                                                Command="{Binding DataContext.EditPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Padding="8,3" FontSize="11.5" Margin="0,0,6,0" />
-                                        
-                                        <Button Content="+ Rx"
-                                                Style="{StaticResource PrimaryButton}"
-                                                Command="{Binding DataContext.CreatePrescriptionForPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                CommandParameter="{Binding}"
-                                                Padding="10,3" FontSize="11.5" />
-                                    </StackPanel>
-                                </DataTemplate>
-                            </DataGridTemplateColumn.CellTemplate>
-                        </DataGridTemplateColumn>
-                    </DataGrid.Columns>
-                </DataGrid>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <DataGrid Grid.Row="0"
+                              ItemsSource="{Binding Patients}"
+                              SelectedItem="{Binding SelectedPatient}"
+                              Style="{StaticResource ModernDataGrid}">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="MRN" Binding="{Binding Id, StringFormat='#{0}'}" Width="80" />
+                            <DataGridTextColumn Header="Patient Name" Binding="{Binding Name}" Width="1.5*" />
+                            <DataGridTextColumn Header="Age" Binding="{Binding Age, StringFormat='{}{0} yrs'}" Width="90" />
+                            <DataGridTemplateColumn Header="Gender" Width="100">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <Border Background="#F1F5F9" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding Gender}" FontSize="12" Foreground="{StaticResource SlateDarkBrush}" />
+                                        </Border>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTextColumn Header="Phone" Binding="{Binding FormattedPhone}" Width="130" />
+                            <DataGridTextColumn Header="Address / City" Binding="{Binding Address}" Width="1.5*" />
+                            
+                            <!-- Row Actions Column -->
+                            <DataGridTemplateColumn Header="Actions" Width="160">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                            <Button Content="Edit"
+                                                    Style="{StaticResource SecondaryButton}"
+                                                    Command="{Binding DataContext.EditPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Padding="8,3" FontSize="11.5" Margin="0,0,6,0" />
+                                            
+                                            <Button Content="+ Rx"
+                                                    Style="{StaticResource PrimaryButton}"
+                                                    Command="{Binding DataContext.CreatePrescriptionForPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                    CommandParameter="{Binding}"
+                                                    Padding="10,3" FontSize="11.5" />
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <!-- Table Footer: Paging and Count Summary -->
+                    <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Padding="16,10">
+                        <Grid>
+                            <TextBlock Text="{Binding Patients.Count, StringFormat='Showing {0} loaded records'}"
+                                       Foreground="{StaticResource SlateMutedBrush}"
+                                       FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Left" />
+
+                            <Button Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding LoadMorePatientsCommand}"
+                                    HorizontalAlignment="Right" Padding="12,5"
+                                    Visibility="{Binding HasMorePatients, Converter={StaticResource BoolToVisConverter}}">
+                                <TextBlock Text="Load More Patients (Next 50)" FontSize="12" FontWeight="SemiBold" />
+                            </Button>
+                        </Grid>
+                    </Border>
+                </Grid>
             </Border>
         </Grid>
 

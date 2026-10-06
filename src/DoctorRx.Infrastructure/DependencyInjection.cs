@@ -31,21 +31,17 @@ public static class DependencyInjection
 
         var connectionString = $"Data Source={databasePath}";
 
-        services.AddDbContext<DoctorRxDbContext>(options =>
+        // Register DbContextFactory for short-lived DbContext lifetimes
+        services.AddDbContextFactory<DoctorRxDbContext>(options =>
         {
             options.UseSqlite(connectionString);
         });
 
-        // Register repositories
-        services.AddScoped(typeof(IRepository<>), typeof(Repository<>));
-        services.AddScoped<IPatientRepository, PatientRepository>();
-        services.AddScoped<IPrescriptionRepository, PrescriptionRepository>();
-        services.AddScoped<IMedicineRepository, MedicineRepository>();
-        services.AddScoped<IDoctorRepository, DoctorRepository>();
-        services.AddScoped<IUnitOfWork, UnitOfWork>();
+        // Register UnitOfWorkFactory
+        services.AddSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
 
         // Register Database Initializer
-        services.AddScoped<IDatabaseInitializer, DatabaseInitializer>();
+        services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
 
         return services;
     }

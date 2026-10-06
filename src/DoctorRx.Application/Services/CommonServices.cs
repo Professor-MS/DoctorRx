@@ -14,35 +14,45 @@ namespace DoctorRx.Application.Services;
 
 public class MedicineService : IMedicineService
 {
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWorkFactory _uowFactory;
     private readonly ILogger<MedicineService> _logger;
 
-    public MedicineService(IUnitOfWork unitOfWork, ILogger<MedicineService> logger)
+    public MedicineService(IUnitOfWorkFactory uowFactory, ILogger<MedicineService> logger)
     {
-        _unitOfWork = unitOfWork;
+        _uowFactory = uowFactory;
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<MedicineDto>> GetAllMedicinesAsync(CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default)
     {
-        var list = await _unitOfWork.Medicines.ListAllAsync(cancellationToken);
-        return list.Select(MapToDto).ToList();
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 50;
+
+        await using var uow = _uowFactory.Create();
+        var list = await uow.Medicines.FindAsync(m => m.IsActive, cancellationToken);
+        return list.OrderBy(m => m.Name)
+                   .Skip((pageNumber - 1) * pageSize)
+                   .Take(pageSize)
+                   .Select(MapToDto)
+                   .ToList();
     }
 
-    public async Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            return await GetAllMedicinesAsync(cancellationToken);
+            return await GetMedicinesPagedAsync(1, maxResults, cancellationToken);
         }
 
-        var list = await _unitOfWork.Medicines.SearchAsync(query, 50, cancellationToken);
+        await using var uow = _uowFactory.Create();
+        var list = await uow.Medicines.SearchAsync(query, maxResults, cancellationToken);
         return list.Select(MapToDto).ToList();
     }
 
     public async Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        var medicine = await _unitOfWork.Medicines.GetByIdAsync(id, cancellationToken);
+        await using var uow = _uowFactory.Create();
+        var medicine = await uow.Medicines.GetByIdAsync(id, cancellationToken);
         return medicine is null ? null : MapToDto(medicine);
     }
 
@@ -53,26 +63,32 @@ public class MedicineService : IMedicineService
             return Result<MedicineDto>.Failure("Medicine brand or name is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(dto.Form))
+        {
+            return Result<MedicineDto>.Failure("Dosage form is required.");
+        }
+
         try
         {
+            await using var uow = _uowFactory.Create();
             var medicine = new Medicine
             {
                 Name = dto.Name.Trim(),
                 GenericName = dto.GenericName?.Trim(),
-                Form = string.IsNullOrWhiteSpace(dto.Form) ? "Tablet" : dto.Form.Trim(),
+                Form = dto.Form.Trim(),
                 Strength = dto.Strength?.Trim() ?? string.Empty,
                 DefaultDose = dto.DefaultDose?.Trim(),
                 DefaultFrequency = dto.DefaultFrequency?.Trim(),
-                DefaultRoute = string.IsNullOrWhiteSpace(dto.DefaultRoute) ? "Oral" : dto.DefaultRoute.Trim(),
+                DefaultRoute = dto.DefaultRoute?.Trim(),
                 DefaultInstructions = dto.DefaultInstructions?.Trim(),
                 IsActive = true,
                 CreatedAtUtc = DateTime.UtcNow
             };
 
-            await _unitOfWork.Medicines.AddAsync(medicine, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Medicines.AddAsync(medicine, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
-            _logger.LogInformation("Medicine created: {Name}", medicine.Name);
+            _logger.LogInformation("Medicine created: {Id}", medicine.Id);
             return Result<MedicineDto>.Success(MapToDto(medicine));
         }
         catch (Exception ex)
@@ -86,9 +102,20 @@ public class MedicineService : IMedicineService
     {
         if (dto.Id <= 0) return Result<MedicineDto>.Failure("Invalid medicine ID.");
 
+        if (string.IsNullOrWhiteSpace(dto.Name))
+        {
+            return Result<MedicineDto>.Failure("Medicine name is required.");
+        }
+
+        if (string.IsNullOrWhiteSpace(dto.Form))
+        {
+            return Result<MedicineDto>.Failure("Dosage form is required.");
+        }
+
         try
         {
-            var medicine = await _unitOfWork.Medicines.GetByIdAsync(dto.Id, cancellationToken);
+            await using var uow = _uowFactory.Create();
+            var medicine = await uow.Medicines.GetByIdAsync(dto.Id, cancellationToken);
             if (medicine == null)
             {
                 return Result<MedicineDto>.Failure($"Medicine #{dto.Id} not found.");
@@ -100,13 +127,13 @@ public class MedicineService : IMedicineService
             medicine.Strength = dto.Strength.Trim();
             medicine.DefaultDose = dto.DefaultDose?.Trim();
             medicine.DefaultFrequency = dto.DefaultFrequency?.Trim();
-            medicine.DefaultRoute = dto.DefaultRoute?.Trim() ?? "Oral";
+            medicine.DefaultRoute = dto.DefaultRoute?.Trim();
             medicine.DefaultInstructions = dto.DefaultInstructions?.Trim();
             medicine.IsActive = dto.IsActive;
             medicine.UpdatedAtUtc = DateTime.UtcNow;
 
-            await _unitOfWork.Medicines.UpdateAsync(medicine, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Medicines.UpdateAsync(medicine, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
             return Result<MedicineDto>.Success(MapToDto(medicine));
         }
@@ -121,14 +148,15 @@ public class MedicineService : IMedicineService
     {
         try
         {
-            var medicine = await _unitOfWork.Medicines.GetByIdAsync(id, cancellationToken);
+            await using var uow = _uowFactory.Create();
+            var medicine = await uow.Medicines.GetByIdAsync(id, cancellationToken);
             if (medicine == null) return Result.Failure("Medicine not found.");
 
-            medicine.IsActive = false; // Soft-delete by setting inactive
+            medicine.IsActive = false;
             medicine.UpdatedAtUtc = DateTime.UtcNow;
 
-            await _unitOfWork.Medicines.UpdateAsync(medicine, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Medicines.UpdateAsync(medicine, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -145,26 +173,88 @@ public class MedicineService : IMedicineService
 
 public class DoctorService : IDoctorService
 {
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWorkFactory _uowFactory;
     private readonly ILogger<DoctorService> _logger;
 
-    public DoctorService(IUnitOfWork unitOfWork, ILogger<DoctorService> logger)
+    public DoctorService(IUnitOfWorkFactory uowFactory, ILogger<DoctorService> logger)
     {
-        _unitOfWork = unitOfWork;
+        _uowFactory = uowFactory;
         _logger = logger;
     }
 
     public async Task<DoctorDto?> GetActiveDoctorAsync(CancellationToken cancellationToken = default)
     {
-        var doc = await _unitOfWork.Doctors.GetActiveDoctorAsync(cancellationToken);
+        await using var uow = _uowFactory.Create();
+        var doc = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
         return doc is null ? null : MapToDto(doc);
+    }
+
+    public async Task<Result<DoctorDto>> CreateDoctorAsync(CreateDoctorDto dto, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Name)) return Result<DoctorDto>.Failure("Doctor name is required.");
+        if (string.IsNullOrWhiteSpace(dto.Qualification)) return Result<DoctorDto>.Failure("Qualification is required.");
+        if (string.IsNullOrWhiteSpace(dto.RegistrationNumber)) return Result<DoctorDto>.Failure("Registration number is required.");
+        if (string.IsNullOrWhiteSpace(dto.Specialization)) return Result<DoctorDto>.Failure("Specialization is required.");
+        if (string.IsNullOrWhiteSpace(dto.ClinicName)) return Result<DoctorDto>.Failure("Clinic name is required.");
+
+        if (dto.Name.Length > 150) return Result<DoctorDto>.Failure("Name cannot exceed 150 characters.");
+        if (dto.Qualification.Length > 150) return Result<DoctorDto>.Failure("Qualification cannot exceed 150 characters.");
+        if (dto.RegistrationNumber.Length > 50) return Result<DoctorDto>.Failure("Registration number cannot exceed 50 characters.");
+        if (dto.Specialization.Length > 150) return Result<DoctorDto>.Failure("Specialization cannot exceed 150 characters.");
+        if (dto.ClinicName.Length > 200) return Result<DoctorDto>.Failure("Clinic name cannot exceed 200 characters.");
+
+        try
+        {
+            await using var uow = _uowFactory.Create();
+            var doc = new Doctor
+            {
+                Name = dto.Name.Trim(),
+                Qualification = dto.Qualification.Trim(),
+                RegistrationNumber = dto.RegistrationNumber.Trim(),
+                Specialization = dto.Specialization.Trim(),
+                Phone = dto.Phone?.Trim(),
+                Email = dto.Email?.Trim(),
+                ClinicName = dto.ClinicName.Trim(),
+                ClinicAddress = dto.ClinicAddress?.Trim(),
+                ClinicPhone = dto.ClinicPhone?.Trim(),
+                HeaderText = dto.HeaderText?.Trim(),
+                FooterText = dto.FooterText?.Trim(),
+                IsActive = true,
+                CreatedAtUtc = DateTime.UtcNow
+            };
+
+            await uow.Doctors.AddAsync(doc, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
+
+            _logger.LogInformation("Doctor profile created with Id {DoctorId}", doc.Id);
+            return Result<DoctorDto>.Success(MapToDto(doc));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to create doctor profile");
+            return Result<DoctorDto>.Failure("Unable to save doctor profile.");
+        }
     }
 
     public async Task<Result<DoctorDto>> UpdateDoctorAsync(UpdateDoctorDto dto, CancellationToken cancellationToken = default)
     {
+        if (dto.Id <= 0) return Result<DoctorDto>.Failure("Invalid doctor ID.");
+        if (string.IsNullOrWhiteSpace(dto.Name)) return Result<DoctorDto>.Failure("Doctor name is required.");
+        if (string.IsNullOrWhiteSpace(dto.Qualification)) return Result<DoctorDto>.Failure("Qualification is required.");
+        if (string.IsNullOrWhiteSpace(dto.RegistrationNumber)) return Result<DoctorDto>.Failure("Registration number is required.");
+        if (string.IsNullOrWhiteSpace(dto.Specialization)) return Result<DoctorDto>.Failure("Specialization is required.");
+        if (string.IsNullOrWhiteSpace(dto.ClinicName)) return Result<DoctorDto>.Failure("Clinic name is required.");
+
+        if (dto.Name.Length > 150) return Result<DoctorDto>.Failure("Name cannot exceed 150 characters.");
+        if (dto.Qualification.Length > 150) return Result<DoctorDto>.Failure("Qualification cannot exceed 150 characters.");
+        if (dto.RegistrationNumber.Length > 50) return Result<DoctorDto>.Failure("Registration number cannot exceed 50 characters.");
+        if (dto.Specialization.Length > 150) return Result<DoctorDto>.Failure("Specialization cannot exceed 150 characters.");
+        if (dto.ClinicName.Length > 200) return Result<DoctorDto>.Failure("Clinic name cannot exceed 200 characters.");
+
         try
         {
-            var doc = await _unitOfWork.Doctors.GetByIdAsync(dto.Id, cancellationToken);
+            await using var uow = _uowFactory.Create();
+            var doc = await uow.Doctors.GetByIdAsync(dto.Id, cancellationToken);
             if (doc == null)
             {
                 return Result<DoctorDto>.Failure("Doctor profile not found.");
@@ -183,9 +273,10 @@ public class DoctorService : IDoctorService
             doc.FooterText = dto.FooterText?.Trim();
             doc.UpdatedAtUtc = DateTime.UtcNow;
 
-            await _unitOfWork.Doctors.UpdateAsync(doc, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Doctors.UpdateAsync(doc, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
+            _logger.LogInformation("Doctor profile updated with Id {DoctorId}", doc.Id);
             return Result<DoctorDto>.Success(MapToDto(doc));
         }
         catch (Exception ex)
@@ -201,22 +292,24 @@ public class DoctorService : IDoctorService
 
 public class DashboardService : IDashboardService
 {
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWorkFactory _uowFactory;
 
-    public DashboardService(IUnitOfWork unitOfWork)
+    public DashboardService(IUnitOfWorkFactory uowFactory)
     {
-        _unitOfWork = unitOfWork;
+        _uowFactory = uowFactory;
     }
 
     public async Task<DashboardStatsDto> GetDashboardStatsAsync(CancellationToken cancellationToken = default)
     {
-        var totalPatients = await _unitOfWork.Patients.CountAsync(cancellationToken: cancellationToken);
-        var totalPrescriptions = await _unitOfWork.Prescriptions.CountAsync(cancellationToken: cancellationToken);
-        var prescriptionsToday = await _unitOfWork.Prescriptions.GetCountForDateAsync(DateTime.Today, cancellationToken);
-        var totalMedicines = await _unitOfWork.Medicines.CountAsync(m => m.IsActive, cancellationToken);
+        await using var uow = _uowFactory.Create();
 
-        var recentPrescriptions = await _unitOfWork.Prescriptions.GetRecentPrescriptionsAsync(8, cancellationToken);
-        var recentPatients = await _unitOfWork.Patients.GetRecentPatientsAsync(8, cancellationToken);
+        var totalPatients = await uow.Patients.CountAsync(cancellationToken: cancellationToken);
+        var totalPrescriptions = await uow.Prescriptions.CountAsync(cancellationToken: cancellationToken);
+        var prescriptionsToday = await uow.Prescriptions.GetCountForDateAsync(DateTime.Today, cancellationToken);
+        var totalMedicines = await uow.Medicines.CountAsync(m => m.IsActive, cancellationToken);
+
+        var recentPrescriptions = await uow.Prescriptions.GetRecentPrescriptionsAsync(8, cancellationToken);
+        var recentPatients = await uow.Patients.GetRecentPatientsAsync(8, cancellationToken);
 
         var rxDtos = recentPrescriptions.Select(p => new PrescriptionSummaryDto(
             p.Id,

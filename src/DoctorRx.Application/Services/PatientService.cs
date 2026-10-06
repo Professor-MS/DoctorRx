@@ -14,41 +14,53 @@ namespace DoctorRx.Application.Services;
 
 public class PatientService : IPatientService
 {
-    private readonly IUnitOfWork _unitOfWork;
+    private readonly IUnitOfWorkFactory _uowFactory;
     private readonly ILogger<PatientService> _logger;
 
-    public PatientService(IUnitOfWork unitOfWork, ILogger<PatientService> logger)
+    public PatientService(IUnitOfWorkFactory uowFactory, ILogger<PatientService> logger)
     {
-        _unitOfWork = unitOfWork;
+        _uowFactory = uowFactory;
         _logger = logger;
     }
 
-    public async Task<IReadOnlyList<PatientDto>> GetAllPatientsAsync(CancellationToken cancellationToken = default)
+    public async Task<PagedResult<PatientDto>> GetPatientsPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default)
     {
-        var patients = await _unitOfWork.Patients.ListAllAsync(cancellationToken);
-        return patients.Select(MapToDto).ToList();
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 50;
+
+        await using var uow = _uowFactory.Create();
+        var totalCount = await uow.Patients.GetTotalCountAsync(cancellationToken);
+        var patients = await uow.Patients.GetPagedAsync(pageNumber, pageSize, cancellationToken);
+        var dtos = patients.Select(MapToDto).ToList();
+
+        return new PagedResult<PatientDto>(dtos, totalCount, pageNumber, pageSize);
     }
 
-    public async Task<IReadOnlyList<PatientDto>> SearchPatientsAsync(string query, CancellationToken cancellationToken = default)
+    public async Task<IReadOnlyList<PatientDto>> SearchPatientsAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
-            return await GetAllPatientsAsync(cancellationToken);
+            await using var uow = _uowFactory.Create();
+            var paged = await uow.Patients.GetPagedAsync(1, maxResults, cancellationToken);
+            return paged.Select(MapToDto).ToList();
         }
 
-        var patients = await _unitOfWork.Patients.SearchAsync(query, 50, cancellationToken);
+        await using var uowSearch = _uowFactory.Create();
+        var patients = await uowSearch.Patients.SearchAsync(query, maxResults, cancellationToken);
         return patients.Select(MapToDto).ToList();
     }
 
     public async Task<IReadOnlyList<PatientDto>> GetRecentPatientsAsync(int count = 10, CancellationToken cancellationToken = default)
     {
-        var patients = await _unitOfWork.Patients.GetRecentPatientsAsync(count, cancellationToken);
+        await using var uow = _uowFactory.Create();
+        var patients = await uow.Patients.GetRecentPatientsAsync(count, cancellationToken);
         return patients.Select(MapToDto).ToList();
     }
 
     public async Task<PatientDto?> GetPatientByIdAsync(int id, CancellationToken cancellationToken = default)
     {
-        var patient = await _unitOfWork.Patients.GetWithPrescriptionsAsync(id, cancellationToken);
+        await using var uow = _uowFactory.Create();
+        var patient = await uow.Patients.GetWithPrescriptionsAsync(id, cancellationToken);
         return patient is null ? null : MapToDto(patient);
     }
 
@@ -66,6 +78,7 @@ public class PatientService : IPatientService
 
         try
         {
+            await using var uow = _uowFactory.Create();
             var patient = new Patient
             {
                 Name = dto.Name.Trim(),
@@ -79,8 +92,8 @@ public class PatientService : IPatientService
                 CreatedAtUtc = DateTime.UtcNow
             };
 
-            await _unitOfWork.Patients.AddAsync(patient, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Patients.AddAsync(patient, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
             _logger.LogInformation("Patient created successfully with Id {PatientId}", patient.Id);
             return Result<PatientDto>.Success(MapToDto(patient));
@@ -106,7 +119,8 @@ public class PatientService : IPatientService
 
         try
         {
-            var patient = await _unitOfWork.Patients.GetByIdAsync(dto.Id, cancellationToken);
+            await using var uow = _uowFactory.Create();
+            var patient = await uow.Patients.GetByIdAsync(dto.Id, cancellationToken);
             if (patient == null)
             {
                 return Result<PatientDto>.Failure($"Patient with ID #{dto.Id} was not found.");
@@ -122,8 +136,8 @@ public class PatientService : IPatientService
             patient.KnownAllergies = dto.KnownAllergies?.Trim();
             patient.UpdatedAtUtc = DateTime.UtcNow;
 
-            await _unitOfWork.Patients.UpdateAsync(patient, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Patients.UpdateAsync(patient, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
             _logger.LogInformation("Patient updated with Id {PatientId}", patient.Id);
             return Result<PatientDto>.Success(MapToDto(patient));
@@ -139,7 +153,8 @@ public class PatientService : IPatientService
     {
         try
         {
-            var patient = await _unitOfWork.Patients.GetWithPrescriptionsAsync(id, cancellationToken);
+            await using var uow = _uowFactory.Create();
+            var patient = await uow.Patients.GetWithPrescriptionsAsync(id, cancellationToken);
             if (patient == null)
             {
                 return Result.Failure($"Patient with ID #{id} was not found.");
@@ -150,8 +165,8 @@ public class PatientService : IPatientService
                 return Result.Failure("Cannot delete a patient who has associated prescription records. Prescriptions must be preserved for medical auditing.");
             }
 
-            await _unitOfWork.Patients.DeleteAsync(patient, cancellationToken);
-            await _unitOfWork.CommitAsync(cancellationToken);
+            await uow.Patients.DeleteAsync(patient, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
 
             _logger.LogInformation("Patient deleted with Id {PatientId}", id);
             return Result.Success();

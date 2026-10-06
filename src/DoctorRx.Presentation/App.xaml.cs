@@ -28,6 +28,13 @@ public partial class App : System.Windows.Application
         try
         {
             _host = Host.CreateDefaultBuilder(e.Args)
+                .UseDefaultServiceProvider((context, options) =>
+                {
+#if DEBUG
+                    options.ValidateScopes = true;
+                    options.ValidateOnBuild = true;
+#endif
+                })
                 .ConfigureServices((context, services) =>
                 {
                     // Register Clean Architecture layers
