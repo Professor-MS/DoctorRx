@@ -4,6 +4,8 @@ using DoctorRx.Application.Interfaces;
 using DoctorRx.Domain.Interfaces;
 using DoctorRx.Infrastructure.Data;
 using DoctorRx.Infrastructure.Repositories;
+using DoctorRx.Infrastructure.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -13,28 +15,23 @@ public static class DependencyInjection
 {
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, string? databasePath = null)
     {
-        // Default database file path in LocalAppData if not explicitly provided
-        if (string.IsNullOrWhiteSpace(databasePath))
+        var appPaths = new AppPaths(databasePath != null ? Path.GetDirectoryName(databasePath) : null);
+        services.AddSingleton<IAppPaths>(appPaths);
+
+        var connectionStringBuilder = new SqliteConnectionStringBuilder
         {
-            var appDataFolder = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "DoctorRx"
-            );
+            DataSource = databasePath ?? appPaths.DatabasePath
+        };
+        var connectionString = connectionStringBuilder.ToString();
 
-            if (!Directory.Exists(appDataFolder))
-            {
-                Directory.CreateDirectory(appDataFolder);
-            }
+        var pragmaInterceptor = new SqlitePragmaInterceptor();
+        services.AddSingleton(pragmaInterceptor);
 
-            databasePath = Path.Combine(appDataFolder, "doctorrx.db");
-        }
-
-        var connectionString = $"Data Source={databasePath}";
-
-        // Register DbContextFactory for short-lived DbContext lifetimes
+        // Register DbContextFactory for short-lived DbContext lifetimes with PRAGMA interceptor
         services.AddDbContextFactory<DoctorRxDbContext>(options =>
         {
             options.UseSqlite(connectionString);
+            options.AddInterceptors(pragmaInterceptor);
         });
 
         // Register UnitOfWorkFactory
