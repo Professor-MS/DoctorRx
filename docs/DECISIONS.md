@@ -105,3 +105,30 @@ This document records architectural and technical decisions made during the Doct
 - **Reason**:
   - Ensures physicians never lose clinical data during schema updates.
 
+---
+
+## ADR 009: Prefix Search Indexing with COLLATE NOCASE
+- **Status**: Accepted
+- **Decision**: Configure `NormalizedName` on `Patients` and `Medicines` (and `GenericName` on `Medicines`) with `COLLATE NOCASE`. Repositories query prefix searches via `EF.Functions.Like(p.NormalizedName, $"{cleanQuery}%")`.
+- **Reason**:
+  - SQLite's default collation is `BINARY`. SQLite's default case-insensitive `LIKE` operator cannot use B-Tree indexes on `BINARY` columns, causing full table scans.
+  - With `COLLATE NOCASE`, SQLite's query planner automatically transforms prefix `LIKE 'query%'` into index range bounds (`NormalizedName >= 'query' AND NormalizedName < 'querz'`), executing in sub-5ms across 100,000+ records (`SEARCH Patients USING INDEX IX_Patients_NormalizedName`).
+
+---
+
+## ADR 010: Gated Demo Data Seeding
+- **Status**: Accepted
+- **Decision**: Demo data seeding runs ONLY when `DOCTORRX_DEMO=1` environment variable or `--demo-data` command-line argument is passed; never purely because of Debug compilation. In clean production mode, the database initialises with 0 doctors, 0 patients, 0 medicines, and 0 prescriptions.
+- **Reason**:
+  - Prevents accidental injection of fake clinical data into live medical practices.
+  - Allows real physicians to set up their own profile via the profile setup form on initial launch.
+
+---
+
+## ADR 011: Single Instance Lock with Window Activation
+- **Status**: Accepted
+- **Decision**: Enforce single instance via named mutex `Local\DoctorRx_SingleInstance_Mutex`. When a secondary instance launches, it signals a named `EventWaitHandle` (`Local\DoctorRx_SingleInstance_Event`) and exits. The primary running instance responds by bringing its `MainWindow` to the foreground.
+- **Reason**:
+  - Running multiple instances concurrently on SQLite desktop apps risks lock contention.
+  - Smooth physician UX: launching the shortcut again restores the already open app rather than failing silently or causing multiple conflicting windows.
+

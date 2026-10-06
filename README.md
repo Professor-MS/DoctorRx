@@ -3,7 +3,7 @@
 DoctorRx is a professional, offline-first Windows desktop prescription management application engineered for physicians and clinic practices.
 
 DoctorRx provides a structured, responsive, and readable prescription creation workflow based entirely on the doctor's clinical decisions.
-> **Medical Disclaimer**: DoctorRx does **not** diagnose patients, calculate medical dosages, or make automated clinical decisions. It is a physician productivity and medical records system.
+> **Medical Principle**: DoctorRx does **not** diagnose patients, calculate medical dosages, or make automated clinical decisions. The physician makes every clinical choice; DoctorRx only records it. Zero default dosages, formulations, frequencies, or durations are ever injected or assumed.
 
 ---
 
@@ -15,29 +15,39 @@ DoctorRx is built with **.NET 10 LTS**, **C#**, **WPF**, and **Clean Architectur
 DoctorRx
 ├── DoctorRx.sln                  # Visual Studio 2026 solution
 ├── DoctorRx.slnx                 # Modern XML-based solution format
+├── Directory.Build.props         # Global versioning (0.1.0)
 ├── src
 │   ├── DoctorRx.Domain           # Entities, Enums, Interfaces (Zero dependencies)
 │   ├── DoctorRx.Application      # Use cases, DTOs, Service Interfaces, Logic
-│   ├── DoctorRx.Infrastructure   # EF Core, SQLite DbContext, Repositories, Seeding
-│   └── DoctorRx.Presentation     # WPF (MVVM), CommunityToolkit, Styles, Views
+│   ├── DoctorRx.Infrastructure   # EF Core 10, SQLite Migrator, Anti-tamper Triggers, Repositories
+│   └── DoctorRx.Presentation     # WPF (MVVM), CommunityToolkit, Styles, Views, Serilog
 ├── tests
-│   └── DoctorRx.Tests            # xUnit tests, EF Core In-Memory verification
-└── docs                          # Architectural diagrams and roadmap specifications
+│   └── DoctorRx.Tests            # 100% Real SQLite integration tests & 100k benchmark
+└── docs                          # Architecture specifications and ADRs (001-011)
 ```
 
-### Key Architectural Rules
+### Key Architectural Standards
 
-1. **Immutable Medicine Snapshots**:
-   A prescription preserves the exact medicine information (Brand Name, Generic Name, Form, Strength, Dose, Frequency, Route, Duration, Instructions) prescribed at that point in time. If a master medicine catalog item is edited or retired later, **historical prescriptions remain completely unchanged**.
+1. **Immutable Medicine Snapshots & SQLite Anti-Tamper Triggers**:
+   Finalized prescriptions preserve exact frozen snapshots of the physician credentials, patient demographics, and prescribed medicines at the moment of finalization. Triggers in the SQLite storage engine prohibit updates to clinical metadata, prevent item deletions, and restrict status transitions strictly to `Cancelled` or `Superseded`.
 
-2. **Clean MVVM & Dependency Injection**:
-   Views bind cleanly to ViewModels. ViewModels access Application Service interfaces (`IPatientService`, `IPrescriptionService`, `IDashboardService`). Services use the Unit of Work and Repositories. Views never communicate directly with SQLite or Entity Framework.
+2. **Atomic Gap-Free Numbering via `BEGIN IMMEDIATE`**:
+   Prescription sequence numbers are allocated within the exact same database write transaction as the entity insertion. On transaction rollback, the sequence counter rolls back, guaranteeing zero burned numbers. On `SQLITE_BUSY`, the entire transaction retries with exponential backoff and jitter.
 
 3. **Offline-First & Local Storage**:
-   Data is stored securely in SQLite with Write-Ahead Logging (WAL) enabled in `%LOCALAPPDATA%\DoctorRx\doctorrx.db`.
+   Data resides under `%LOCALAPPDATA%\DoctorRx\Data\doctorrx.db` with SQLite durability pragmas enforced on connection open: `WAL`, `foreign_keys=ON`, `busy_timeout=5000`, `synchronous=FULL`.
 
-4. **Global Resilience & Error Handling**:
-   Unhandled exceptions are intercepted globally (`DispatcherUnhandledException`, `AppDomain.UnhandledException`, `TaskScheduler.UnobservedTaskException`) to prevent unhandled crashes and provide clear user messages without technical stack traces.
+4. **Indexed Keystroke Search with `COLLATE NOCASE`**:
+   Patient and medicine normalized names use `COLLATE NOCASE`, allowing SQLite prefix searches (`LIKE 'query%'`) to execute via indexed B-Tree range scans in sub-5ms across 100,000+ records.
+
+5. **Safe Migration, Automated Backups, and Legacy Guard**:
+   `DatabaseMigrator` creates pre-migration backups using SQLite Online Backup API only when pending migrations exist, keeps the last 5 backups, provides automatic rollback on migration failure, and halts gracefully if a legacy `EnsureCreated` database is detected.
+
+6. **Production Logging & Privacy**:
+   Serilog writes rolling daily logs to `%LOCALAPPDATA%\DoctorRx\Logs\doctorrx-.log`. Absolutely zero patient PII (names, phone digits, addresses, clinical notes, allergies) is ever logged. Unhandled exceptions display an 8-character hex reference ID for technical support without exposing raw stack traces to the clinic user.
+
+7. **Single Instance & PerMonitorV2 DPI Awareness**:
+   Enforced via named mutex `Local\DoctorRx_SingleInstance_Mutex` and named `EventWaitHandle`. Launching a secondary shortcut automatically activates and brings the running window to the foreground.
 
 ---
 
@@ -49,54 +59,25 @@ DoctorRx
 
 ---
 
-## How to Open in Visual Studio 2026
-
-1. Launch Visual Studio 2026.
-2. Select **Open a project or solution**.
-3. Navigate to:
-   - `D:\DoctorRx\DoctorRx.sln` (or `C:\Users\Professor\Desktop\DoctorRx Project\DoctorRx.sln`)
-4. Set `DoctorRx.Presentation` as the **Startup Project** (it is set by default).
-5. Press **F5** (or click the green **Start** button).
-
-The solution will automatically:
-- Restore any missing NuGet packages.
-- Build all 5 projects.
-- Initialize the local SQLite database schema.
-- Seed starter doctor profile, essential medicine catalog, and sample patient records.
-- Display the DoctorRx Clinic Overview dashboard.
-
----
-
-## Running from Command Line
+## How to Run
 
 Build the solution:
 ```bash
 dotnet build DoctorRx.sln
 ```
 
-Run all unit tests:
+Run the complete SQLite test suite (30 tests, including 100k benchmark):
 ```bash
 dotnet test DoctorRx.sln
 ```
 
-Launch the WPF application:
+Launch the WPF application in clean production mode:
 ```bash
 dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj
 ```
 
----
-
-## Features Implemented in Phase 1
-
-- [x] Complete Clean Architecture solution structure.
-- [x] Full Domain models (`Patient`, `Doctor`, `Medicine`, `Prescription`, `PrescriptionMedicine`).
-- [x] EF Core 10 SQLite database context with schema configuration, indexes, and migrations compatibility.
-- [x] Database initial seeding (Default doctor profile, starter medicine catalog, sample patients, and initial prescription).
-- [x] Modern, professional WPF user interface with a custom medical slate/teal design system.
-- [x] Responsive Clinic Dashboard with key performance indicators (Total Patients, Today's Prescriptions, All-time Prescriptions, Catalog size, Recent Prescriptions, Recent Patients).
-- [x] Interactive Patient Management section:
-  - Live patient search and filtering across names and phone numbers.
-  - Patient data grid with MRN, age, gender badges, contact, and address.
-  - Slide-over registration drawer for registering and updating patient records with real-time validation.
-- [x] MVVM Navigation rail linking to Dashboard, New Prescription, Patients, History, Medicines, and Settings.
-- [x] Unit test suite covering domain snapshot immutability and application service validation.
+Launch with demo seed data enabled:
+```bash
+dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj -- --demo-data
+# OR set environment variable: DOCTORRX_DEMO=1
+```
