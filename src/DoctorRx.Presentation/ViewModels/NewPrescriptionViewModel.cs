@@ -52,6 +52,8 @@ public class NewPrescriptionViewModel : ViewModelBase
     // Patient section
     private PatientDto? _selectedPatient;
     private string _patientSearchQuery = string.Empty;
+    private CancellationTokenSource? _patientSearchCts;
+    private int _patientSearchRequestId;
     private bool _isPatientSearching;
     private bool _isQuickRegisterDrawerOpen;
     private string _newPatientName = string.Empty;
@@ -129,15 +131,31 @@ public class NewPrescriptionViewModel : ViewModelBase
         {
             if (SetProperty(ref _patientSearchQuery, value))
             {
-                _ = SearchPatientsAsync(value);
+                OnPropertyChanged(nameof(HasSearchQuery));
+                OnPropertyChanged(nameof(NoPatientFoundText));
+                TriggerDebouncedPatientSearch();
             }
         }
     }
 
+    public bool HasSearchQuery => !string.IsNullOrWhiteSpace(PatientSearchQuery);
+    public bool NoPatientFound => !IsPatientSearching && HasSearchQuery && PatientSearchResults.Count == 0;
+    public string NoPatientFoundText => $"No patient found for '{PatientSearchQuery}'";
+    public int PatientSearchResultCount => PatientSearchResults.Count;
+    public string SearchResultCountText => HasSearchQuery
+        ? $"{PatientSearchResults.Count} result{(PatientSearchResults.Count == 1 ? "" : "s")} found"
+        : "Recent patients";
+
     public bool IsPatientSearching
     {
         get => _isPatientSearching;
-        set => SetProperty(ref _isPatientSearching, value);
+        set
+        {
+            if (SetProperty(ref _isPatientSearching, value))
+            {
+                OnPropertyChanged(nameof(NoPatientFound));
+            }
+        }
     }
 
     public bool IsQuickRegisterDrawerOpen
@@ -455,6 +473,7 @@ public class NewPrescriptionViewModel : ViewModelBase
     public ICommand OpenQuickRegisterDrawerCommand { get; }
     public ICommand CloseQuickRegisterDrawerCommand { get; }
     public ICommand SaveQuickRegisterPatientCommand { get; }
+    public ICommand RegisterNewPatientFromSearchCommand { get; }
 
     public ICommand SelectCatalogMedicineCommand { get; }
     public ICommand SelectDoseChipCommand { get; }
@@ -510,6 +529,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         OpenQuickRegisterDrawerCommand = new RelayCommand(() => IsQuickRegisterDrawerOpen = true);
         CloseQuickRegisterDrawerCommand = new RelayCommand(() => IsQuickRegisterDrawerOpen = false);
         SaveQuickRegisterPatientCommand = new AsyncRelayCommand(SaveQuickRegisterPatientAsync);
+        RegisterNewPatientFromSearchCommand = new RelayCommand(RegisterNewPatientFromSearch);
 
         SelectCatalogMedicineCommand = new RelayCommand<MedicineDto>(SelectCatalogMedicine);
         SelectDoseChipCommand = new RelayCommand<string>(chip => Dose = chip ?? string.Empty);
@@ -529,6 +549,11 @@ public class NewPrescriptionViewModel : ViewModelBase
         FinalizePrescriptionCommand = new AsyncRelayCommand(FinalizePrescriptionAsync);
         SaveDraftExplicitCommand = new AsyncRelayCommand(async () => await SaveDraftInternalAsync(explicitUserSave: true));
         CancelOrDiscardCommand = new AsyncRelayCommand(CancelOrDiscardAsync);
+
+        // Load 10 recent patients initially for composer patient picker
+        _patientSearchCts = new CancellationTokenSource();
+        var initialRequestId = Interlocked.Increment(ref _patientSearchRequestId);
+        _ = SearchPatientsAsync(string.Empty, initialRequestId, _patientSearchCts.Token);
     }
 
     public override async Task InitializeAsync(object? parameter = null)
@@ -632,35 +657,106 @@ public class NewPrescriptionViewModel : ViewModelBase
         LastSavedText = $"Loaded draft from {state.UpdatedAtUtc.ToLocalTime():h:mm tt}";
     }
 
-    private async Task SearchPatientsAsync(string query)
+    private void TriggerDebouncedPatientSearch()
     {
-        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
-        {
-            PatientSearchResults.Clear();
-            return;
-        }
+        _patientSearchCts?.Cancel();
+        _patientSearchCts?.Dispose();
+        _patientSearchCts = new CancellationTokenSource();
+        var token = _patientSearchCts.Token;
+        var requestId = Interlocked.Increment(ref _patientSearchRequestId);
 
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(250, token);
+                if (token.IsCancellationRequested || requestId != _patientSearchRequestId) return;
+                await SearchPatientsAsync(_patientSearchQuery, requestId, token);
+            }
+            catch (OperationCanceledException)
+            {
+                // Debounce cancelled, ignore
+            }
+        }, token);
+    }
+
+    private async Task SearchPatientsAsync(string query, int requestId, CancellationToken cancellationToken = default)
+    {
         IsPatientSearching = true;
         try
         {
-            var results = await _patientService.SearchPatientsAsync(query);
+            IReadOnlyList<PatientDto> results;
+            if (string.IsNullOrWhiteSpace(query))
+            {
+                results = await _patientService.GetRecentPatientsAsync(10, cancellationToken);
+            }
+            else
+            {
+                results = await _patientService.SearchPatientsAsync(query, maxResults: 50, showArchived: false, cancellationToken: cancellationToken);
+            }
+
+            if (cancellationToken.IsCancellationRequested || requestId != _patientSearchRequestId) return;
+
+            UpdateSearchResults(results);
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled query must NEVER clear or overwrite the list
+        }
+        finally
+        {
+            if (requestId == _patientSearchRequestId)
+            {
+                IsPatientSearching = false;
+                OnPropertyChanged(nameof(NoPatientFound));
+            }
+        }
+    }
+
+    private void UpdateSearchResults(IReadOnlyList<PatientDto> results)
+    {
+        void Apply()
+        {
             PatientSearchResults.Clear();
             foreach (var p in results)
             {
                 PatientSearchResults.Add(p);
             }
+            OnPropertyChanged(nameof(NoPatientFound));
+            OnPropertyChanged(nameof(PatientSearchResultCount));
+            OnPropertyChanged(nameof(SearchResultCountText));
         }
-        finally
+
+        var dispatcher = App.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess() && dispatcher.Thread.IsAlive && !dispatcher.HasShutdownStarted)
         {
-            IsPatientSearching = false;
+            try
+            {
+                dispatcher.Invoke(Apply, TimeSpan.FromMilliseconds(200));
+                return;
+            }
+            catch
+            {
+                // Fallback to direct apply if dispatcher cannot accept work or times out
+            }
         }
+
+        Apply();
+    }
+
+    private void RegisterNewPatientFromSearch()
+    {
+        NewPatientName = PatientSearchQuery?.Trim() ?? string.Empty;
+        IsQuickRegisterDrawerOpen = true;
     }
 
     private void SelectPatient(PatientDto? patient)
     {
         if (patient == null) return;
         SelectedPatient = patient;
-        PatientSearchQuery = string.Empty;
+        _patientSearchQuery = string.Empty;
+        OnPropertyChanged(nameof(PatientSearchQuery));
+        OnPropertyChanged(nameof(HasSearchQuery));
         PatientSearchResults.Clear();
     }
 

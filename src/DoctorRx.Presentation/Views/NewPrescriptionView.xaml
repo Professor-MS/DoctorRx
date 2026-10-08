@@ -95,6 +95,8 @@
                             </Grid>
 
                             <!-- Live Search Suggestions -->
+                            <TextBlock Text="{Binding SearchResultCountText}" Style="{StaticResource BodyMuted}" Margin="0,0,0,6"
+                                       Visibility="{Binding PatientSearchResults.Count, Converter={StaticResource BoolToVisConverter}}" />
                             <ListBox ItemsSource="{Binding PatientSearchResults}" MaxHeight="180" Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1"
                                      Visibility="{Binding PatientSearchResults.Count, Converter={StaticResource BoolToVisConverter}}">
                                 <ListBox.ItemTemplate>
@@ -114,6 +116,19 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
+
+                            <!-- Empty State: No Patient Found -->
+                            <Border Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,4,0,0"
+                                    Visibility="{Binding NoPatientFound, Converter={StaticResource BoolToVisConverter}}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding NoPatientFoundText}" Foreground="{StaticResource SlateDarkBrush}" VerticalAlignment="Center" FontWeight="Medium" />
+                                    <Button Grid.Column="1" Content="Register new patient" Command="{Binding RegisterNewPatientFromSearchCommand}" Style="{StaticResource PrimaryButton}" Padding="12,5" AutomationProperties.Name="Register Patient From Search" />
+                                </Grid>
+                            </Border>
 
                             <!-- Quick Register Drawer -->
                             <Border Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,10,0,0"

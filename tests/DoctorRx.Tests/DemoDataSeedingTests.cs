@@ -64,7 +64,8 @@ public class DemoDataSeedingTests : IDisposable
 
         var migrator = new DatabaseMigrator(_factory, _appPaths, NullLogger<DatabaseMigrator>.Instance);
         var seeder = new DemoDataSeeder(_factory, NullLogger<DemoDataSeeder>.Instance);
-        var initializer = new DatabaseInitializer(migrator, seeder, NullLogger<DatabaseInitializer>.Instance);
+        var repairService = new SearchIndexRepairService(_factory, NullLogger<SearchIndexRepairService>.Instance);
+        var initializer = new DatabaseInitializer(migrator, seeder, repairService, NullLogger<DatabaseInitializer>.Instance);
 
         // Act
         await initializer.InitializeAsync();
@@ -85,7 +86,8 @@ public class DemoDataSeedingTests : IDisposable
 
         var migrator = new DatabaseMigrator(_factory, _appPaths, NullLogger<DatabaseMigrator>.Instance);
         var seeder = new DemoDataSeeder(_factory, NullLogger<DemoDataSeeder>.Instance);
-        var initializer = new DatabaseInitializer(migrator, seeder, NullLogger<DatabaseInitializer>.Instance);
+        var repairService = new SearchIndexRepairService(_factory, NullLogger<SearchIndexRepairService>.Instance);
+        var initializer = new DatabaseInitializer(migrator, seeder, repairService, NullLogger<DatabaseInitializer>.Instance);
 
         // Act
         await initializer.InitializeAsync();

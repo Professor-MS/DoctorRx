@@ -47,14 +47,40 @@
                     </Button>
                 </Grid>
 
-                <!-- Action Buttons Toolbar -->
+                <!-- Action Buttons & Filter Toolbar -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                    <CheckBox Content="Show Archived" 
-                              IsChecked="{Binding ShowArchived}" 
-                              VerticalAlignment="Center" 
-                              Margin="0,0,14,0" 
-                              FontSize="{StaticResource FontSizeCaption}"
-                              AutomationProperties.Name="Toggle Show Archived Patients" />
+                    <!-- Status Filter Dropdown -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="Status:" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="{StaticResource FontSizeCaption}" Foreground="{StaticResource SlateMediumBrush}" />
+                        <ComboBox ItemsSource="{Binding AvailableStatusFilters}" 
+                                  SelectedItem="{Binding StatusFilter}" 
+                                  Height="34" Width="100" 
+                                  VerticalContentAlignment="Center" 
+                                  AutomationProperties.Name="Filter Patients By Status" />
+                    </StackPanel>
+
+                    <!-- Sort Option Dropdown -->
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,10,0">
+                        <TextBlock Text="Sort:" VerticalAlignment="Center" Margin="0,0,4,0" FontSize="{StaticResource FontSizeCaption}" Foreground="{StaticResource SlateMediumBrush}" />
+                        <ComboBox ItemsSource="{Binding AvailableSortOptions}" 
+                                  SelectedItem="{Binding SortOption}" 
+                                  Height="34" Width="135" 
+                                  VerticalContentAlignment="Center" 
+                                  AutomationProperties.Name="Sort Patients Order" />
+                    </StackPanel>
+
+                    <!-- Clear Filters Button -->
+                    <Button Style="{StaticResource SecondaryButton}"
+                            Command="{Binding ClearFiltersCommand}"
+                            Margin="0,0,10,0" Padding="10,6"
+                            ToolTip="Clear all active filters and search query"
+                            Visibility="{Binding HasActiveFilters, Converter={StaticResource BoolToVisConverter}}"
+                            AutomationProperties.Name="Clear All Active Filters">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconClose}" Width="10" Height="10" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,5,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Clear Filters" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
 
                     <Button Style="{StaticResource SecondaryButton}"
                             Command="{Binding RefreshCommand}"
@@ -213,7 +239,7 @@
                     <!-- Table Footer: Paging and Count Summary -->
                     <Border Grid.Row="1" Background="#F8FAFC" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Padding="16,10">
                         <Grid>
-                            <TextBlock Text="{Binding Patients.Count, StringFormat='Showing {0} loaded records'}"
+                            <TextBlock Text="{Binding ShowingCounterText}"
                                        Foreground="{StaticResource SlateMutedBrush}"
                                        FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" HorizontalAlignment="Left" />
 

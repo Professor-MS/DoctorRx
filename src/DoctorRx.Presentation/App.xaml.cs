@@ -118,6 +118,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<INavigationService, NavigationService>();
                     services.AddSingleton<IDialogService, DialogService>();
                     services.AddSingleton<IWindowPlacementService, WindowPlacementService>();
+                    services.AddSingleton<IPatientsFilterSessionService, PatientsFilterSessionService>();
 
                     // Register ViewModels
                     services.AddSingleton<MainWindowViewModel>();

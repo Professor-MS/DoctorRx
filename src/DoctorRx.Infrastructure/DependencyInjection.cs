@@ -40,9 +40,10 @@ public static class DependencyInjection
         // Register UnitOfWorkFactory
         services.AddSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
 
-        // Register Database Migrator, Seeder & Initializer
+        // Register Database Migrator, Seeder, Initializer & Search Index Repair
         services.AddTransient<IDatabaseMigrator, DatabaseMigrator>();
         services.AddTransient<IDemoDataSeeder, DemoDataSeeder>();
+        services.AddTransient<ISearchIndexRepairService, SearchIndexRepairService>();
         services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
 
         return services;

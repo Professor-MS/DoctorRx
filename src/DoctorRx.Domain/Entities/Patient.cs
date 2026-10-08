@@ -29,6 +29,7 @@ public class Patient : AuditableEntity
 
     // Navigation properties
     public ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+    public ICollection<PatientSearchToken> SearchTokens { get; set; } = new List<PatientSearchToken>();
 
     /// <summary>
     /// Calculates the patient's age as of a specific date (e.g. visit date or today).

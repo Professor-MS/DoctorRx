@@ -20,6 +20,9 @@ public class DoctorRxDbContext : DbContext
     public DbSet<PrescriptionMedicine> PrescriptionMedicines => Set<PrescriptionMedicine>();
     public DbSet<NumberSequence> NumberSequences => Set<NumberSequence>();
     public DbSet<Draft> Drafts => Set<Draft>();
+    public DbSet<PatientSearchToken> PatientSearchTokens => Set<PatientSearchToken>();
+    public DbSet<MedicineSearchToken> MedicineSearchTokens => Set<MedicineSearchToken>();
+    public DbSet<AppMeta> AppMetas => Set<AppMeta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -200,6 +203,49 @@ public class DoctorRxDbContext : DbContext
                   .HasForeignKey(e => e.PatientId)
                   .OnDelete(DeleteBehavior.SetNull);
         });
+
+        // Patient Search Tokens configuration (B-tree index for prefix queries)
+        modelBuilder.Entity<PatientSearchToken>(entity =>
+        {
+            entity.ToTable("PatientSearchTokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Token).IsRequired().HasMaxLength(100).UseCollation("NOCASE");
+            entity.Property(e => e.TokenType).IsRequired();
+
+            entity.HasIndex(e => new { e.Token, e.PatientId })
+                  .HasDatabaseName("IX_PatientSearchTokens_Token_PatientId");
+
+            entity.HasOne(e => e.Patient)
+                  .WithMany(p => p.SearchTokens)
+                  .HasForeignKey(e => e.PatientId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Medicine Search Tokens configuration
+        modelBuilder.Entity<MedicineSearchToken>(entity =>
+        {
+            entity.ToTable("MedicineSearchTokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Token).IsRequired().HasMaxLength(100).UseCollation("NOCASE");
+            entity.Property(e => e.TokenType).IsRequired();
+
+            entity.HasIndex(e => new { e.Token, e.MedicineId })
+                  .HasDatabaseName("IX_MedicineSearchTokens_Token_MedicineId");
+
+            entity.HasOne(e => e.Medicine)
+                  .WithMany(m => m.SearchTokens)
+                  .HasForeignKey(e => e.MedicineId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // App Metadata configuration
+        modelBuilder.Entity<AppMeta>(entity =>
+        {
+            entity.ToTable("AppMetas");
+            entity.HasKey(e => e.Key);
+            entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Value).IsRequired().HasMaxLength(500);
+        });
     }
 
     public override Task<int> SaveChangesAsync(CancellationToken cancellationToken = default)
@@ -216,6 +262,28 @@ public class DoctorRxDbContext : DbContext
             else if (entry.State == EntityState.Modified)
             {
                 entry.Entity.UpdatedAtUtc = utcNow;
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<Patient>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (string.IsNullOrEmpty(entry.Entity.NormalizedName) || entry.Entity.SearchTokens.Count == 0)
+                {
+                    DoctorRx.Application.Common.EntitySearchExtensions.RefreshSearchFields(entry.Entity);
+                }
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<Medicine>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (string.IsNullOrEmpty(entry.Entity.NormalizedName) || entry.Entity.SearchTokens.Count == 0)
+                {
+                    DoctorRx.Application.Common.EntitySearchExtensions.RefreshSearchFields(entry.Entity);
+                }
             }
         }
 

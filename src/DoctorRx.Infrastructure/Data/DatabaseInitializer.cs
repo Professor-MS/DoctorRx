@@ -11,15 +11,18 @@ public class DatabaseInitializer : IDatabaseInitializer
 {
     private readonly IDatabaseMigrator _databaseMigrator;
     private readonly IDemoDataSeeder _demoDataSeeder;
+    private readonly ISearchIndexRepairService _searchIndexRepairService;
     private readonly ILogger<DatabaseInitializer> _logger;
 
     public DatabaseInitializer(
         IDatabaseMigrator databaseMigrator,
         IDemoDataSeeder demoDataSeeder,
+        ISearchIndexRepairService searchIndexRepairService,
         ILogger<DatabaseInitializer> logger)
     {
         _databaseMigrator = databaseMigrator;
         _demoDataSeeder = demoDataSeeder;
+        _searchIndexRepairService = searchIndexRepairService;
         _logger = logger;
     }
 
@@ -51,6 +54,9 @@ public class DatabaseInitializer : IDatabaseInitializer
             {
                 _logger.LogInformation("Demo data seeding skipped (clean production mode).");
             }
+
+            _logger.LogInformation("Verifying search index integrity...");
+            await _searchIndexRepairService.RepairIndexAsync(cancellationToken);
         }
         catch (Exception ex)
         {

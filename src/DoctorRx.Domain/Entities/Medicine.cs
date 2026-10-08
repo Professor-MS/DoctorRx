@@ -18,6 +18,9 @@ public class Medicine : AuditableEntity
     public int UsageCount { get; set; } = 0;
     public System.DateTime? LastUsedAtUtc { get; set; }
 
+    // Navigation properties
+    public System.Collections.Generic.ICollection<MedicineSearchToken> SearchTokens { get; set; } = new System.Collections.Generic.List<MedicineSearchToken>();
+
     /// <summary>
     /// Gets formatted display text for auto-complete and dropdowns.
     /// </summary>

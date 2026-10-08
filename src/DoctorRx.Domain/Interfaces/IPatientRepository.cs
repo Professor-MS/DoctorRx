@@ -13,4 +13,5 @@ public interface IPatientRepository : IRepository<Patient>
     Task<IReadOnlyList<Patient>> GetPagedAsync(int pageNumber, int pageSize, bool showArchived = false, CancellationToken cancellationToken = default);
     Task<int> GetTotalCountAsync(bool showArchived = false, CancellationToken cancellationToken = default);
     Task<Patient?> FindDuplicateAsync(string normalizedName, string? phoneDigits, CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Patient> Items, int TotalCount)> SearchFilteredPagedAsync(string? query, int statusFilter, int sortOption, int pageNumber, int pageSize, CancellationToken cancellationToken = default);
 }

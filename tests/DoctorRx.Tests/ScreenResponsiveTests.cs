@@ -219,7 +219,12 @@ public class ScreenResponsiveTests
             var stubDialogService = new LocalStubDialogService();
             var stubNavService = new LocalStubNavigationService();
 
-            var vm = new PatientsViewModel(stubPatientService, stubDialogService, stubNavService, null!);
+            var vm = new PatientsViewModel(
+                stubPatientService,
+                stubDialogService,
+                stubNavService,
+                new DoctorRx.Presentation.Services.PatientsFilterSessionService(),
+                Microsoft.Extensions.Logging.Abstractions.NullLogger<PatientsViewModel>.Instance);
             vm.AvailableWidth = width;
             vm.UpdateLayoutMode(expectedMode);
 
@@ -516,6 +521,12 @@ public class ScreenResponsiveTests
         {
             var list = new List<PatientDto> { CreateStubPatient(1, "Muhammad Bilal"), CreateStubPatient(2, "Ayesha Siddiqua") };
             return Task.FromResult(new PagedResult<PatientDto>(list, 2, 1, 50));
+        }
+
+        public Task<PagedResult<PatientDto>> GetFilteredPatientsPagedAsync(PatientFilterCriteria criteria, CancellationToken cancellationToken = default)
+        {
+            var list = new List<PatientDto> { CreateStubPatient(1, "Muhammad Bilal"), CreateStubPatient(2, "Ayesha Siddiqua") };
+            return Task.FromResult(new PagedResult<PatientDto>(list, 2, criteria.PageNumber, criteria.PageSize));
         }
 
         public Task<IReadOnlyList<PatientDto>> SearchPatientsAsync(string query, int maxResults = 50, bool showArchived = false, CancellationToken cancellationToken = default)

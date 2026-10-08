@@ -41,6 +41,24 @@ public class PatientService : IPatientService
         return new PagedResult<PatientDto>(dtos, totalCount, pageNumber, pageSize);
     }
 
+    public async Task<PagedResult<PatientDto>> GetFilteredPatientsPagedAsync(PatientFilterCriteria criteria, CancellationToken cancellationToken = default)
+    {
+        var pageNumber = criteria.PageNumber < 1 ? 1 : criteria.PageNumber;
+        var pageSize = criteria.PageSize < 1 ? 50 : criteria.PageSize;
+
+        await using var uow = _uowFactory.Create();
+        var (patients, totalCount) = await uow.Patients.SearchFilteredPagedAsync(
+            criteria.SearchQuery,
+            (int)criteria.StatusFilter,
+            (int)criteria.SortOption,
+            pageNumber,
+            pageSize,
+            cancellationToken);
+
+        var dtos = patients.Select(p => MapToDto(p, _clock.Today)).ToList();
+        return new PagedResult<PatientDto>(dtos, totalCount, pageNumber, pageSize);
+    }
+
     public async Task<IReadOnlyList<PatientDto>> SearchPatientsAsync(string query, int maxResults = 50, bool showArchived = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(query))
@@ -100,18 +118,17 @@ public class PatientService : IPatientService
             {
                 RecordNumber = recordNumber,
                 Name = dto.Name.Trim(),
-                NormalizedName = normalizedName,
                 DateOfBirth = dto.DateOfBirth,
                 Age = dto.Age,
                 AgeRecordedDate = dto.Age.HasValue ? _clock.Today : null,
                 Gender = dto.Gender,
                 Phone = dto.Phone?.Trim(),
-                PhoneDigits = string.IsNullOrEmpty(phoneDigits) ? null : phoneDigits,
                 Address = dto.Address?.Trim(),
                 MedicalHistoryNotes = dto.MedicalHistoryNotes?.Trim(),
                 KnownAllergies = dto.KnownAllergies?.Trim(),
                 CreatedAtUtc = _clock.UtcNow
             };
+            patient.RefreshSearchFields();
 
             await uow.Patients.AddAsync(patient, cancellationToken);
             await uow.CommitAsync(cancellationToken);
@@ -148,11 +165,7 @@ public class PatientService : IPatientService
                 return Result<PatientDto>.Failure($"Patient with ID #{dto.Id} was not found.");
             }
 
-            var normalizedName = SearchNormalizer.Normalize(dto.Name);
-            var phoneDigits = SearchNormalizer.NormalizePhoneDigits(dto.Phone);
-
             patient.Name = dto.Name.Trim();
-            patient.NormalizedName = normalizedName;
             patient.DateOfBirth = dto.DateOfBirth;
             patient.Age = dto.Age;
             if (dto.Age.HasValue && patient.Age != dto.Age)
@@ -161,11 +174,11 @@ public class PatientService : IPatientService
             }
             patient.Gender = dto.Gender;
             patient.Phone = dto.Phone?.Trim();
-            patient.PhoneDigits = string.IsNullOrEmpty(phoneDigits) ? null : phoneDigits;
             patient.Address = dto.Address?.Trim();
             patient.MedicalHistoryNotes = dto.MedicalHistoryNotes?.Trim();
             patient.KnownAllergies = dto.KnownAllergies?.Trim();
             patient.UpdatedAtUtc = _clock.UtcNow;
+            patient.RefreshSearchFields();
 
             await uow.Patients.UpdateAsync(patient, cancellationToken);
             await uow.CommitAsync(cancellationToken);

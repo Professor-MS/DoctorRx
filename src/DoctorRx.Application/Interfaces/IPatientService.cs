@@ -9,6 +9,7 @@ namespace DoctorRx.Application.Interfaces;
 public interface IPatientService
 {
     Task<PagedResult<PatientDto>> GetPatientsPagedAsync(int pageNumber, int pageSize = 50, bool showArchived = false, CancellationToken cancellationToken = default);
+    Task<PagedResult<PatientDto>> GetFilteredPatientsPagedAsync(PatientFilterCriteria criteria, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PatientDto>> SearchPatientsAsync(string query, int maxResults = 50, bool showArchived = false, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<PatientDto>> GetRecentPatientsAsync(int count = 10, CancellationToken cancellationToken = default);
     Task<PatientDto?> GetPatientByIdAsync(int id, CancellationToken cancellationToken = default);

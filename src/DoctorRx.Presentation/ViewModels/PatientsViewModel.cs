@@ -18,6 +18,7 @@ public class PatientsViewModel : ViewModelBase
     private readonly IPatientService _patientService;
     private readonly IDialogService _dialogService;
     private readonly INavigationService _navigationService;
+    private readonly IPatientsFilterSessionService _filterSession;
     private readonly ILogger<PatientsViewModel> _logger;
 
     private const int PageSize = 50;
@@ -26,15 +27,12 @@ public class PatientsViewModel : ViewModelBase
     private bool _hasMorePatients;
     private bool _isLoadingMore;
 
-    private string _searchQuery = string.Empty;
     private CancellationTokenSource? _searchCts;
     private string? _searchErrorMessage;
 
     private PatientDto? _selectedPatient;
     private bool _isDrawerOpen;
     private bool _isEditing;
-
-    private bool _showArchived;
 
     // Form fields
     private int _editingPatientId;
@@ -48,16 +46,41 @@ public class PatientsViewModel : ViewModelBase
     private string? _formKnownAllergies;
     private string? _formErrorMessage;
 
-    public bool ShowArchived
+    public PatientStatusFilter StatusFilter
     {
-        get => _showArchived;
+        get => _filterSession.StatusFilter;
         set
         {
-            if (SetProperty(ref _showArchived, value))
+            if (_filterSession.StatusFilter != value)
             {
+                _filterSession.StatusFilter = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(ShowArchived));
+                OnPropertyChanged(nameof(HasActiveFilters));
                 _ = LoadPatientsAsync(reset: true);
             }
         }
+    }
+
+    public PatientSortOption SortOption
+    {
+        get => _filterSession.SortOption;
+        set
+        {
+            if (_filterSession.SortOption != value)
+            {
+                _filterSession.SortOption = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasActiveFilters));
+                _ = LoadPatientsAsync(reset: true);
+            }
+        }
+    }
+
+    public bool ShowArchived
+    {
+        get => StatusFilter == PatientStatusFilter.Archived || StatusFilter == PatientStatusFilter.All;
+        set => StatusFilter = value ? PatientStatusFilter.All : PatientStatusFilter.Active;
     }
 
     public DateTime? FormDateOfBirth
@@ -80,16 +103,23 @@ public class PatientsViewModel : ViewModelBase
 
     public string SearchQuery
     {
-        get => _searchQuery;
+        get => _filterSession.SearchQuery;
         set
         {
-            if (SetProperty(ref _searchQuery, value))
+            if (_filterSession.SearchQuery != value)
             {
+                _filterSession.SearchQuery = value;
+                OnPropertyChanged();
                 OnPropertyChanged(nameof(HasSearchQuery));
+                OnPropertyChanged(nameof(HasActiveFilters));
                 TriggerDebouncedSearch();
             }
         }
     }
+
+    public bool HasSearchQuery => !string.IsNullOrWhiteSpace(SearchQuery);
+    public bool HasActiveFilters => _filterSession.HasActiveFilters;
+    public string ShowingCounterText => $"Showing {Patients.Count} of {TotalPatientsCount:N0}";
 
     public string? SearchErrorMessage
     {
@@ -108,7 +138,13 @@ public class PatientsViewModel : ViewModelBase
     public int TotalPatientsCount
     {
         get => _totalPatientsCount;
-        set => SetProperty(ref _totalPatientsCount, value);
+        set
+        {
+            if (SetProperty(ref _totalPatientsCount, value))
+            {
+                OnPropertyChanged(nameof(ShowingCounterText));
+            }
+        }
     }
 
     public bool HasMorePatients
@@ -231,10 +267,11 @@ public class PatientsViewModel : ViewModelBase
     }
 
     public bool HasFormError => !string.IsNullOrWhiteSpace(FormErrorMessage);
-    public bool HasSearchQuery => !string.IsNullOrWhiteSpace(SearchQuery);
 
     public ObservableCollection<PatientDto> Patients { get; } = new();
     public ObservableCollection<Gender> AvailableGenders { get; } = new(Enum.GetValues<Gender>());
+    public IReadOnlyList<PatientStatusFilter> AvailableStatusFilters { get; } = Enum.GetValues<PatientStatusFilter>();
+    public IReadOnlyList<PatientSortOption> AvailableSortOptions { get; } = Enum.GetValues<PatientSortOption>();
 
     public ICommand OpenNewPatientDrawerCommand { get; }
     public ICommand EditPatientCommand { get; }
@@ -244,6 +281,7 @@ public class PatientsViewModel : ViewModelBase
     public ICommand ArchivePatientCommand { get; }
     public ICommand RestorePatientCommand { get; }
     public ICommand ClearSearchCommand { get; }
+    public ICommand ClearFiltersCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand LoadMorePatientsCommand { get; }
     public ICommand CreatePrescriptionForPatientCommand { get; }
@@ -252,11 +290,13 @@ public class PatientsViewModel : ViewModelBase
         IPatientService patientService,
         IDialogService dialogService,
         INavigationService navigationService,
+        IPatientsFilterSessionService filterSession,
         ILogger<PatientsViewModel> logger)
     {
         _patientService = patientService;
         _dialogService = dialogService;
         _navigationService = navigationService;
+        _filterSession = filterSession;
         _logger = logger;
 
         OpenNewPatientDrawerCommand = new RelayCommand(OpenNewPatientDrawer);
@@ -267,6 +307,7 @@ public class PatientsViewModel : ViewModelBase
         ArchivePatientCommand = new AsyncRelayCommand<PatientDto>(ArchivePatientAsync);
         RestorePatientCommand = new AsyncRelayCommand<PatientDto>(RestorePatientAsync);
         ClearSearchCommand = new RelayCommand(ClearSearch);
+        ClearFiltersCommand = new RelayCommand(ClearFilters);
         RefreshCommand = new AsyncRelayCommand(() => LoadPatientsAsync(reset: true));
         LoadMorePatientsCommand = new AsyncRelayCommand(LoadMorePatientsAsync);
         CreatePrescriptionForPatientCommand = new RelayCommand<PatientDto>(CreatePrescriptionForPatient);
@@ -291,7 +332,21 @@ public class PatientsViewModel : ViewModelBase
                 await Task.Delay(250, token);
                 if (token.IsCancellationRequested) return;
 
-                await SearchPatientsAsync(token);
+                var dispatcher = App.Current?.Dispatcher;
+                if (dispatcher != null && dispatcher.Thread.IsAlive && !dispatcher.HasShutdownStarted && !dispatcher.CheckAccess())
+                {
+                    try
+                    {
+                        await dispatcher.InvokeAsync(() => LoadPatientsAsync(reset: true, token)).Task.Unwrap();
+                        return;
+                    }
+                    catch
+                    {
+                        // Fallback to direct call if dispatcher is unavailable
+                    }
+                }
+
+                await LoadPatientsAsync(reset: true, token);
             }
             catch (OperationCanceledException)
             {
@@ -300,7 +355,7 @@ public class PatientsViewModel : ViewModelBase
         }, token);
     }
 
-    private async Task LoadPatientsAsync(bool reset = true)
+    private async Task LoadPatientsAsync(bool reset = true, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -314,14 +369,32 @@ public class PatientsViewModel : ViewModelBase
                 Patients.Clear();
             }
 
-            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize, showArchived: ShowArchived);
+            var criteria = new PatientFilterCriteria(
+                SearchQuery: string.IsNullOrWhiteSpace(SearchQuery) ? null : SearchQuery.Trim(),
+                StatusFilter: StatusFilter,
+                SortOption: SortOption,
+                PageNumber: _currentPage,
+                PageSize: PageSize
+            );
+
+            var paged = await _patientService.GetFilteredPatientsPagedAsync(criteria, cancellationToken);
+            if (cancellationToken.IsCancellationRequested) return;
+
             TotalPatientsCount = paged.TotalCount;
             HasMorePatients = paged.HasMore;
+            _filterSession.CurrentPage = _currentPage;
 
             foreach (var p in paged.Items)
             {
                 Patients.Add(p);
             }
+
+            OnPropertyChanged(nameof(ShowingCounterText));
+            OnPropertyChanged(nameof(HasActiveFilters));
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancelled query must not clear or corrupt existing list
         }
         catch (Exception ex)
         {
@@ -343,14 +416,25 @@ public class PatientsViewModel : ViewModelBase
             IsLoadingMore = true;
             _currentPage++;
 
-            var paged = await _patientService.GetPatientsPagedAsync(_currentPage, PageSize, showArchived: ShowArchived);
+            var criteria = new PatientFilterCriteria(
+                SearchQuery: string.IsNullOrWhiteSpace(SearchQuery) ? null : SearchQuery.Trim(),
+                StatusFilter: StatusFilter,
+                SortOption: SortOption,
+                PageNumber: _currentPage,
+                PageSize: PageSize
+            );
+
+            var paged = await _patientService.GetFilteredPatientsPagedAsync(criteria);
             TotalPatientsCount = paged.TotalCount;
             HasMorePatients = paged.HasMore;
+            _filterSession.CurrentPage = _currentPage;
 
             foreach (var p in paged.Items)
             {
                 Patients.Add(p);
             }
+
+            OnPropertyChanged(nameof(ShowingCounterText));
         }
         catch (Exception ex)
         {
@@ -364,38 +448,16 @@ public class PatientsViewModel : ViewModelBase
         }
     }
 
-    private async Task SearchPatientsAsync(CancellationToken cancellationToken)
+    private void ClearFilters()
     {
-        try
-        {
-            SearchErrorMessage = null;
-
-            if (string.IsNullOrWhiteSpace(SearchQuery))
-            {
-                await LoadPatientsAsync(reset: true);
-                return;
-            }
-
-            var results = await _patientService.SearchPatientsAsync(SearchQuery, maxResults: 50, showArchived: ShowArchived, cancellationToken: cancellationToken);
-            if (cancellationToken.IsCancellationRequested) return;
-
-            // Dispatch to UI collection
-            Patients.Clear();
-            foreach (var p in results)
-            {
-                Patients.Add(p);
-            }
-            HasMorePatients = false;
-        }
-        catch (OperationCanceledException)
-        {
-            // Ignored - superseded by newer query
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Patient search failed");
-            SearchErrorMessage = "Search failed. Please try again.";
-        }
+        _filterSession.Reset();
+        OnPropertyChanged(nameof(SearchQuery));
+        OnPropertyChanged(nameof(StatusFilter));
+        OnPropertyChanged(nameof(SortOption));
+        OnPropertyChanged(nameof(ShowArchived));
+        OnPropertyChanged(nameof(HasSearchQuery));
+        OnPropertyChanged(nameof(HasActiveFilters));
+        _ = LoadPatientsAsync(reset: true);
     }
 
     private void ClearSearch()

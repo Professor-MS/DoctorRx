@@ -76,13 +76,13 @@ public class MedicineService : IMedicineService
             var medicine = new Medicine
             {
                 Name = dto.Name.Trim(),
-                NormalizedName = SearchNormalizer.Normalize(dto.Name),
                 GenericName = dto.GenericName?.Trim(),
                 Form = dto.Form.Trim(),
                 Strength = dto.Strength?.Trim() ?? string.Empty,
                 IsActive = true,
                 CreatedAtUtc = _clock.UtcNow
             };
+            medicine.RefreshSearchFields();
 
             await uow.Medicines.AddAsync(medicine, cancellationToken);
             await uow.CommitAsync(cancellationToken);
@@ -121,12 +121,12 @@ public class MedicineService : IMedicineService
             }
 
             medicine.Name = dto.Name.Trim();
-            medicine.NormalizedName = SearchNormalizer.Normalize(dto.Name);
             medicine.GenericName = dto.GenericName?.Trim();
             medicine.Form = dto.Form.Trim();
             medicine.Strength = dto.Strength?.Trim() ?? string.Empty;
             medicine.IsActive = dto.IsActive;
             medicine.UpdatedAtUtc = _clock.UtcNow;
+            medicine.RefreshSearchFields();
 
             await uow.Medicines.UpdateAsync(medicine, cancellationToken);
             await uow.CommitAsync(cancellationToken);

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
+using DoctorRx.Application.Common;
 using DoctorRx.Application.Interfaces;
 using DoctorRx.Domain.Entities;
 using DoctorRx.Domain.Enums;
@@ -69,6 +70,11 @@ public class DemoDataSeeder : IDemoDataSeeder
                 new() { Name = "Ciproxin", GenericName = "Ciprofloxacin", Form = "Tablet", Strength = "500 mg", NormalizedName = "ciproxin", CreatedAtUtc = DateTime.UtcNow }
             };
 
+            foreach (var m in medicines)
+            {
+                m.RefreshSearchFields();
+            }
+
             await context.Medicines.AddRangeAsync(medicines, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded demo medicine catalog.");
@@ -83,12 +89,10 @@ public class DemoDataSeeder : IDemoDataSeeder
                 {
                     RecordNumber = "P-000001",
                     Name = "Abdul Rehman",
-                    NormalizedName = "abdul rehman",
                     DateOfBirth = new DateOnly(1982, 5, 14),
                     Age = 44,
                     Gender = Gender.Male,
                     Phone = "+92 333 4567890",
-                    PhoneDigits = "923334567890",
                     Address = "House 12, Street 7, Sector F-10/2, Islamabad",
                     MedicalHistoryNotes = "Hypertension diagnosed 2022. Well controlled.",
                     KnownAllergies = "Sulfa drugs",
@@ -98,12 +102,10 @@ public class DemoDataSeeder : IDemoDataSeeder
                 {
                     RecordNumber = "P-000002",
                     Name = "Fatima Bibi",
-                    NormalizedName = "fatima bibi",
                     DateOfBirth = new DateOnly(1995, 11, 23),
                     Age = 30,
                     Gender = Gender.Female,
                     Phone = "+92 301 9876543",
-                    PhoneDigits = "923019876543",
                     Address = "Apartment 302, Silver Oaks, F-10, Islamabad",
                     MedicalHistoryNotes = "No major chronic illnesses reported.",
                     KnownAllergies = "Penicillin (rash)",
@@ -113,18 +115,21 @@ public class DemoDataSeeder : IDemoDataSeeder
                 {
                     RecordNumber = "P-000003",
                     Name = "Muhammad Usman",
-                    NormalizedName = "muhammad usman",
                     DateOfBirth = new DateOnly(2012, 3, 8),
                     Age = 14,
                     Gender = Gender.Male,
                     Phone = "+92 321 5551234",
-                    PhoneDigits = "923215551234",
                     Address = "Sector G-9/1, Islamabad",
                     MedicalHistoryNotes = "Occasional seasonal allergic rhinitis.",
                     KnownAllergies = "None reported",
                     CreatedAtUtc = DateTime.UtcNow.AddDays(-2)
                 }
             };
+
+            foreach (var p in patients)
+            {
+                p.RefreshSearchFields();
+            }
 
             await context.Patients.AddRangeAsync(patients, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
