@@ -78,10 +78,6 @@ public class PrescriptionService : IPrescriptionService
             {
                 return Result<PrescriptionDetailDto>.Failure($"Medicine line #{rowNumber} ('{item.MedicineName}'): Frequency is required.");
             }
-            if (string.IsNullOrWhiteSpace(item.Form))
-            {
-                return Result<PrescriptionDetailDto>.Failure($"Medicine line #{rowNumber} ('{item.MedicineName}'): Formulation form is required.");
-            }
         }
 
         const int maxRetries = 5;

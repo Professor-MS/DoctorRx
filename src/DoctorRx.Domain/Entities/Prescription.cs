@@ -137,10 +137,7 @@ public class Prescription : AuditableEntity
         {
             throw new DomainRuleException($"Frequency is required for medicine '{item.MedicineName}'.");
         }
-        if (string.IsNullOrWhiteSpace(item.Form))
-        {
-            throw new DomainRuleException($"Dosage form is required for medicine '{item.MedicineName}'.");
-        }
+        item.Form ??= string.Empty;
 
         item.SortOrder = _items.Count + 1;
         item.PrescriptionId = Id;
