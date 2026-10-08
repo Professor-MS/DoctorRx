@@ -447,6 +447,8 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     public bool HasValidationWarning => !string.IsNullOrWhiteSpace(ValidationWarningMessage);
 
+    public bool HasUnsavedChanges => !_isFinalized && (HasSelectedPatient || PrescribedMedicines.Count > 0 || !string.IsNullOrWhiteSpace(ChiefComplaints) || !string.IsNullOrWhiteSpace(ClinicalNotes) || !string.IsNullOrWhiteSpace(GeneralAdvice));
+
     // Commands
     public ICommand SelectPatientCommand { get; }
     public ICommand ChangePatientCommand { get; }

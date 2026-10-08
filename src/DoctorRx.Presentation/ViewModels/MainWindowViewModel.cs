@@ -13,6 +13,7 @@ public class MainWindowViewModel : ViewModelBase
     private readonly INavigationService _navigationService;
     private readonly IDoctorService _doctorService;
     private readonly IDialogService _dialogService;
+    private readonly IDraftService _draftService;
     private ViewModelBase? _currentView;
     private string _currentViewTitle = "Dashboard";
     private DoctorDto? _activeDoctor;
@@ -169,11 +170,12 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand CloseDoctorSetupCommand { get; }
     public ICommand SaveDoctorSetupCommand { get; }
 
-    public MainWindowViewModel(INavigationService navigationService, IDoctorService doctorService, IDialogService dialogService)
+    public MainWindowViewModel(INavigationService navigationService, IDoctorService doctorService, IDialogService dialogService, IDraftService draftService)
     {
         _navigationService = navigationService;
         _doctorService = doctorService;
         _dialogService = dialogService;
+        _draftService = draftService;
 
         _navigationService.CurrentViewModelChanged += OnCurrentViewModelChanged;
 
@@ -202,6 +204,35 @@ public class MainWindowViewModel : ViewModelBase
     {
         ActiveDoctor = await _doctorService.GetActiveDoctorAsync();
         _navigationService.NavigateTo(NavigationDestination.Dashboard);
+
+        if (HasActiveDoctor)
+        {
+            var draftCount = await _draftService.GetCountAsync();
+            if (draftCount > 0)
+            {
+                var prompt = _dialogService.ShowConfirmation(
+                    "Recover In-Progress Drafts",
+                    $"There is {draftCount} unfinalized prescription draft(s) saved from a previous session.\n\nWould you like to resume editing your draft now?");
+                if (prompt)
+                {
+                    var drafts = await _draftService.ListAsync();
+                    if (drafts.Count > 0)
+                    {
+                        _navigationService.NavigateTo(NavigationDestination.NewPrescription, drafts[0].DraftKey);
+                    }
+                }
+            }
+        }
+    }
+
+    public bool? ConfirmCloseWithUnsavedChanges()
+    {
+        return _dialogService.ShowConfirmationWithCancel(
+            "Unsaved Prescription Draft",
+            "You have an unfinalized prescription in progress.\n\n" +
+            "• Click 'Yes' to save the draft and exit.\n" +
+            "• Click 'No' to discard changes and exit.\n" +
+            "• Click 'Cancel' to continue editing.");
     }
 
     private void OpenDoctorSetup()

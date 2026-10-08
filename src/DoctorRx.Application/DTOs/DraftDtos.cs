@@ -16,4 +16,8 @@ public record DraftSummaryDto(
     bool IsOlderThan30Days,
     bool IsCorrupt,
     string? ErrorMessage
-);
+)
+{
+    public string DisplayPatientName => string.IsNullOrWhiteSpace(PatientName) ? "Unspecified Patient" : PatientName;
+    public string RelativeTimeText => $"Updated {UpdatedAtUtc.ToLocalTime():g}";
+}

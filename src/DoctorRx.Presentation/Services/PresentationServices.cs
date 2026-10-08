@@ -65,4 +65,15 @@ public class DialogService : IDialogService
         var result = MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
         return result == MessageBoxResult.Yes;
     }
+
+    public bool? ShowConfirmationWithCancel(string title, string message)
+    {
+        var result = MessageBox.Show(message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        return result switch
+        {
+            MessageBoxResult.Yes => true,
+            MessageBoxResult.No => false,
+            _ => null
+        };
+    }
 }

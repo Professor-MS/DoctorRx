@@ -292,6 +292,10 @@ public class SQLiteBenchmarkTests : IDisposable
         var clock = new SystemClock();
         var rxService = new PrescriptionService(uowFactory, clock, NullLogger<PrescriptionService>.Instance);
 
+        // Warm-up query execution (EF query compilation)
+        _ = await rxService.GetRecentPrescriptionsAsync(count: 1);
+        _ = await rxService.GetPrescriptionByIdAsync(id: 1);
+
         // 1. History load timing (top 20 recent prescriptions)
         sw.Restart();
         var recent = await rxService.GetRecentPrescriptionsAsync(count: 20);

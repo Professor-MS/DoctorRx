@@ -365,17 +365,158 @@ public class NewPrescriptionViewModelTests : IDisposable
         Assert.Empty(activeDrafts);
     }
 
+    [Fact]
+    public async Task ZombieDraft_WhenFinalizeStarts_AutosaveRefusesToWriteAndNoDraftRemains_Amendment1()
+    {
+        // Arrange
+        var createPatient = await _patientService.CreatePatientAsync(new CreatePatientDto
+        {
+            Name = "Fatima Bibi",
+            Age = 40,
+            Gender = Gender.Female
+        });
+        Assert.True(createPatient.IsSuccess);
+
+        var vm = CreateViewModel();
+        vm.SelectPatientCommand.Execute(createPatient.Value);
+
+        vm.MedicineName = "Ciprofloxacin";
+        vm.Form = "Tablet";
+        vm.Strength = "500 mg";
+        vm.Dose = "1 tab";
+        vm.Frequency = "BD";
+        vm.Duration = "5 days";
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+
+        // Save a draft before finalizing
+        await vm.SaveDraftInternalAsync(explicitUserSave: true);
+        var preDrafts = await _draftService.ListAsync();
+        Assert.Single(preDrafts);
+
+        // Act 1 - Finalize prescription
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.FinalizePrescriptionCommand).ExecuteAsync(null);
+
+        // Draft deleted upon finalize
+        var postFinalizeDrafts = await _draftService.ListAsync();
+        Assert.Empty(postFinalizeDrafts);
+
+        // Act 2 - Simulate an autosave attempt firing during/after finalize
+        await vm.SaveDraftInternalAsync(explicitUserSave: false);
+
+        // Assert - Zombie draft race prevented: no draft resurrected in DB
+        var finalDrafts = await _draftService.ListAsync();
+        Assert.Empty(finalDrafts);
+    }
+
+    [Fact]
+    public async Task DraftRecovery_RefreshesPatientFromDatabase_NeverTrustsPayloadCopies_Amendment3()
+    {
+        // Arrange
+        var createPatient = await _patientService.CreatePatientAsync(new CreatePatientDto
+        {
+            Name = "Initial Patient Name",
+            Age = 50,
+            Gender = Gender.Male,
+            Phone = "03009998877"
+        });
+        Assert.True(createPatient.IsSuccess);
+        var patientId = createPatient.Value!.Id;
+
+        var vm1 = CreateViewModel();
+        vm1.SelectPatientCommand.Execute(createPatient.Value);
+        vm1.MedicineName = "Aspirin";
+        vm1.Dose = "75 mg";
+        vm1.Frequency = "OD";
+        vm1.AddOrUpdateMedicineCommand.Execute(null);
+        await vm1.SaveDraftInternalAsync(explicitUserSave: true);
+        var draftKey = vm1.DraftKey;
+
+        // Simulate patient profile being edited / updated in DB after draft was created
+        await using (var uow = _uowFactory.Create())
+        {
+            var p = await uow.Patients.GetByIdAsync(patientId);
+            Assert.NotNull(p);
+            p.Name = "Updated Legal Patient Name";
+            p.Phone = "03110001122";
+            await uow.Patients.UpdateAsync(p);
+            await uow.CommitAsync();
+        }
+
+        // Act - Recover draft in a new composer session
+        var vm2 = CreateViewModel();
+        await vm2.InitializeAsync(draftKey);
+
+        // Assert - Patient fields refreshed from live DB, not stale payload copies
+        Assert.NotNull(vm2.SelectedPatient);
+        Assert.Equal("Updated Legal Patient Name", vm2.SelectedPatient.Name);
+        Assert.Equal("03110001122", vm2.SelectedPatient.Phone);
+    }
+
+    [Fact]
+    public async Task DraftList_FlagsOlderThan30Days_NeverAutoDeletesDrafts_Amendment10()
+    {
+        // Arrange: manually insert a draft with UpdatedAtUtc 40 days ago
+        var oldDraftKey = Guid.NewGuid();
+        var oldDate = DateTime.UtcNow.AddDays(-40);
+
+        await using (var uow = _uowFactory.Create())
+        {
+            var draft = new Draft
+            {
+                DraftKey = oldDraftKey,
+                PayloadJson = "{\"DraftKey\":\"" + oldDraftKey + "\",\"SchemaVersion\":1,\"Items\":[]}",
+                PayloadVersion = 1,
+                CreatedAtUtc = oldDate,
+                UpdatedAtUtc = oldDate,
+                AppVersion = "1.0.0"
+            };
+            await uow.Drafts.AddAsync(draft);
+            await uow.CommitAsync();
+        }
+
+        // Act
+        var drafts = await _draftService.ListAsync();
+
+        // Assert
+        Assert.Single(drafts);
+        var summary = drafts[0];
+        Assert.Equal(oldDraftKey, summary.DraftKey);
+        Assert.True(summary.IsOlderThan30Days, "Draft older than 30 days must be flagged");
+
+        // Verify count remains 1 (never auto-deleted per Amendment 10)
+        var count = await _draftService.GetCountAsync();
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void HasUnsavedChanges_CorrectlyReflectsEdits()
+    {
+        // Arrange & Act 1: Fresh VM
+        var vm = CreateViewModel();
+        Assert.False(vm.HasUnsavedChanges);
+
+        // Act 2: Add patient
+        vm.SelectPatientCommand.Execute(new PatientDto(
+            Id: 1, RecordNumber: "MRN-001", Name: "Test", DateOfBirth: null, Age: 25,
+            Gender: Gender.Male, Phone: null, Address: null, MedicalHistoryNotes: null,
+            KnownAllergies: null, CreatedAtUtc: DateTime.UtcNow, LastVisitDate: null,
+            IsArchived: false, ArchivedAtUtc: null));
+        Assert.True(vm.HasUnsavedChanges);
+    }
+
     private class TestDialogService : IDialogService
     {
         public List<string> Errors { get; } = new();
         public List<string> Warnings { get; } = new();
         public List<string> Infos { get; } = new();
         public bool ConfirmationResult { get; set; } = true;
+        public bool? ConfirmationWithCancelResult { get; set; } = true;
 
         public void ShowError(string title, string message) => Errors.Add($"{title}: {message}");
         public void ShowWarning(string title, string message) => Warnings.Add($"{title}: {message}");
         public void ShowInformation(string title, string message) => Infos.Add($"{title}: {message}");
         public bool ShowConfirmation(string title, string message) => ConfirmationResult;
+        public bool? ShowConfirmationWithCancel(string title, string message) => ConfirmationWithCancelResult;
     }
 
     private class TestNavigationService : INavigationService

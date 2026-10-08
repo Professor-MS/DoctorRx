@@ -13,11 +13,13 @@ public class DashboardViewModel : ViewModelBase
 {
     private readonly IDashboardService _dashboardService;
     private readonly INavigationService _navigationService;
+    private readonly IDraftService _draftService;
 
     private int _totalPatients;
     private int _prescriptionsToday;
     private int _totalPrescriptions;
     private int _totalMedicinesInCatalog;
+    private int _activeDraftsCount;
 
     public int TotalPatients
     {
@@ -43,23 +45,58 @@ public class DashboardViewModel : ViewModelBase
         set => SetProperty(ref _totalMedicinesInCatalog, value);
     }
 
+    public int ActiveDraftsCount
+    {
+        get => _activeDraftsCount;
+        set
+        {
+            if (SetProperty(ref _activeDraftsCount, value))
+            {
+                OnPropertyChanged(nameof(HasActiveDrafts));
+            }
+        }
+    }
+
+    public bool HasActiveDrafts => ActiveDraftsCount > 0;
+
     public ObservableCollection<PrescriptionSummaryDto> RecentPrescriptions { get; } = new();
     public ObservableCollection<PatientDto> RecentPatients { get; } = new();
+    public ObservableCollection<DraftSummaryDto> ActiveDrafts { get; } = new();
 
     public ICommand NewPrescriptionCommand { get; }
     public ICommand ViewAllPatientsCommand { get; }
     public ICommand ViewAllPrescriptionsCommand { get; }
     public ICommand RefreshCommand { get; }
+    public ICommand ResumeDraftCommand { get; }
+    public ICommand DiscardDraftCommand { get; }
 
-    public DashboardViewModel(IDashboardService dashboardService, INavigationService navigationService)
+    public DashboardViewModel(IDashboardService dashboardService, INavigationService navigationService, IDraftService draftService)
     {
         _dashboardService = dashboardService;
         _navigationService = navigationService;
+        _draftService = draftService;
 
         NewPrescriptionCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.NewPrescription));
         ViewAllPatientsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Patients));
         ViewAllPrescriptionsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.PrescriptionHistory));
         RefreshCommand = new AsyncRelayCommand(LoadStatsAsync);
+
+        ResumeDraftCommand = new RelayCommand<DraftSummaryDto>(draft =>
+        {
+            if (draft != null)
+            {
+                _navigationService.NavigateTo(NavigationDestination.NewPrescription, draft.DraftKey);
+            }
+        });
+
+        DiscardDraftCommand = new AsyncRelayCommand<DraftSummaryDto>(async draft =>
+        {
+            if (draft != null)
+            {
+                await _draftService.DiscardAsync(draft.DraftKey);
+                await LoadStatsAsync();
+            }
+        });
     }
 
     public override async Task InitializeAsync(object? parameter = null)
@@ -92,6 +129,14 @@ public class DashboardViewModel : ViewModelBase
             {
                 RecentPatients.Add(pt);
             }
+
+            var drafts = await _draftService.ListAsync();
+            ActiveDrafts.Clear();
+            foreach (var d in drafts)
+            {
+                ActiveDrafts.Add(d);
+            }
+            ActiveDraftsCount = drafts.Count;
         }
         catch (Exception)
         {
