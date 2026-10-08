@@ -141,7 +141,8 @@ public class SearchQueryPlanTests : IDisposable
         var query = context.Medicines
             .AsNoTracking()
             .Where(m => m.IsActive && EF.Functions.Like(m.NormalizedName, "amox%"))
-            .OrderBy(m => m.NormalizedName)
+            .OrderByDescending(m => m.UsageCount)
+            .ThenBy(m => m.NormalizedName)
             .Take(50);
 
         var realEfSql = query.ToQueryString();

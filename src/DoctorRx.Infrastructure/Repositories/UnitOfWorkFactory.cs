@@ -21,7 +21,8 @@ public class UnitOfWorkFactory : IUnitOfWorkFactory
             new PatientRepository(context),
             new PrescriptionRepository(context),
             new MedicineRepository(context),
-            new DoctorRepository(context)
+            new DoctorRepository(context),
+            new DraftRepository(context)
         );
     }
 }

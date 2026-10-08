@@ -26,7 +26,8 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
             .Where(m => m.IsActive &&
                        (EF.Functions.Like(m.NormalizedName, prefixPattern) ||
                        (m.GenericName != null && EF.Functions.Like(m.GenericName, prefixPattern))))
-            .OrderBy(m => m.NormalizedName)
+            .OrderByDescending(m => m.UsageCount)
+            .ThenBy(m => m.NormalizedName)
             .Take(maxResults)
             .ToListAsync(cancellationToken);
     }

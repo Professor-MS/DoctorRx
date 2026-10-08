@@ -19,12 +19,18 @@ public class PrescriptionService : IPrescriptionService
     private readonly IUnitOfWorkFactory _uowFactory;
     private readonly IClock _clock;
     private readonly ILogger<PrescriptionService> _logger;
+    private readonly IDraftService? _draftService;
 
-    public PrescriptionService(IUnitOfWorkFactory uowFactory, IClock clock, ILogger<PrescriptionService> logger)
+    public PrescriptionService(
+        IUnitOfWorkFactory uowFactory,
+        IClock clock,
+        ILogger<PrescriptionService> logger,
+        IDraftService? draftService = null)
     {
         _uowFactory = uowFactory;
         _clock = clock;
         _logger = logger;
+        _draftService = draftService;
     }
 
     public async Task<PrescriptionDetailDto?> GetPrescriptionByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -80,7 +86,12 @@ public class PrescriptionService : IPrescriptionService
             }
         }
 
-        const int maxRetries = 5;
+        if (dto.DraftKey.HasValue)
+        {
+            _draftService?.MarkFinalized(dto.DraftKey.Value);
+        }
+
+        const int maxRetries = 10;
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
@@ -131,7 +142,8 @@ public class PrescriptionService : IPrescriptionService
                     weightKg: dto.WeightKg,
                     clinicalNotes: dto.ClinicalNotes,
                     generalAdvice: dto.GeneralAdvice,
-                    followUpDate: dto.FollowUpDate
+                    followUpDate: dto.FollowUpDate,
+                    followUpText: dto.FollowUpText
                 );
 
                 foreach (var itemDto in dto.Items)
@@ -153,6 +165,45 @@ public class PrescriptionService : IPrescriptionService
                         Duration = itemDto.Duration?.Trim() ?? string.Empty,
                         Instructions = itemDto.Instructions?.Trim()
                     });
+
+                    // Update medicine catalog usage count or add unregistered medicine
+                    if (itemDto.MedicineId.HasValue)
+                    {
+                        var med = await uow.Medicines.GetByIdAsync(itemDto.MedicineId.Value, cancellationToken);
+                        if (med != null)
+                        {
+                            med.UsageCount++;
+                            med.LastUsedAtUtc = _clock.UtcNow;
+                            await uow.Medicines.UpdateAsync(med, cancellationToken);
+                        }
+                    }
+                    else
+                    {
+                        var cleanName = SearchNormalizer.Normalize(itemDto.MedicineName);
+                        var existingMatches = await uow.Medicines.FindAsync(m => m.NormalizedName == cleanName, cancellationToken);
+                        var match = existingMatches.FirstOrDefault();
+                        if (match != null)
+                        {
+                            match.UsageCount++;
+                            match.LastUsedAtUtc = _clock.UtcNow;
+                            await uow.Medicines.UpdateAsync(match, cancellationToken);
+                        }
+                        else if (itemDto.AddToCatalog)
+                        {
+                            var newMed = new Medicine
+                            {
+                                Name = itemDto.MedicineName.Trim(),
+                                NormalizedName = SearchNormalizer.Normalize(itemDto.MedicineName),
+                                GenericName = itemDto.GenericName?.Trim(),
+                                Form = string.IsNullOrWhiteSpace(itemDto.Form) ? "Tablet" : itemDto.Form.Trim(),
+                                Strength = itemDto.Strength?.Trim() ?? string.Empty,
+                                UsageCount = 1,
+                                LastUsedAtUtc = _clock.UtcNow,
+                                IsActive = true
+                            };
+                            await uow.Medicines.AddAsync(newMed, cancellationToken);
+                        }
+                    }
                 }
 
                 await uow.Prescriptions.AddAsync(rx, cancellationToken);
@@ -161,6 +212,16 @@ public class PrescriptionService : IPrescriptionService
                 patient.LastVisitDate = prescriptionDate;
                 patient.UpdatedAtUtc = _clock.UtcNow;
                 await uow.Patients.UpdateAsync(patient, cancellationToken);
+
+                // Atomically delete draft in same write transaction if draftKey provided
+                if (dto.DraftKey.HasValue)
+                {
+                    var draft = await uow.Drafts.GetByDraftKeyAsync(dto.DraftKey.Value, cancellationToken);
+                    if (draft != null)
+                    {
+                        await uow.Drafts.DeleteAsync(draft, cancellationToken);
+                    }
+                }
 
                 await uow.CommitAsync(cancellationToken);
                 await tx.CommitAsync(cancellationToken);
@@ -191,7 +252,7 @@ public class PrescriptionService : IPrescriptionService
 
     public async Task<Result<PrescriptionDetailDto>> AmendPrescriptionAsync(int originalId, CreatePrescriptionDto newContent, CancellationToken cancellationToken = default)
     {
-        const int maxRetries = 5;
+        const int maxRetries = 10;
         for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
             try
@@ -247,7 +308,8 @@ public class PrescriptionService : IPrescriptionService
                     weightKg: newContent.WeightKg,
                     clinicalNotes: newContent.ClinicalNotes,
                     generalAdvice: newContent.GeneralAdvice,
-                    followUpDate: newContent.FollowUpDate
+                    followUpDate: newContent.FollowUpDate,
+                    followUpText: newContent.FollowUpText
                 );
 
                 foreach (var itemDto in newContent.Items)
@@ -374,13 +436,24 @@ public class PrescriptionService : IPrescriptionService
             if (current.GetType().Name == "SqliteException")
             {
                 var prop = current.GetType().GetProperty("SqliteErrorCode");
-                if (prop != null && prop.GetValue(current) is int code && code == 5)
+                if (prop != null && prop.GetValue(current) is int code && (code == 5 || code == 6))
+                {
+                    return true;
+                }
+                var extProp = current.GetType().GetProperty("SqliteExtendedErrorCode");
+                if (extProp != null && extProp.GetValue(current) is int extCode && ((extCode & 0xFF) == 5 || (extCode & 0xFF) == 6))
                 {
                     return true;
                 }
             }
+            if (current.GetType().Name == "DbUpdateConcurrencyException")
+            {
+                return true;
+            }
             if (current.Message.Contains("database is locked", StringComparison.OrdinalIgnoreCase) ||
-                current.Message.Contains("busy", StringComparison.OrdinalIgnoreCase))
+                current.Message.Contains("busy", StringComparison.OrdinalIgnoreCase) ||
+                current.Message.Contains("locking protocol", StringComparison.OrdinalIgnoreCase) ||
+                current.Message.Contains("cannot start a transaction within a transaction", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
@@ -442,6 +515,7 @@ public class PrescriptionService : IPrescriptionService
             p.ClinicalNotes,
             p.GeneralAdvice,
             p.FollowUpDate,
+            p.FollowUpText,
             p.Status,
             p.FinalizedAtUtc,
             p.CancelledAtUtc,

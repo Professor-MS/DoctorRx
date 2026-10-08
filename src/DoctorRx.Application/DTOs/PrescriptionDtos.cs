@@ -57,6 +57,7 @@ public record PrescriptionDetailDto(
     string? ClinicalNotes,
     string? GeneralAdvice,
     DateOnly? FollowUpDate,
+    string? FollowUpText,
     PrescriptionStatus Status,
     DateTime FinalizedAtUtc,
     DateTime? CancelledAtUtc,
@@ -80,6 +81,8 @@ public class CreatePrescriptionDto
     public string? ClinicalNotes { get; set; }
     public string? GeneralAdvice { get; set; }
     public DateOnly? FollowUpDate { get; set; }
+    public string? FollowUpText { get; set; }
+    public Guid? DraftKey { get; set; }
     public List<CreatePrescriptionMedicineDto> Items { get; set; } = new();
 }
 
@@ -100,4 +103,5 @@ public class CreatePrescriptionMedicineDto
     public string Duration { get; set; } = string.Empty;
     public string? Instructions { get; set; }
     public int SortOrder { get; set; }
+    public bool AddToCatalog { get; set; }
 }

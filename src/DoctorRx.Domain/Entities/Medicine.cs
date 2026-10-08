@@ -15,6 +15,8 @@ public class Medicine : AuditableEntity
     public string Form { get; set; } = string.Empty;
     public string Strength { get; set; } = string.Empty;
     public bool IsActive { get; set; } = true;
+    public int UsageCount { get; set; } = 0;
+    public System.DateTime? LastUsedAtUtc { get; set; }
 
     /// <summary>
     /// Gets formatted display text for auto-complete and dropdowns.

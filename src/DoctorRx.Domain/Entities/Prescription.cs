@@ -38,6 +38,7 @@ public class Prescription : AuditableEntity
     // Prescription directives
     public string? GeneralAdvice { get; set; }
     public DateOnly? FollowUpDate { get; set; }
+    public string? FollowUpText { get; set; }
 
     // Lifecycle state
     public PrescriptionStatus Status { get; private set; } = PrescriptionStatus.Finalized;
@@ -78,7 +79,8 @@ public class Prescription : AuditableEntity
         string? weightKg = null,
         string? clinicalNotes = null,
         string? generalAdvice = null,
-        DateOnly? followUpDate = null)
+        DateOnly? followUpDate = null,
+        string? followUpText = null)
     {
         if (string.IsNullOrWhiteSpace(prescriptionNumber))
         {
@@ -114,6 +116,7 @@ public class Prescription : AuditableEntity
             ClinicalNotes = clinicalNotes?.Trim(),
             GeneralAdvice = generalAdvice?.Trim(),
             FollowUpDate = followUpDate,
+            FollowUpText = followUpText?.Trim(),
             CreatedAtUtc = finalizedAtUtc
         };
 

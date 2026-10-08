@@ -38,4 +38,5 @@ public class PrescriptionComposerState
 
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
+    public bool IsFinalized { get; set; }
 }

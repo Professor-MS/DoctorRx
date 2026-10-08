@@ -16,19 +16,22 @@ public class UnitOfWork : IUnitOfWork
     public IPrescriptionRepository Prescriptions { get; }
     public IMedicineRepository Medicines { get; }
     public IDoctorRepository Doctors { get; }
+    public IDraftRepository Drafts { get; }
 
     public UnitOfWork(
         DoctorRxDbContext context,
         IPatientRepository patients,
         IPrescriptionRepository prescriptions,
         IMedicineRepository medicines,
-        IDoctorRepository doctors)
+        IDoctorRepository doctors,
+        IDraftRepository drafts)
     {
         _context = context;
         Patients = patients;
         Prescriptions = prescriptions;
         Medicines = medicines;
         Doctors = doctors;
+        Drafts = drafts;
     }
 
     public async Task<int> CommitAsync(CancellationToken cancellationToken = default)

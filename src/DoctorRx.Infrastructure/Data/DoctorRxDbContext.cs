@@ -19,6 +19,7 @@ public class DoctorRxDbContext : DbContext
     public DbSet<Prescription> Prescriptions => Set<Prescription>();
     public DbSet<PrescriptionMedicine> PrescriptionMedicines => Set<PrescriptionMedicine>();
     public DbSet<NumberSequence> NumberSequences => Set<NumberSequence>();
+    public DbSet<Draft> Drafts => Set<Draft>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -77,9 +78,11 @@ public class DoctorRxDbContext : DbContext
             entity.Property(e => e.Form).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Strength).HasMaxLength(50);
 
+            entity.Property(e => e.UsageCount).HasDefaultValue(0);
             entity.HasIndex(e => e.Name).HasDatabaseName("IX_Medicines_Name");
             entity.HasIndex(e => e.NormalizedName).HasDatabaseName("IX_Medicines_NormalizedName");
             entity.HasIndex(e => e.GenericName).HasDatabaseName("IX_Medicines_GenericName");
+            entity.HasIndex(e => e.UsageCount).HasDatabaseName("IX_Medicines_UsageCount");
         });
 
         // Prescription configuration
@@ -101,6 +104,7 @@ public class DoctorRxDbContext : DbContext
             entity.Property(e => e.WeightKg).HasMaxLength(20);
             entity.Property(e => e.ClinicalNotes).HasMaxLength(2000);
             entity.Property(e => e.GeneralAdvice).HasMaxLength(2000);
+            entity.Property(e => e.FollowUpText).HasMaxLength(200);
 
             // Owned Doctor Snapshot
             entity.OwnsOne(e => e.DoctorSnapshot, d =>
@@ -179,6 +183,22 @@ public class DoctorRxDbContext : DbContext
             entity.ToTable("NumberSequences");
             entity.HasKey(e => e.SequenceKey);
             entity.Property(e => e.SequenceKey).HasMaxLength(50);
+        });
+
+        // Draft configuration
+        modelBuilder.Entity<Draft>(entity =>
+        {
+            entity.ToTable("Drafts");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.DraftKey).IsRequired();
+            entity.HasIndex(e => e.DraftKey).IsUnique().HasDatabaseName("IX_Drafts_DraftKey");
+            entity.Property(e => e.PayloadJson).IsRequired();
+            entity.Property(e => e.AppVersion).IsRequired().HasMaxLength(50);
+
+            entity.HasOne(e => e.Patient)
+                  .WithMany()
+                  .HasForeignKey(e => e.PatientId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 

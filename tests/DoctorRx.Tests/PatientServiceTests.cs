@@ -35,6 +35,11 @@ public class TestDbContextFactory : IDbContextFactory<DoctorRxDbContext>
         }
         return context;
     }
+
+    public Task<DoctorRxDbContext> CreateDbContextAsync(System.Threading.CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(CreateDbContext());
+    }
 }
 
 public class PatientServiceTests : IDisposable
