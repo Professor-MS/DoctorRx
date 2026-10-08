@@ -10,7 +10,8 @@ public enum NavigationDestination
     Patients,
     PrescriptionHistory,
     Medicines,
-    Settings
+    Settings,
+    PrescriptionDetail
 }
 
 public interface INavigationService

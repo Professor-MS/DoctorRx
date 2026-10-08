@@ -123,6 +123,7 @@ public partial class App : System.Windows.Application
                     services.AddTransient<PrescriptionHistoryViewModel>();
                     services.AddTransient<MedicinesViewModel>();
                     services.AddTransient<SettingsViewModel>();
+                    services.AddTransient<PrescriptionDetailViewModel>();
 
                     // Register Windows
                     services.AddSingleton<MainWindow>();

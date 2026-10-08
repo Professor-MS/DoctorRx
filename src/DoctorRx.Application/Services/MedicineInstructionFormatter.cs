@@ -153,6 +153,18 @@ public static class MedicineInstructionFormatter
         return string.Join(separator, lines);
     }
 
+    /// <summary>
+    /// Formats dosage schedule and administration directions for presentation row display.
+    /// </summary>
+    public static string Format(PrescriptionMedicineRowState row)
+    {
+        var dosage = FormatDosageSchedule(row);
+        var admin = FormatAdministration(row);
+        if (string.IsNullOrWhiteSpace(admin)) return dosage;
+        if (string.IsNullOrWhiteSpace(dosage)) return admin;
+        return $"{dosage} — {admin}";
+    }
+
     private static string GetMealRelationText(MealRelation relation, string? customText)
     {
         return relation switch

@@ -8,7 +8,7 @@
         mc:Ignorable="d"
         Title="DoctorRx - Clinical Prescription Management" 
         Height="800" Width="1240"
-        MinHeight="680" MinWidth="1024"
+        MinHeight="520" MinWidth="960"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource SlateBackgroundBrush}"
         FontFamily="{StaticResource AppFont}">
@@ -22,7 +22,10 @@
             <views:PatientsView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:NewPrescriptionViewModel}">
-            <views:ScaffoldedFeatureView />
+            <views:NewPrescriptionView />
+        </DataTemplate>
+        <DataTemplate DataType="{x:Type vm:PrescriptionDetailViewModel}">
+            <views:PrescriptionDetailView />
         </DataTemplate>
         <DataTemplate DataType="{x:Type vm:PrescriptionHistoryViewModel}">
             <views:ScaffoldedFeatureView />

@@ -27,6 +27,10 @@ public class PrescriptionMedicineRowState
 
     // Catalog persistence choice for custom/unregistered medicines
     public bool AddToCatalogIfCustom { get; set; } = true;
+    public bool AddToCatalog { get => AddToCatalogIfCustom; set => AddToCatalogIfCustom = value; }
+
+    // Pre-calculated presentation directions string
+    public string FormattedDirections { get; set; } = string.Empty;
 
     public PrescriptionMedicineRowState Clone()
     {

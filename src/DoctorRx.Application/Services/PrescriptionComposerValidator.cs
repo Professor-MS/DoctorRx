@@ -8,24 +8,24 @@ using DoctorRx.Domain.Interfaces;
 
 namespace DoctorRx.Application.Services;
 
-public record ValidationIssue(string FieldKey, Guid? RowId, string Message);
-
-public class ComposerValidationResult
-{
-    public List<ValidationIssue> Errors { get; } = new();
-    public List<ValidationIssue> Warnings { get; } = new();
-
-    public bool IsValid => Errors.Count == 0;
-    public bool HasWarnings => Warnings.Count > 0;
-}
-
-public class PrescriptionComposerValidator
+public class PrescriptionComposerValidator : IPrescriptionComposerValidator
 {
     private readonly IClock _clock;
 
     public PrescriptionComposerValidator(IClock clock)
     {
         _clock = clock;
+    }
+
+    private sealed class FallbackClock : IClock
+    {
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
+    }
+
+    public static ComposerValidationResult ValidateState(PrescriptionComposerState state, IClock? clock = null)
+    {
+        return new PrescriptionComposerValidator(clock ?? new FallbackClock()).Validate(state);
     }
 
     public ComposerValidationResult Validate(PrescriptionComposerState state)

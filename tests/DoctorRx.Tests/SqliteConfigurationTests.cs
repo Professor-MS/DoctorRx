@@ -71,7 +71,7 @@ public class SqliteConfigurationTests : IDisposable
         var connection = context.Database.GetDbConnection();
         if (connection.State != System.Data.ConnectionState.Open)
         {
-            await connection.OpenAsync();
+            await context.Database.OpenConnectionAsync();
         }
 
         // Act & Assert 1: journal_mode = WAL

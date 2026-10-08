@@ -33,6 +33,7 @@ public class NavigationService : INavigationService
             NavigationDestination.PrescriptionHistory => _serviceProvider.GetRequiredService<PrescriptionHistoryViewModel>(),
             NavigationDestination.Medicines => _serviceProvider.GetRequiredService<MedicinesViewModel>(),
             NavigationDestination.Settings => _serviceProvider.GetRequiredService<SettingsViewModel>(),
+            NavigationDestination.PrescriptionDetail => _serviceProvider.GetRequiredService<PrescriptionDetailViewModel>(),
             _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
         };
 

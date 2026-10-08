@@ -1,0 +1,1149 @@
+using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using System.Windows.Input;
+using System.Windows.Threading;
+using CommunityToolkit.Mvvm.Input;
+using DoctorRx.Application.Common;
+using DoctorRx.Application.DTOs;
+using DoctorRx.Application.Interfaces;
+using DoctorRx.Application.Services;
+using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.Interfaces;
+using DoctorRx.Presentation.Services;
+
+namespace DoctorRx.Presentation.ViewModels;
+
+public class NewPrescriptionViewModel : ViewModelBase
+{
+    private readonly IPatientService _patientService;
+    private readonly IMedicineService _medicineService;
+    private readonly IPrescriptionService _prescriptionService;
+    private readonly IDraftService _draftService;
+    private readonly IDialogService _dialogService;
+    private readonly INavigationService _navigationService;
+    private readonly IPrescriptionComposerValidator _validator;
+    private readonly IClock _clock;
+
+    // Autosave timers and synchronization
+    private readonly DispatcherTimer _debounceTimer;
+    private readonly DispatcherTimer _safetyTimer;
+    private readonly DispatcherTimer _undoTimer;
+    private Task? _inFlightSaveTask;
+    private readonly object _saveLock = new();
+    private bool _isFinalized;
+    private bool _isInitializing;
+
+    // Undo buffer for deleted medicines (8 seconds)
+    private readonly Stack<(int Index, PrescriptionMedicineRowState Item)> _undoStack = new();
+    private int _undoSecondsRemaining;
+    private bool _isUndoAvailable;
+    private string _undoBannerText = string.Empty;
+
+    // State identifiers
+    private Guid _draftKey = Guid.NewGuid();
+    private int? _amendmentParentId;
+    private int _amendmentNumber;
+    private string _lastSavedText = "Draft ready";
+
+    // Patient section
+    private PatientDto? _selectedPatient;
+    private string _patientSearchQuery = string.Empty;
+    private bool _isPatientSearching;
+    private bool _isQuickRegisterDrawerOpen;
+    private string _newPatientName = string.Empty;
+    private string _newPatientAge = string.Empty;
+    private Gender _newPatientGender = Gender.Male;
+    private string _newPatientPhone = string.Empty;
+
+    // Clinical observations
+    private string? _chiefComplaints;
+    private string? _bloodPressure;
+    private string? _pulseRate;
+    private string? _temperature;
+    private string? _weightKg;
+    private string? _clinicalNotes;
+
+    // Current Medicine Editor state
+    private Guid? _editingRowId;
+    private int? _selectedMedicineId;
+    private string _medicineSearchQuery = string.Empty;
+    private bool _isMedicineSearching;
+    private string _medicineName = string.Empty;
+    private string? _genericName;
+    private string _form = string.Empty;
+    private string _strength = string.Empty;
+    private string _dose = string.Empty;
+    private string _frequency = string.Empty;
+    private string? _timing;
+    private MealRelation _mealRelation = MealRelation.AsDirected;
+    private string? _customMealRelationText;
+    private string? _withWhat;
+    private string _route = string.Empty;
+    private string _duration = string.Empty;
+    private string? _instructions;
+    private bool _addToCatalog;
+
+    // Directives & Follow-up
+    private string? _generalAdvice;
+    private FollowUpMode _followUpMode = FollowUpMode.None;
+    private int _followUpInterval = 7;
+    private DateOnly _customFollowUpDate = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
+
+    // Validation state
+    private string? _validationErrorMessage;
+    private string? _validationWarningMessage;
+
+    public ObservableCollection<PatientDto> PatientSearchResults { get; } = new();
+    public ObservableCollection<MedicineDto> MedicineSearchResults { get; } = new();
+    public ObservableCollection<PrescriptionMedicineRowState> PrescribedMedicines { get; } = new();
+
+    public Guid DraftKey => _draftKey;
+    public bool IsAmending => _amendmentParentId.HasValue;
+    public string ScreenTitle => IsAmending ? $"Amending Prescription #{_amendmentParentId} (Amendment A{_amendmentNumber + 1})" : "New Prescription";
+
+    public PatientDto? SelectedPatient
+    {
+        get => _selectedPatient;
+        set
+        {
+            if (SetProperty(ref _selectedPatient, value))
+            {
+                OnPropertyChanged(nameof(HasSelectedPatient));
+                OnPropertyChanged(nameof(HasAllergiesAlert));
+                TriggerAutosave();
+            }
+        }
+    }
+
+    public bool HasSelectedPatient => SelectedPatient != null;
+    public bool HasAllergiesAlert => !string.IsNullOrWhiteSpace(SelectedPatient?.KnownAllergies);
+
+    public string PatientSearchQuery
+    {
+        get => _patientSearchQuery;
+        set
+        {
+            if (SetProperty(ref _patientSearchQuery, value))
+            {
+                _ = SearchPatientsAsync(value);
+            }
+        }
+    }
+
+    public bool IsPatientSearching
+    {
+        get => _isPatientSearching;
+        set => SetProperty(ref _isPatientSearching, value);
+    }
+
+    public bool IsQuickRegisterDrawerOpen
+    {
+        get => _isQuickRegisterDrawerOpen;
+        set => SetProperty(ref _isQuickRegisterDrawerOpen, value);
+    }
+
+    public string NewPatientName
+    {
+        get => _newPatientName;
+        set => SetProperty(ref _newPatientName, value);
+    }
+
+    public string NewPatientAge
+    {
+        get => _newPatientAge;
+        set => SetProperty(ref _newPatientAge, value);
+    }
+
+    public Gender NewPatientGender
+    {
+        get => _newPatientGender;
+        set => SetProperty(ref _newPatientGender, value);
+    }
+
+    public string NewPatientPhone
+    {
+        get => _newPatientPhone;
+        set => SetProperty(ref _newPatientPhone, value);
+    }
+
+    // Observations
+    public string? ChiefComplaints
+    {
+        get => _chiefComplaints;
+        set { if (SetProperty(ref _chiefComplaints, value)) TriggerAutosave(); }
+    }
+
+    public string? BloodPressure
+    {
+        get => _bloodPressure;
+        set { if (SetProperty(ref _bloodPressure, value)) TriggerAutosave(); }
+    }
+
+    public string? PulseRate
+    {
+        get => _pulseRate;
+        set { if (SetProperty(ref _pulseRate, value)) TriggerAutosave(); }
+    }
+
+    public string? Temperature
+    {
+        get => _temperature;
+        set { if (SetProperty(ref _temperature, value)) TriggerAutosave(); }
+    }
+
+    public string? WeightKg
+    {
+        get => _weightKg;
+        set { if (SetProperty(ref _weightKg, value)) TriggerAutosave(); }
+    }
+
+    public string? ClinicalNotes
+    {
+        get => _clinicalNotes;
+        set { if (SetProperty(ref _clinicalNotes, value)) TriggerAutosave(); }
+    }
+
+    // Medicine Editor
+    public Guid? EditingRowId
+    {
+        get => _editingRowId;
+        set
+        {
+            if (SetProperty(ref _editingRowId, value))
+            {
+                OnPropertyChanged(nameof(IsEditingMedicine));
+                OnPropertyChanged(nameof(EditorHeaderTitle));
+                OnPropertyChanged(nameof(AddOrUpdateMedicineButtonText));
+            }
+        }
+    }
+
+    public bool IsEditingMedicine => EditingRowId.HasValue;
+    public string EditorHeaderTitle => IsEditingMedicine ? "Edit Prescribed Medicine" : "Add Medicine (No Default Clinical Values)";
+    public string AddOrUpdateMedicineButtonText => IsEditingMedicine ? "Update Medicine" : "Add to Prescription (Enter)";
+
+    public string MedicineSearchQuery
+    {
+        get => _medicineSearchQuery;
+        set
+        {
+            if (SetProperty(ref _medicineSearchQuery, value))
+            {
+                _ = SearchMedicinesAsync(value);
+            }
+        }
+    }
+
+    public bool IsMedicineSearching
+    {
+        get => _isMedicineSearching;
+        set => SetProperty(ref _isMedicineSearching, value);
+    }
+
+    public string MedicineName
+    {
+        get => _medicineName;
+        set => SetProperty(ref _medicineName, value);
+    }
+
+    public string? GenericName
+    {
+        get => _genericName;
+        set => SetProperty(ref _genericName, value);
+    }
+
+    public string Form
+    {
+        get => _form;
+        set => SetProperty(ref _form, value);
+    }
+
+    public string Strength
+    {
+        get => _strength;
+        set => SetProperty(ref _strength, value);
+    }
+
+    public string Dose
+    {
+        get => _dose;
+        set => SetProperty(ref _dose, value);
+    }
+
+    public string Frequency
+    {
+        get => _frequency;
+        set => SetProperty(ref _frequency, value);
+    }
+
+    public string? Timing
+    {
+        get => _timing;
+        set => SetProperty(ref _timing, value);
+    }
+
+    public MealRelation MealRelation
+    {
+        get => _mealRelation;
+        set
+        {
+            if (SetProperty(ref _mealRelation, value))
+            {
+                OnPropertyChanged(nameof(IsCustomMealRelation));
+            }
+        }
+    }
+
+    public bool IsCustomMealRelation => MealRelation == MealRelation.Other;
+
+    public string? CustomMealRelationText
+    {
+        get => _customMealRelationText;
+        set => SetProperty(ref _customMealRelationText, value);
+    }
+
+    public string? WithWhat
+    {
+        get => _withWhat;
+        set => SetProperty(ref _withWhat, value);
+    }
+
+    public string Route
+    {
+        get => _route;
+        set => SetProperty(ref _route, value);
+    }
+
+    public string Duration
+    {
+        get => _duration;
+        set => SetProperty(ref _duration, value);
+    }
+
+    public string? Instructions
+    {
+        get => _instructions;
+        set => SetProperty(ref _instructions, value);
+    }
+
+    public bool AddToCatalog
+    {
+        get => _addToCatalog;
+        set => SetProperty(ref _addToCatalog, value);
+    }
+
+    // Directives & Follow-up
+    public string? GeneralAdvice
+    {
+        get => _generalAdvice;
+        set { if (SetProperty(ref _generalAdvice, value)) TriggerAutosave(); }
+    }
+
+    public FollowUpMode FollowUpMode
+    {
+        get => _followUpMode;
+        set
+        {
+            if (SetProperty(ref _followUpMode, value))
+            {
+                OnPropertyChanged(nameof(IsIntervalFollowUp));
+                OnPropertyChanged(nameof(IsCustomDateFollowUp));
+                OnPropertyChanged(nameof(FollowUpPreviewText));
+                TriggerAutosave();
+            }
+        }
+    }
+
+    public bool IsIntervalFollowUp => FollowUpMode is FollowUpMode.InDays or FollowUpMode.InWeeks or FollowUpMode.InMonths;
+    public bool IsCustomDateFollowUp => FollowUpMode == FollowUpMode.CustomDate;
+
+    public int FollowUpInterval
+    {
+        get => _followUpInterval;
+        set
+        {
+            if (SetProperty(ref _followUpInterval, value))
+            {
+                OnPropertyChanged(nameof(FollowUpPreviewText));
+                TriggerAutosave();
+            }
+        }
+    }
+
+    public DateOnly CustomFollowUpDate
+    {
+        get => _customFollowUpDate;
+        set
+        {
+            if (SetProperty(ref _customFollowUpDate, value))
+            {
+                OnPropertyChanged(nameof(FollowUpPreviewText));
+                TriggerAutosave();
+            }
+        }
+    }
+
+    public string FollowUpPreviewText
+    {
+        get
+        {
+            var setting = new FollowUpSettingState
+            {
+                Mode = FollowUpMode,
+                Interval = FollowUpInterval,
+                CustomDate = CustomFollowUpDate
+            };
+            return setting.GetDisplayText(_clock.Today);
+        }
+    }
+
+    public string LastSavedText
+    {
+        get => _lastSavedText;
+        private set => SetProperty(ref _lastSavedText, value);
+    }
+
+    public bool IsUndoAvailable
+    {
+        get => _isUndoAvailable;
+        private set => SetProperty(ref _isUndoAvailable, value);
+    }
+
+    public string UndoBannerText
+    {
+        get => _undoBannerText;
+        private set => SetProperty(ref _undoBannerText, value);
+    }
+
+    public string? ValidationErrorMessage
+    {
+        get => _validationErrorMessage;
+        private set
+        {
+            if (SetProperty(ref _validationErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationError));
+            }
+        }
+    }
+
+    public bool HasValidationError => !string.IsNullOrWhiteSpace(ValidationErrorMessage);
+
+    public string? ValidationWarningMessage
+    {
+        get => _validationWarningMessage;
+        private set
+        {
+            if (SetProperty(ref _validationWarningMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationWarning));
+            }
+        }
+    }
+
+    public bool HasValidationWarning => !string.IsNullOrWhiteSpace(ValidationWarningMessage);
+
+    // Commands
+    public ICommand SelectPatientCommand { get; }
+    public ICommand ChangePatientCommand { get; }
+    public ICommand OpenQuickRegisterDrawerCommand { get; }
+    public ICommand CloseQuickRegisterDrawerCommand { get; }
+    public ICommand SaveQuickRegisterPatientCommand { get; }
+
+    public ICommand SelectCatalogMedicineCommand { get; }
+    public ICommand SelectDoseChipCommand { get; }
+    public ICommand SelectFrequencyChipCommand { get; }
+    public ICommand SelectDurationChipCommand { get; }
+    public ICommand SelectMealRelationCommand { get; }
+    public ICommand AddOrUpdateMedicineCommand { get; }
+    public ICommand CancelEditMedicineCommand { get; }
+    public ICommand EditMedicineRowCommand { get; }
+    public ICommand DeleteMedicineRowCommand { get; }
+    public ICommand UndoDeleteMedicineCommand { get; }
+    public ICommand MoveUpMedicineRowCommand { get; }
+    public ICommand MoveDownMedicineRowCommand { get; }
+
+    public ICommand AddAdvicePresetCommand { get; }
+    public ICommand FinalizePrescriptionCommand { get; }
+    public ICommand SaveDraftExplicitCommand { get; }
+    public ICommand CancelOrDiscardCommand { get; }
+
+    public NewPrescriptionViewModel(
+        IPatientService patientService,
+        IMedicineService medicineService,
+        IPrescriptionService prescriptionService,
+        IDraftService draftService,
+        IDialogService dialogService,
+        INavigationService navigationService,
+        IPrescriptionComposerValidator validator,
+        IClock clock)
+    {
+        _patientService = patientService;
+        _medicineService = medicineService;
+        _prescriptionService = prescriptionService;
+        _draftService = draftService;
+        _dialogService = dialogService;
+        _navigationService = navigationService;
+        _validator = validator;
+        _clock = clock;
+
+        // Timers
+        _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
+        _debounceTimer.Tick += async (s, e) => { _debounceTimer.Stop(); await SaveDraftInternalAsync(); };
+
+        _safetyTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(15) };
+        _safetyTimer.Tick += async (s, e) => await SaveDraftInternalAsync();
+        _safetyTimer.Start();
+
+        _undoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _undoTimer.Tick += OnUndoTimerTick;
+
+        // Command definitions
+        SelectPatientCommand = new RelayCommand<PatientDto>(SelectPatient);
+        ChangePatientCommand = new RelayCommand(ChangePatient);
+        OpenQuickRegisterDrawerCommand = new RelayCommand(() => IsQuickRegisterDrawerOpen = true);
+        CloseQuickRegisterDrawerCommand = new RelayCommand(() => IsQuickRegisterDrawerOpen = false);
+        SaveQuickRegisterPatientCommand = new AsyncRelayCommand(SaveQuickRegisterPatientAsync);
+
+        SelectCatalogMedicineCommand = new RelayCommand<MedicineDto>(SelectCatalogMedicine);
+        SelectDoseChipCommand = new RelayCommand<string>(chip => Dose = chip ?? string.Empty);
+        SelectFrequencyChipCommand = new RelayCommand<string>(chip => Frequency = chip ?? string.Empty);
+        SelectDurationChipCommand = new RelayCommand<string>(chip => Duration = chip ?? string.Empty);
+        SelectMealRelationCommand = new RelayCommand<MealRelation>(mr => MealRelation = mr);
+
+        AddOrUpdateMedicineCommand = new RelayCommand(AddOrUpdateMedicine);
+        CancelEditMedicineCommand = new RelayCommand(ClearMedicineEditor);
+        EditMedicineRowCommand = new RelayCommand<PrescriptionMedicineRowState>(EditMedicineRow);
+        DeleteMedicineRowCommand = new RelayCommand<PrescriptionMedicineRowState>(DeleteMedicineRow);
+        UndoDeleteMedicineCommand = new RelayCommand(UndoDeleteMedicine);
+        MoveUpMedicineRowCommand = new RelayCommand<PrescriptionMedicineRowState>(MoveUpMedicineRow);
+        MoveDownMedicineRowCommand = new RelayCommand<PrescriptionMedicineRowState>(MoveDownMedicineRow);
+
+        AddAdvicePresetCommand = new RelayCommand<string>(AddAdvicePreset);
+        FinalizePrescriptionCommand = new AsyncRelayCommand(FinalizePrescriptionAsync);
+        SaveDraftExplicitCommand = new AsyncRelayCommand(async () => await SaveDraftInternalAsync(explicitUserSave: true));
+        CancelOrDiscardCommand = new AsyncRelayCommand(CancelOrDiscardAsync);
+    }
+
+    public override async Task InitializeAsync(object? parameter = null)
+    {
+        _isInitializing = true;
+        try
+        {
+            if (parameter is PatientDto patientDto)
+            {
+                SelectedPatient = patientDto;
+            }
+            else if (parameter is Guid draftKey)
+            {
+                await LoadDraftAsync(draftKey);
+            }
+            else if (parameter is PrescriptionDetailDto parentDetail)
+            {
+                // Amendment mode
+                _amendmentParentId = parentDetail.Id;
+                _amendmentNumber = parentDetail.AmendmentNumber;
+                OnPropertyChanged(nameof(IsAmending));
+                OnPropertyChanged(nameof(ScreenTitle));
+
+                var patient = await _patientService.GetPatientByIdAsync(parentDetail.PatientId);
+                SelectedPatient = patient;
+
+                ChiefComplaints = parentDetail.ChiefComplaints;
+                BloodPressure = parentDetail.BloodPressure;
+                PulseRate = parentDetail.PulseRate;
+                Temperature = parentDetail.Temperature;
+                WeightKg = parentDetail.WeightKg;
+                ClinicalNotes = parentDetail.ClinicalNotes;
+                GeneralAdvice = parentDetail.GeneralAdvice;
+
+                PrescribedMedicines.Clear();
+                foreach (var item in parentDetail.Items)
+                {
+                    PrescribedMedicines.Add(new PrescriptionMedicineRowState
+                    {
+                        MedicineId = item.MedicineId,
+                        MedicineName = item.MedicineName,
+                        GenericName = item.GenericName,
+                        Form = item.Form,
+                        Strength = item.Strength,
+                        Dose = item.Dose,
+                        Frequency = item.Frequency,
+                        Timing = item.Timing,
+                        MealRelation = item.MealRelation,
+                        CustomMealRelationText = item.CustomMealRelationText,
+                        WithWhat = item.WithWhat,
+                        Route = item.Route,
+                        Duration = item.Duration,
+                        Instructions = item.Instructions,
+                        FormattedDirections = item.FormattedDirections
+                    });
+                }
+            }
+        }
+        finally
+        {
+            _isInitializing = false;
+        }
+    }
+
+    private async Task LoadDraftAsync(Guid draftKey)
+    {
+        var result = await _draftService.GetAsync(draftKey);
+        if (!result.IsSuccess || result.Value == null)
+        {
+            _dialogService.ShowError("Draft Load Error", result.ErrorMessage ?? "Failed to load draft.");
+            return;
+        }
+
+        var state = result.Value;
+        _draftKey = state.DraftKey;
+
+        if (state.PatientId.HasValue)
+        {
+            SelectedPatient = await _patientService.GetPatientByIdAsync(state.PatientId.Value);
+        }
+
+        ChiefComplaints = state.ChiefComplaints;
+        BloodPressure = state.BloodPressure;
+        PulseRate = state.PulseRate;
+        Temperature = state.Temperature;
+        WeightKg = state.WeightKg;
+        ClinicalNotes = state.ClinicalNotes;
+        GeneralAdvice = state.GeneralAdvice;
+
+        FollowUpMode = state.FollowUp.Mode;
+        FollowUpInterval = state.FollowUp.Interval;
+        CustomFollowUpDate = state.FollowUp.CustomDate;
+
+        PrescribedMedicines.Clear();
+        foreach (var item in state.Items)
+        {
+            item.FormattedDirections = MedicineInstructionFormatter.Format(item);
+            PrescribedMedicines.Add(item);
+        }
+
+        LastSavedText = $"Loaded draft from {state.UpdatedAtUtc.ToLocalTime():h:mm tt}";
+    }
+
+    private async Task SearchPatientsAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
+        {
+            PatientSearchResults.Clear();
+            return;
+        }
+
+        IsPatientSearching = true;
+        try
+        {
+            var results = await _patientService.SearchPatientsAsync(query);
+            PatientSearchResults.Clear();
+            foreach (var p in results)
+            {
+                PatientSearchResults.Add(p);
+            }
+        }
+        finally
+        {
+            IsPatientSearching = false;
+        }
+    }
+
+    private void SelectPatient(PatientDto? patient)
+    {
+        if (patient == null) return;
+        SelectedPatient = patient;
+        PatientSearchQuery = string.Empty;
+        PatientSearchResults.Clear();
+    }
+
+    private void ChangePatient()
+    {
+        if (PrescribedMedicines.Count > 0)
+        {
+            var confirm = _dialogService.ShowConfirmation(
+                "Change Patient",
+                "Medicines have already been added to this prescription. Changing the patient will assign these medicines to the new patient. Proceed?");
+            if (!confirm) return;
+        }
+
+        SelectedPatient = null;
+    }
+
+    private async Task SaveQuickRegisterPatientAsync()
+    {
+        if (string.IsNullOrWhiteSpace(NewPatientName))
+        {
+            _dialogService.ShowWarning("Patient Name Required", "Please enter the patient's name.");
+            return;
+        }
+
+        if (!int.TryParse(NewPatientAge, out var age) || age < 0 || age > 130)
+        {
+            _dialogService.ShowWarning("Valid Age Required", "Please enter a valid age between 0 and 130.");
+            return;
+        }
+
+        var dto = new CreatePatientDto
+        {
+            Name = NewPatientName.Trim(),
+            Age = age,
+            Gender = NewPatientGender,
+            Phone = string.IsNullOrWhiteSpace(NewPatientPhone) ? null : NewPatientPhone.Trim()
+        };
+
+        var result = await _patientService.CreatePatientAsync(dto);
+        if (result.IsSuccess && result.Value != null)
+        {
+            SelectedPatient = result.Value;
+            IsQuickRegisterDrawerOpen = false;
+            NewPatientName = string.Empty;
+            NewPatientAge = string.Empty;
+            NewPatientPhone = string.Empty;
+        }
+        else
+        {
+            _dialogService.ShowError("Registration Failed", result.ErrorMessage ?? "Could not register patient.");
+        }
+    }
+
+    private async Task SearchMedicinesAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
+        {
+            MedicineSearchResults.Clear();
+            return;
+        }
+
+        IsMedicineSearching = true;
+        try
+        {
+            var results = await _medicineService.SearchMedicinesAsync(query);
+            MedicineSearchResults.Clear();
+            foreach (var m in results)
+            {
+                MedicineSearchResults.Add(m);
+            }
+        }
+        finally
+        {
+            IsMedicineSearching = false;
+        }
+    }
+
+    private void SelectCatalogMedicine(MedicineDto? catalogMed)
+    {
+        if (catalogMed == null) return;
+
+        _selectedMedicineId = catalogMed.Id;
+        MedicineName = catalogMed.Name;
+        GenericName = catalogMed.GenericName;
+        Form = catalogMed.Form;
+        Strength = catalogMed.Strength;
+
+        // Never auto-fill clinical directions: dose, frequency, duration, meal relation stay unselected
+        MedicineSearchQuery = string.Empty;
+        MedicineSearchResults.Clear();
+    }
+
+    private void AddOrUpdateMedicine()
+    {
+        ValidationErrorMessage = null;
+        ValidationWarningMessage = null;
+
+        if (string.IsNullOrWhiteSpace(MedicineName))
+        {
+            ValidationErrorMessage = "Medicine name is required.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Dose))
+        {
+            ValidationErrorMessage = "Dose is required (e.g. 1 tab, 5 ml, 1 drop).";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(Frequency))
+        {
+            ValidationErrorMessage = "Frequency is required (e.g. OD, BD, TDS).";
+            return;
+        }
+
+        // Missing Form is a WARNING, not an error (Amendment 4)
+        if (string.IsNullOrWhiteSpace(Form))
+        {
+            ValidationWarningMessage = "Form is omitted (e.g. Tablet, Syrup). You can proceed without it.";
+        }
+
+        var row = new PrescriptionMedicineRowState
+        {
+            RowId = EditingRowId ?? Guid.NewGuid(),
+            MedicineId = _selectedMedicineId,
+            MedicineName = MedicineName.Trim(),
+            GenericName = GenericName?.Trim(),
+            Form = Form?.Trim() ?? string.Empty,
+            Strength = Strength?.Trim() ?? string.Empty,
+            Dose = Dose.Trim(),
+            Frequency = Frequency.Trim(),
+            Timing = Timing?.Trim(),
+            MealRelation = MealRelation,
+            CustomMealRelationText = CustomMealRelationText?.Trim(),
+            WithWhat = WithWhat?.Trim(),
+            Route = Route?.Trim() ?? string.Empty,
+            Duration = Duration?.Trim() ?? string.Empty,
+            Instructions = Instructions?.Trim(),
+            AddToCatalog = AddToCatalog
+        };
+
+        row.FormattedDirections = MedicineInstructionFormatter.Format(row);
+
+        if (EditingRowId.HasValue)
+        {
+            var existingIndex = PrescribedMedicines.ToList().FindIndex(m => m.RowId == EditingRowId.Value);
+            if (existingIndex >= 0)
+            {
+                PrescribedMedicines[existingIndex] = row;
+            }
+            else
+            {
+                PrescribedMedicines.Add(row);
+            }
+        }
+        else
+        {
+            PrescribedMedicines.Add(row);
+        }
+
+        ClearMedicineEditor();
+        TriggerAutosave();
+    }
+
+    private void ClearMedicineEditor()
+    {
+        EditingRowId = null;
+        _selectedMedicineId = null;
+        MedicineSearchQuery = string.Empty;
+        MedicineSearchResults.Clear();
+        MedicineName = string.Empty;
+        GenericName = null;
+        Form = string.Empty;
+        Strength = string.Empty;
+        Dose = string.Empty;
+        Frequency = string.Empty;
+        Timing = null;
+        MealRelation = MealRelation.AsDirected;
+        CustomMealRelationText = null;
+        WithWhat = null;
+        Route = string.Empty;
+        Duration = string.Empty;
+        Instructions = null;
+        AddToCatalog = false;
+    }
+
+    private void EditMedicineRow(PrescriptionMedicineRowState? row)
+    {
+        if (row == null) return;
+
+        EditingRowId = row.RowId;
+        _selectedMedicineId = row.MedicineId;
+        MedicineName = row.MedicineName;
+        GenericName = row.GenericName;
+        Form = row.Form;
+        Strength = row.Strength;
+        Dose = row.Dose;
+        Frequency = row.Frequency;
+        Timing = row.Timing;
+        MealRelation = row.MealRelation;
+        CustomMealRelationText = row.CustomMealRelationText;
+        WithWhat = row.WithWhat;
+        Route = row.Route;
+        Duration = row.Duration;
+        Instructions = row.Instructions;
+        AddToCatalog = row.AddToCatalog;
+    }
+
+    private void DeleteMedicineRow(PrescriptionMedicineRowState? row)
+    {
+        if (row == null) return;
+
+        var index = PrescribedMedicines.IndexOf(row);
+        if (index >= 0)
+        {
+            PrescribedMedicines.RemoveAt(index);
+            _undoStack.Push((index, row));
+
+            _undoSecondsRemaining = 8;
+            IsUndoAvailable = true;
+            UndoBannerText = $"Deleted '{row.MedicineName}'. Undo ({_undoSecondsRemaining}s)";
+            _undoTimer.Start();
+
+            TriggerAutosave();
+        }
+    }
+
+    private void OnUndoTimerTick(object? sender, EventArgs e)
+    {
+        _undoSecondsRemaining--;
+        if (_undoSecondsRemaining <= 0)
+        {
+            _undoTimer.Stop();
+            IsUndoAvailable = false;
+            _undoStack.Clear();
+        }
+        else
+        {
+            if (_undoStack.Count > 0)
+            {
+                var (_, item) = _undoStack.Peek();
+                UndoBannerText = $"Deleted '{item.MedicineName}'. Undo ({_undoSecondsRemaining}s)";
+            }
+        }
+    }
+
+    private void UndoDeleteMedicine()
+    {
+        if (_undoStack.Count > 0)
+        {
+            var (index, item) = _undoStack.Pop();
+            if (index >= 0 && index <= PrescribedMedicines.Count)
+            {
+                PrescribedMedicines.Insert(index, item);
+            }
+            else
+            {
+                PrescribedMedicines.Add(item);
+            }
+
+            _undoTimer.Stop();
+            IsUndoAvailable = false;
+            TriggerAutosave();
+        }
+    }
+
+    private void MoveUpMedicineRow(PrescriptionMedicineRowState? row)
+    {
+        if (row == null) return;
+        var index = PrescribedMedicines.IndexOf(row);
+        if (index > 0)
+        {
+            PrescribedMedicines.Move(index, index - 1);
+            TriggerAutosave();
+        }
+    }
+
+    private void MoveDownMedicineRow(PrescriptionMedicineRowState? row)
+    {
+        if (row == null) return;
+        var index = PrescribedMedicines.IndexOf(row);
+        if (index >= 0 && index < PrescribedMedicines.Count - 1)
+        {
+            PrescribedMedicines.Move(index, index + 1);
+            TriggerAutosave();
+        }
+    }
+
+    private void AddAdvicePreset(string? preset)
+    {
+        if (string.IsNullOrWhiteSpace(preset)) return;
+
+        if (string.IsNullOrWhiteSpace(GeneralAdvice))
+        {
+            GeneralAdvice = preset;
+        }
+        else
+        {
+            GeneralAdvice += "\n" + preset;
+        }
+    }
+
+    private void TriggerAutosave()
+    {
+        if (_isInitializing || _isFinalized) return;
+        _debounceTimer.Stop();
+        _debounceTimer.Start();
+    }
+
+    public async Task SaveDraftInternalAsync(bool explicitUserSave = false)
+    {
+        if (_isFinalized || _isInitializing) return;
+
+        // Serialize autosaves: one at a time, last write wins (Amendment 8)
+        lock (_saveLock)
+        {
+            if (_inFlightSaveTask != null && !_inFlightSaveTask.IsCompleted)
+            {
+                return;
+            }
+        }
+
+        var state = BuildComposerState();
+        var saveTask = Task.Run(async () =>
+        {
+            var res = await _draftService.SaveAsync(state);
+            if (res.IsSuccess)
+            {
+                LastSavedText = $"Draft autosaved at {DateTime.Now:h:mm:ss tt}";
+            }
+            else if (explicitUserSave)
+            {
+                _dialogService.ShowError("Save Draft", res.ErrorMessage ?? "Failed to save draft.");
+            }
+        });
+
+        lock (_saveLock)
+        {
+            _inFlightSaveTask = saveTask;
+        }
+
+        await saveTask;
+    }
+
+    private PrescriptionComposerState BuildComposerState()
+    {
+        return new PrescriptionComposerState
+        {
+            DraftKey = _draftKey,
+            PatientId = SelectedPatient?.Id,
+            PatientName = SelectedPatient?.Name,
+            PatientRecordNumber = SelectedPatient?.RecordNumber,
+            PatientAgeText = SelectedPatient != null ? $"{SelectedPatient.Age} years" : null,
+            PatientGender = SelectedPatient?.Gender,
+            PatientPhone = SelectedPatient?.Phone,
+            PatientKnownAllergies = SelectedPatient?.KnownAllergies,
+            PatientLastVisitDate = SelectedPatient?.LastVisitDate,
+            VisitDate = _clock.Today,
+            ChiefComplaints = ChiefComplaints,
+            BloodPressure = BloodPressure,
+            PulseRate = PulseRate,
+            Temperature = Temperature,
+            WeightKg = WeightKg,
+            ClinicalNotes = ClinicalNotes,
+            GeneralAdvice = GeneralAdvice,
+            FollowUp = new FollowUpSettingState
+            {
+                Mode = FollowUpMode,
+                Interval = FollowUpInterval,
+                CustomDate = CustomFollowUpDate
+            },
+            Items = PrescribedMedicines.ToList(),
+            IsFinalized = _isFinalized
+        };
+    }
+
+    private async Task FinalizePrescriptionAsync()
+    {
+        ValidationErrorMessage = null;
+        ValidationWarningMessage = null;
+
+        var state = BuildComposerState();
+        var validation = _validator.Validate(state);
+
+        if (!validation.IsValid)
+        {
+            ValidationErrorMessage = string.Join("\n", validation.Errors.Select(e => e.Message));
+            _dialogService.ShowError("Cannot Finalize Prescription", ValidationErrorMessage);
+            return;
+        }
+
+        // If there are warnings (e.g. omitted Form per Amendment 4), confirm with doctor
+        if (validation.HasWarnings)
+        {
+            var warningText = string.Join("\n", validation.Warnings.Select(w => w.Message));
+            var proceed = _dialogService.ShowConfirmation(
+                "Prescription Warnings",
+                $"Please note the following warnings:\n\n{warningText}\n\nDo you wish to proceed and finalize this prescription?");
+            if (!proceed) return;
+        }
+
+        // Zombie draft prevention (Amendment 1): stop timers, await in-flight save, mark composer finalized
+        _debounceTimer.Stop();
+        _safetyTimer.Stop();
+        _isFinalized = true;
+
+        if (_inFlightSaveTask != null)
+        {
+            try { await _inFlightSaveTask; } catch { }
+        }
+
+        _draftService.MarkFinalized(_draftKey);
+
+        var dto = new CreatePrescriptionDto
+        {
+            DraftKey = _draftKey,
+            PatientId = SelectedPatient!.Id,
+            PrescriptionDate = _clock.Today,
+            ChiefComplaints = ChiefComplaints,
+            BloodPressure = BloodPressure,
+            PulseRate = PulseRate,
+            Temperature = Temperature,
+            WeightKg = WeightKg,
+            ClinicalNotes = ClinicalNotes,
+            GeneralAdvice = GeneralAdvice,
+            FollowUpDate = state.FollowUp.CalculateDate(_clock.Today),
+            FollowUpText = FollowUpPreviewText,
+            Items = PrescribedMedicines.Select((m, i) => new CreatePrescriptionMedicineDto
+            {
+                MedicineId = m.MedicineId,
+                MedicineName = m.MedicineName,
+                GenericName = m.GenericName,
+                Form = m.Form,
+                Strength = m.Strength,
+                Dose = m.Dose,
+                Frequency = m.Frequency,
+                Timing = m.Timing,
+                MealRelation = m.MealRelation,
+                CustomMealRelationText = m.CustomMealRelationText,
+                WithWhat = m.WithWhat,
+                Route = m.Route,
+                Duration = m.Duration,
+                Instructions = m.Instructions,
+                SortOrder = i + 1,
+                AddToCatalog = m.AddToCatalog
+            }).ToList()
+        };
+
+        Result<PrescriptionDetailDto> result;
+        if (IsAmending && _amendmentParentId.HasValue)
+        {
+            result = await _prescriptionService.AmendPrescriptionAsync(_amendmentParentId.Value, dto);
+        }
+        else
+        {
+            result = await _prescriptionService.FinalizePrescriptionAsync(dto);
+        }
+
+        if (result.IsSuccess && result.Value != null)
+        {
+            _dialogService.ShowInformation(
+                "Prescription Finalized",
+                $"Prescription {result.Value.PrescriptionNumber} has been finalized successfully and locked against tampering.");
+
+            _navigationService.NavigateTo(NavigationDestination.PrescriptionDetail, result.Value);
+        }
+        else
+        {
+            _isFinalized = false; // Re-enable if finalize failed so doctor can fix and retry
+            _safetyTimer.Start();
+            _dialogService.ShowError("Finalization Failed", result.ErrorMessage ?? "Unable to finalize prescription.");
+        }
+    }
+
+    private async Task CancelOrDiscardAsync()
+    {
+        var confirm = _dialogService.ShowConfirmation(
+            "Discard Draft",
+            "Are you sure you want to discard this prescription draft? Any unsaved edits will be lost.");
+
+        if (!confirm) return;
+
+        _debounceTimer.Stop();
+        _safetyTimer.Stop();
+        _isFinalized = true;
+
+        await _draftService.DiscardAsync(_draftKey);
+        _navigationService.NavigateTo(NavigationDestination.Dashboard);
+    }
+}

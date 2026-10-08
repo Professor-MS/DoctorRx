@@ -40,3 +40,14 @@ public class PrescriptionComposerState
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;
     public bool IsFinalized { get; set; }
 }
+
+public record ValidationIssue(string FieldKey, Guid? RowId, string Message);
+
+public class ComposerValidationResult
+{
+    public List<ValidationIssue> Errors { get; } = new();
+    public List<ValidationIssue> Warnings { get; } = new();
+
+    public bool IsValid => Errors.Count == 0;
+    public bool HasWarnings => Warnings.Count > 0;
+}

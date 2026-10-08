@@ -32,3 +32,8 @@ public interface IDatabaseInitializer
 {
     Task InitializeAsync(CancellationToken cancellationToken = default);
 }
+
+public interface IPrescriptionComposerValidator
+{
+    ComposerValidationResult Validate(PrescriptionComposerState state);
+}

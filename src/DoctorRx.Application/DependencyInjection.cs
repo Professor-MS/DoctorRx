@@ -15,6 +15,7 @@ public static class DependencyInjection
         services.AddSingleton<IDoctorService, DoctorService>();
         services.AddSingleton<IDashboardService, DashboardService>();
         services.AddSingleton<IDraftService, DraftService>();
+        services.AddSingleton<IPrescriptionComposerValidator, PrescriptionComposerValidator>();
 
         return services;
     }

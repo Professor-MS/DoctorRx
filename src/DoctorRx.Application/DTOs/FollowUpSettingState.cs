@@ -12,6 +12,17 @@ public enum FollowUpType
     Custom = 5
 }
 
+public enum FollowUpMode
+{
+    None = 0,
+    InDays = 1,
+    InWeeks = 2,
+    InMonths = 3,
+    CustomDate = 4,
+    SOS = 5,
+    PRN = 6
+}
+
 public class FollowUpSettingState
 {
     public FollowUpType Type { get; set; } = FollowUpType.None;
@@ -20,11 +31,33 @@ public class FollowUpSettingState
     public DateOnly? SpecificDate { get; set; }
     public string? CustomText { get; set; }
 
+    // Phase 2 Unified Mode properties
+    public FollowUpMode Mode { get; set; } = FollowUpMode.None;
+    public int Interval { get; set; } = 7;
+    public DateOnly CustomDate { get; set; } = DateOnly.FromDateTime(DateTime.Today.AddDays(7));
+
+    public DateOnly? CalculateDate(DateOnly visitDate)
+    {
+        return Mode switch
+        {
+            FollowUpMode.InDays when Interval > 0 => visitDate.AddDays(Interval),
+            FollowUpMode.InWeeks when Interval > 0 => visitDate.AddDays(Interval * 7),
+            FollowUpMode.InMonths when Interval > 0 => visitDate.AddMonths(Interval),
+            FollowUpMode.CustomDate => CustomDate,
+            _ => GetEffectiveDate(visitDate)
+        };
+    }
+
     /// <summary>
     /// Computes the effective target follow-up date based on current visit date.
     /// </summary>
     public DateOnly? GetEffectiveDate(DateOnly visitDate)
     {
+        if (Mode != FollowUpMode.None)
+        {
+            return CalculateDate(visitDate);
+        }
+
         return Type switch
         {
             FollowUpType.AfterInterval when IntervalValue.HasValue && IntervalValue > 0 =>
@@ -44,6 +77,21 @@ public class FollowUpSettingState
     /// </summary>
     public string GetDisplayText(DateOnly visitDate)
     {
+        if (Mode != FollowUpMode.None)
+        {
+            var target = CalculateDate(visitDate);
+            return Mode switch
+            {
+                FollowUpMode.InDays when Interval > 0 => $"After {Interval} days ({target:ddd, dd MMM yyyy})",
+                FollowUpMode.InWeeks when Interval > 0 => $"After {Interval} weeks ({target:ddd, dd MMM yyyy})",
+                FollowUpMode.InMonths when Interval > 0 => $"After {Interval} months ({target:ddd, dd MMM yyyy})",
+                FollowUpMode.CustomDate => $"Follow-up on {CustomDate:ddd, dd MMM yyyy}",
+                FollowUpMode.SOS => "Review SOS (if symptoms worsen)",
+                FollowUpMode.PRN => "Review PRN (as needed)",
+                _ => string.Empty
+            };
+        }
+
         return Type switch
         {
             FollowUpType.None => string.Empty,

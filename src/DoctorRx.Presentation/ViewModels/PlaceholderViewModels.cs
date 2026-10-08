@@ -27,35 +27,6 @@ public abstract class ScaffoldedFeatureViewModel : ViewModelBase
     }
 }
 
-public class NewPrescriptionViewModel : ScaffoldedFeatureViewModel
-{
-    public PatientDto? SelectedPatient { get; private set; }
-
-    public NewPrescriptionViewModel() : base(
-        "Prescription Composer",
-        "The multi-step prescription builder for composing prescriptions with medicine snapshots, directions, general advice, print preview, and PDF generation.",
-        "Phase 2 Core Medical Workflow",
-        new[]
-        {
-            "Patient lookup & instant registration dialog",
-            "Medicine search with auto-fill (form, strength, route, frequency)",
-            "Custom/Unregistered medicine manual entry",
-            "Dosing, timing, before/after meal relation, and duration selectors",
-            "Print Preview with A4/A5 and Custom Prescription pad sizes",
-            "Direct print and Microsoft Print to PDF export"
-        })
-    {
-    }
-
-    public override Task InitializeAsync(object? parameter = null)
-    {
-        if (parameter is PatientDto patient)
-        {
-            SelectedPatient = patient;
-        }
-        return Task.CompletedTask;
-    }
-}
 
 public class PrescriptionHistoryViewModel : ScaffoldedFeatureViewModel
 {
