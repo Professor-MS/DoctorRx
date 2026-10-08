@@ -98,6 +98,7 @@ public class NewPrescriptionViewModel : ViewModelBase
     // Validation state
     private string? _validationErrorMessage;
     private string? _validationWarningMessage;
+    private string? _editorErrorMessage;
 
     public ObservableCollection<PatientDto> PatientSearchResults { get; } = new();
     public ObservableCollection<MedicineDto> MedicineSearchResults { get; } = new();
@@ -246,14 +247,8 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     public string MedicineSearchQuery
     {
-        get => _medicineSearchQuery;
-        set
-        {
-            if (SetProperty(ref _medicineSearchQuery, value))
-            {
-                _ = SearchMedicinesAsync(value);
-            }
-        }
+        get => _medicineName;
+        set => MedicineName = value;
     }
 
     public bool IsMedicineSearching
@@ -265,7 +260,20 @@ public class NewPrescriptionViewModel : ViewModelBase
     public string MedicineName
     {
         get => _medicineName;
-        set => SetProperty(ref _medicineName, value);
+        set
+        {
+            if (SetProperty(ref _medicineName, value))
+            {
+                _medicineSearchQuery = value;
+                OnPropertyChanged(nameof(MedicineSearchQuery));
+                if (EditorErrorMessage != null)
+                {
+                    EditorErrorMessage = null;
+                    ValidationErrorMessage = null;
+                }
+                _ = SearchMedicinesAsync(value);
+            }
+        }
     }
 
     public string? GenericName
@@ -289,13 +297,33 @@ public class NewPrescriptionViewModel : ViewModelBase
     public string Dose
     {
         get => _dose;
-        set => SetProperty(ref _dose, value);
+        set
+        {
+            if (SetProperty(ref _dose, value))
+            {
+                if (EditorErrorMessage != null)
+                {
+                    EditorErrorMessage = null;
+                    ValidationErrorMessage = null;
+                }
+            }
+        }
     }
 
     public string Frequency
     {
         get => _frequency;
-        set => SetProperty(ref _frequency, value);
+        set
+        {
+            if (SetProperty(ref _frequency, value))
+            {
+                if (EditorErrorMessage != null)
+                {
+                    EditorErrorMessage = null;
+                    ValidationErrorMessage = null;
+                }
+            }
+        }
     }
 
     public string? Timing
@@ -465,7 +493,36 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     public bool HasValidationWarning => !string.IsNullOrWhiteSpace(ValidationWarningMessage);
 
-    public bool HasUnsavedChanges => !_isFinalized && (HasSelectedPatient || PrescribedMedicines.Count > 0 || !string.IsNullOrWhiteSpace(ChiefComplaints) || !string.IsNullOrWhiteSpace(ClinicalNotes) || !string.IsNullOrWhiteSpace(GeneralAdvice));
+    public string? EditorErrorMessage
+    {
+        get => _editorErrorMessage;
+        set
+        {
+            if (SetProperty(ref _editorErrorMessage, value))
+            {
+                OnPropertyChanged(nameof(HasEditorError));
+            }
+        }
+    }
+
+    public bool HasEditorError => !string.IsNullOrWhiteSpace(EditorErrorMessage);
+
+    public bool HasPendingUnaddedMedicine =>
+        !IsEditingMedicine &&
+        (!string.IsNullOrWhiteSpace(MedicineName) ||
+         !string.IsNullOrWhiteSpace(Dose) ||
+         !string.IsNullOrWhiteSpace(Frequency) ||
+         !string.IsNullOrWhiteSpace(GenericName) ||
+         !string.IsNullOrWhiteSpace(Form) ||
+         !string.IsNullOrWhiteSpace(Strength) ||
+         !string.IsNullOrWhiteSpace(Duration) ||
+         !string.IsNullOrWhiteSpace(Route) ||
+         !string.IsNullOrWhiteSpace(Instructions));
+
+    public event Action<string>? FocusRequested;
+    public event Action? ScrollLastMedicineIntoViewRequested;
+
+    public bool HasUnsavedChanges => !_isFinalized && (HasSelectedPatient || PrescribedMedicines.Count > 0 || !string.IsNullOrWhiteSpace(ChiefComplaints) || !string.IsNullOrWhiteSpace(ClinicalNotes) || !string.IsNullOrWhiteSpace(GeneralAdvice) || HasPendingUnaddedMedicine);
 
     // Commands
     public ICommand SelectPatientCommand { get; }
@@ -489,9 +546,9 @@ public class NewPrescriptionViewModel : ViewModelBase
     public ICommand MoveDownMedicineRowCommand { get; }
 
     public ICommand AddAdvicePresetCommand { get; }
-    public ICommand FinalizePrescriptionCommand { get; }
-    public ICommand SaveDraftExplicitCommand { get; }
-    public ICommand CancelOrDiscardCommand { get; }
+    public IAsyncRelayCommand FinalizePrescriptionCommand { get; }
+    public IAsyncRelayCommand SaveDraftExplicitCommand { get; }
+    public IAsyncRelayCommand CancelOrDiscardCommand { get; }
 
     public NewPrescriptionViewModel(
         IPatientService patientService,
@@ -537,8 +594,8 @@ public class NewPrescriptionViewModel : ViewModelBase
         SelectDurationChipCommand = new RelayCommand<string>(chip => Duration = chip ?? string.Empty);
         SelectMealRelationCommand = new RelayCommand<MealRelation>(mr => MealRelation = mr);
 
-        AddOrUpdateMedicineCommand = new RelayCommand(AddOrUpdateMedicine);
-        CancelEditMedicineCommand = new RelayCommand(ClearMedicineEditor);
+        AddOrUpdateMedicineCommand = new RelayCommand(() => AddOrUpdateMedicine());
+        CancelEditMedicineCommand = new RelayCommand(() => ClearMedicineEditor());
         EditMedicineRowCommand = new RelayCommand<PrescriptionMedicineRowState>(EditMedicineRow);
         DeleteMedicineRowCommand = new RelayCommand<PrescriptionMedicineRowState>(DeleteMedicineRow);
         UndoDeleteMedicineCommand = new RelayCommand(UndoDeleteMedicine);
@@ -715,33 +772,14 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     private void UpdateSearchResults(IReadOnlyList<PatientDto> results)
     {
-        void Apply()
+        PatientSearchResults.Clear();
+        foreach (var p in results)
         {
-            PatientSearchResults.Clear();
-            foreach (var p in results)
-            {
-                PatientSearchResults.Add(p);
-            }
-            OnPropertyChanged(nameof(NoPatientFound));
-            OnPropertyChanged(nameof(PatientSearchResultCount));
-            OnPropertyChanged(nameof(SearchResultCountText));
+            PatientSearchResults.Add(p);
         }
-
-        var dispatcher = App.Current?.Dispatcher;
-        if (dispatcher != null && !dispatcher.CheckAccess() && dispatcher.Thread.IsAlive && !dispatcher.HasShutdownStarted)
-        {
-            try
-            {
-                dispatcher.Invoke(Apply, TimeSpan.FromMilliseconds(200));
-                return;
-            }
-            catch
-            {
-                // Fallback to direct apply if dispatcher cannot accept work or times out
-            }
-        }
-
-        Apply();
+        OnPropertyChanged(nameof(NoPatientFound));
+        OnPropertyChanged(nameof(PatientSearchResultCount));
+        OnPropertyChanged(nameof(SearchResultCountText));
     }
 
     private void RegisterNewPatientFromSearch()
@@ -839,35 +877,47 @@ public class NewPrescriptionViewModel : ViewModelBase
         if (catalogMed == null) return;
 
         _selectedMedicineId = catalogMed.Id;
-        MedicineName = catalogMed.Name;
+        _medicineName = catalogMed.Name;
+        _medicineSearchQuery = catalogMed.Name;
+        OnPropertyChanged(nameof(MedicineName));
+        OnPropertyChanged(nameof(MedicineSearchQuery));
         GenericName = catalogMed.GenericName;
         Form = catalogMed.Form;
         Strength = catalogMed.Strength;
 
         // Never auto-fill clinical directions: dose, frequency, duration, meal relation stay unselected
-        MedicineSearchQuery = string.Empty;
         MedicineSearchResults.Clear();
+        EditorErrorMessage = null;
+        ValidationErrorMessage = null;
+        FocusRequested?.Invoke("Dose");
     }
 
-    private void AddOrUpdateMedicine()
+    public bool AddOrUpdateMedicine()
     {
         ValidationErrorMessage = null;
         ValidationWarningMessage = null;
+        EditorErrorMessage = null;
 
         if (string.IsNullOrWhiteSpace(MedicineName))
         {
-            ValidationErrorMessage = "Medicine name is required.";
-            return;
+            EditorErrorMessage = "Medicine name is required.";
+            ValidationErrorMessage = EditorErrorMessage;
+            FocusRequested?.Invoke("MedicineName");
+            return false;
         }
         if (string.IsNullOrWhiteSpace(Dose))
         {
-            ValidationErrorMessage = "Dose is required (e.g. 1 tab, 5 ml, 1 drop).";
-            return;
+            EditorErrorMessage = "Dose is required (e.g. 1 tab, 5 ml, 1 drop).";
+            ValidationErrorMessage = EditorErrorMessage;
+            FocusRequested?.Invoke("Dose");
+            return false;
         }
         if (string.IsNullOrWhiteSpace(Frequency))
         {
-            ValidationErrorMessage = "Frequency is required (e.g. OD, BD, TDS).";
-            return;
+            EditorErrorMessage = "Frequency is required (e.g. Once daily, Twice daily, Three times daily).";
+            ValidationErrorMessage = EditorErrorMessage;
+            FocusRequested?.Invoke("Frequency");
+            return false;
         }
 
         // Missing Form is a WARNING, not an error (Amendment 4)
@@ -915,17 +965,25 @@ public class NewPrescriptionViewModel : ViewModelBase
             PrescribedMedicines.Add(row);
         }
 
-        ClearMedicineEditor();
+        ClearMedicineEditor(preserveWarning: true);
+        ValidationErrorMessage = null;
+        EditorErrorMessage = null;
+
+        FocusRequested?.Invoke("MedicineName");
+        ScrollLastMedicineIntoViewRequested?.Invoke();
         TriggerAutosave();
+        return true;
     }
 
-    private void ClearMedicineEditor()
+    private void ClearMedicineEditor(bool preserveWarning = false)
     {
         EditingRowId = null;
         _selectedMedicineId = null;
-        MedicineSearchQuery = string.Empty;
+        _medicineName = string.Empty;
+        _medicineSearchQuery = string.Empty;
+        OnPropertyChanged(nameof(MedicineName));
+        OnPropertyChanged(nameof(MedicineSearchQuery));
         MedicineSearchResults.Clear();
-        MedicineName = string.Empty;
         GenericName = null;
         Form = string.Empty;
         Strength = string.Empty;
@@ -939,6 +997,13 @@ public class NewPrescriptionViewModel : ViewModelBase
         Duration = string.Empty;
         Instructions = null;
         AddToCatalog = false;
+
+        EditorErrorMessage = null;
+        ValidationErrorMessage = null;
+        if (!preserveWarning)
+        {
+            ValidationWarningMessage = null;
+        }
     }
 
     private void EditMedicineRow(PrescriptionMedicineRowState? row)
@@ -947,7 +1012,10 @@ public class NewPrescriptionViewModel : ViewModelBase
 
         EditingRowId = row.RowId;
         _selectedMedicineId = row.MedicineId;
-        MedicineName = row.MedicineName;
+        _medicineName = row.MedicineName;
+        _medicineSearchQuery = row.MedicineName;
+        OnPropertyChanged(nameof(MedicineName));
+        OnPropertyChanged(nameof(MedicineSearchQuery));
         GenericName = row.GenericName;
         Form = row.Form;
         Strength = row.Strength;
@@ -961,6 +1029,38 @@ public class NewPrescriptionViewModel : ViewModelBase
         Duration = row.Duration;
         Instructions = row.Instructions;
         AddToCatalog = row.AddToCatalog;
+
+        EditorErrorMessage = null;
+        ValidationErrorMessage = null;
+        ValidationWarningMessage = null;
+
+        FocusRequested?.Invoke("Dose");
+    }
+
+    public bool HandlePendingUnaddedMedicineGuard()
+    {
+        if (!HasPendingUnaddedMedicine) return true;
+
+        var choice = _dialogService.ShowConfirmationWithCancel(
+            "Unsaved Medicine in Editor",
+            "You have a medicine in the editor that has not been added.",
+            "Add medicine",
+            "Discard editor",
+            "Cancel");
+
+        if (choice == null)
+        {
+            return false;
+        }
+
+        if (choice == true)
+        {
+            var added = AddOrUpdateMedicine();
+            return added;
+        }
+
+        ClearMedicineEditor();
+        return true;
     }
 
     private void DeleteMedicineRow(PrescriptionMedicineRowState? row)
@@ -1068,6 +1168,8 @@ public class NewPrescriptionViewModel : ViewModelBase
     {
         if (_isFinalized || _isInitializing) return;
 
+        if (explicitUserSave && !HandlePendingUnaddedMedicineGuard()) return;
+
         // Serialize autosaves: one at a time, last write wins (Amendment 8)
         lock (_saveLock)
         {
@@ -1133,6 +1235,8 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     private async Task FinalizePrescriptionAsync()
     {
+        if (!HandlePendingUnaddedMedicineGuard()) return;
+
         ValidationErrorMessage = null;
         ValidationWarningMessage = null;
 
@@ -1231,6 +1335,8 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     private async Task CancelOrDiscardAsync()
     {
+        if (!HandlePendingUnaddedMedicineGuard()) return;
+
         var confirm = _dialogService.ShowConfirmation(
             "Discard Draft",
             "Are you sure you want to discard this prescription draft? Any unsaved edits will be lost.");

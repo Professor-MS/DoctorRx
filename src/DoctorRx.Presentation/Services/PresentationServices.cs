@@ -122,7 +122,7 @@ public class DialogService : IDialogService
         });
     }
 
-    public bool? ShowConfirmationWithCancel(string title, string message)
+    public bool? ShowConfirmationWithCancel(string title, string message, string yesText = "Yes", string noText = "No", string cancelText = "Cancel")
     {
         return RunOnUi(() =>
         {
@@ -136,7 +136,7 @@ public class DialogService : IDialogService
                     _ => null
                 };
             }
-            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.ConfirmationWithCancel);
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.ConfirmationWithCancel, null, yesText, noText, cancelText);
             dialog.ShowDialog();
             return dialog.DialogBooleanResult;
         });

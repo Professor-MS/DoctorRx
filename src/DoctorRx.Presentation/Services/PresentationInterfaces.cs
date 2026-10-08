@@ -29,5 +29,5 @@ public interface IDialogService
     void ShowWarning(string title, string message);
     void ShowError(string title, string message);
     bool ShowConfirmation(string title, string message);
-    bool? ShowConfirmationWithCancel(string title, string message);
+    bool? ShowConfirmationWithCancel(string title, string message, string yesText = "Yes", string noText = "No", string cancelText = "Cancel");
 }

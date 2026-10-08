@@ -504,6 +504,193 @@ public class NewPrescriptionViewModelTests : IDisposable
         Assert.True(vm.HasUnsavedChanges);
     }
 
+    [Fact]
+    public void AddMedicine_TypedFreeTextName_AddsRowSuccessfully()
+    {
+        var vm = CreateViewModel();
+        string? focusedField = null;
+        vm.FocusRequested += target => focusedField = target;
+
+        // Simulating doctor typing free text "Panadol Mg"
+        vm.MedicineSearchQuery = "Panadol Mg";
+        vm.Form = "Tab";
+        vm.Strength = "500 mg";
+        vm.GenericName = "Paracetamol";
+        vm.Dose = "1 tab";
+        vm.Frequency = "Twice daily";
+        vm.Duration = "5 days";
+        vm.Route = "Oral";
+
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+
+        Assert.Null(vm.ValidationErrorMessage);
+        Assert.Null(vm.EditorErrorMessage);
+        Assert.False(vm.HasEditorError);
+        Assert.Single(vm.PrescribedMedicines);
+        Assert.Equal("Panadol Mg", vm.PrescribedMedicines[0].MedicineName);
+        Assert.Equal("MedicineName", focusedField); // Resets focus to MedicineName for the next medicine
+        Assert.True(string.IsNullOrEmpty(vm.MedicineName));
+    }
+
+    [Fact]
+    public void AddMedicine_SelectingSuggestion_AddsRowSuccessfully()
+    {
+        var vm = CreateViewModel();
+        string? focusedField = null;
+        vm.FocusRequested += target => focusedField = target;
+
+        var catalogItem = new MedicineDto(
+            Id: 42,
+            Name: "Amoxicillin",
+            GenericName: "Amoxicillin Trihydrate",
+            Form: "Cap",
+            Strength: "500 mg",
+            IsActive: true);
+
+        vm.SelectCatalogMedicineCommand.Execute(catalogItem);
+
+        Assert.Equal("Amoxicillin", vm.MedicineName);
+        Assert.Equal("Dose", focusedField); // Suggestion selection focuses Dose for doctor input
+
+        vm.Dose = "1 cap";
+        vm.Frequency = "Three times daily";
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+
+        Assert.Null(vm.ValidationErrorMessage);
+        Assert.Null(vm.EditorErrorMessage);
+        Assert.False(vm.HasEditorError);
+        Assert.Single(vm.PrescribedMedicines);
+        Assert.Equal("Amoxicillin", vm.PrescribedMedicines[0].MedicineName);
+        Assert.Equal(42, vm.PrescribedMedicines[0].MedicineId);
+        Assert.Equal("MedicineName", focusedField);
+    }
+
+    [Fact]
+    public void AddMedicine_MissingDoseOrFrequency_ShowsRightInlineError()
+    {
+        var vm = CreateViewModel();
+        string? focusedField = null;
+        vm.FocusRequested += target => focusedField = target;
+
+        // 1. Missing Medicine Name
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+        Assert.Equal("Medicine name is required.", vm.EditorErrorMessage);
+        Assert.True(vm.HasEditorError);
+        Assert.Equal("MedicineName", focusedField);
+
+        // 2. Medicine Name provided, Missing Dose
+        vm.MedicineName = "Panadol";
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+        Assert.Equal("Dose is required (e.g. 1 tab, 5 ml, 1 drop).", vm.EditorErrorMessage);
+        Assert.True(vm.HasEditorError);
+        Assert.Equal("Dose", focusedField);
+
+        // 3. Dose provided, Missing Frequency
+        vm.Dose = "1 tab";
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+        Assert.Equal("Frequency is required (e.g. Once daily, Twice daily, Three times daily).", vm.EditorErrorMessage);
+        Assert.True(vm.HasEditorError);
+        Assert.Equal("Frequency", focusedField);
+
+        // 4. Frequency provided -> succeeds and clears error
+        vm.Frequency = "Once daily";
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+        Assert.Null(vm.EditorErrorMessage);
+        Assert.False(vm.HasEditorError);
+        Assert.Single(vm.PrescribedMedicines);
+    }
+
+    [Fact]
+    public async Task FinalizePrescription_WithPendingUnaddedMedicine_ShowsGuardPrompt_CancelAborts()
+    {
+        var vm = CreateViewModel();
+        vm.SelectedPatient = new PatientDto(
+            Id: 1, RecordNumber: "MRN-001", Name: "Test Patient", DateOfBirth: null, Age: 30,
+            Gender: Gender.Male, Phone: null, Address: null, MedicalHistoryNotes: null,
+            KnownAllergies: null, CreatedAtUtc: DateTime.UtcNow, LastVisitDate: null,
+            IsArchived: false, ArchivedAtUtc: null);
+
+        // Pending editor content
+        vm.MedicineName = "Brufen";
+        vm.Dose = "1 tab";
+        vm.Frequency = "Twice daily";
+
+        // Doctor chooses Cancel (null)
+        _dialogService.ConfirmationWithCancelResult = null;
+
+        await vm.FinalizePrescriptionCommand.ExecuteAsync(null);
+
+        Assert.NotNull(_dialogService.LastConfirmationWithCancelCall);
+        Assert.Contains("You have a medicine in the editor that has not been added.", _dialogService.LastConfirmationWithCancelCall.Value.Message);
+        Assert.Equal("Add medicine", _dialogService.LastConfirmationWithCancelCall.Value.YesText);
+        Assert.Equal("Discard editor", _dialogService.LastConfirmationWithCancelCall.Value.NoText);
+        Assert.Equal("Cancel", _dialogService.LastConfirmationWithCancelCall.Value.CancelText);
+
+        // Editor was kept intact, nothing was finalized
+        Assert.Equal("Brufen", vm.MedicineName);
+        Assert.Empty(vm.PrescribedMedicines);
+    }
+
+    [Fact]
+    public async Task FinalizePrescription_WithPendingUnaddedMedicine_ShowsGuardPrompt_DiscardClearsEditor()
+    {
+        var vm = CreateViewModel();
+        vm.SelectedPatient = new PatientDto(
+            Id: 1, RecordNumber: "MRN-001", Name: "Test Patient", DateOfBirth: null, Age: 30,
+            Gender: Gender.Male, Phone: null, Address: null, MedicalHistoryNotes: null,
+            KnownAllergies: null, CreatedAtUtc: DateTime.UtcNow, LastVisitDate: null,
+            IsArchived: false, ArchivedAtUtc: null);
+
+        // Add 1 valid medicine first
+        vm.MedicineName = "Panadol";
+        vm.Dose = "1 tab";
+        vm.Frequency = "Once daily";
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+        Assert.Single(vm.PrescribedMedicines);
+
+        // Start editing another medicine in editor without clicking Add
+        vm.MedicineName = "Brufen";
+        vm.Dose = "1 tab";
+
+        // Doctor chooses Discard (false)
+        _dialogService.ConfirmationWithCancelResult = false;
+
+        await vm.FinalizePrescriptionCommand.ExecuteAsync(null);
+
+        Assert.NotNull(_dialogService.LastConfirmationWithCancelCall);
+        // Editor is cleared
+        Assert.True(string.IsNullOrEmpty(vm.MedicineName));
+        // Prescription is finalized with the 1 existing medicine
+        Assert.Null(vm.ValidationErrorMessage);
+    }
+
+    [Fact]
+    public async Task FinalizePrescription_WithPendingUnaddedMedicine_ShowsGuardPrompt_AddAddsMedicineAndFinalizes()
+    {
+        var vm = CreateViewModel();
+        vm.SelectedPatient = new PatientDto(
+            Id: 1, RecordNumber: "MRN-001", Name: "Test Patient", DateOfBirth: null, Age: 30,
+            Gender: Gender.Male, Phone: null, Address: null, MedicalHistoryNotes: null,
+            KnownAllergies: null, CreatedAtUtc: DateTime.UtcNow, LastVisitDate: null,
+            IsArchived: false, ArchivedAtUtc: null);
+
+        // Doctor typed medicine completely in editor but forgot to click "Add to Prescription"
+        vm.MedicineName = "Augmentin";
+        vm.Dose = "1 tab";
+        vm.Frequency = "Twice daily";
+
+        // Doctor clicks Finalize and selects "Add medicine" (true)
+        _dialogService.ConfirmationWithCancelResult = true;
+
+        await vm.FinalizePrescriptionCommand.ExecuteAsync(null);
+
+        Assert.NotNull(_dialogService.LastConfirmationWithCancelCall);
+        // Medicine was added to prescribed medicines and finalized
+        Assert.Single(vm.PrescribedMedicines);
+        Assert.Equal("Augmentin", vm.PrescribedMedicines[0].MedicineName);
+        Assert.Null(vm.ValidationErrorMessage);
+    }
+
     private class TestDialogService : IDialogService
     {
         public List<string> Errors { get; } = new();
@@ -511,12 +698,17 @@ public class NewPrescriptionViewModelTests : IDisposable
         public List<string> Infos { get; } = new();
         public bool ConfirmationResult { get; set; } = true;
         public bool? ConfirmationWithCancelResult { get; set; } = true;
+        public (string Title, string Message, string YesText, string NoText, string CancelText)? LastConfirmationWithCancelCall { get; set; }
 
         public void ShowError(string title, string message) => Errors.Add($"{title}: {message}");
         public void ShowWarning(string title, string message) => Warnings.Add($"{title}: {message}");
         public void ShowInformation(string title, string message) => Infos.Add($"{title}: {message}");
         public bool ShowConfirmation(string title, string message) => ConfirmationResult;
-        public bool? ShowConfirmationWithCancel(string title, string message) => ConfirmationWithCancelResult;
+        public bool? ShowConfirmationWithCancel(string title, string message, string yesText = "Yes", string noText = "No", string cancelText = "Cancel")
+        {
+            LastConfirmationWithCancelCall = (title, message, yesText, noText, cancelText);
+            return ConfirmationWithCancelResult;
+        }
     }
 
     private class TestNavigationService : INavigationService

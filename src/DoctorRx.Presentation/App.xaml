@@ -12,6 +12,7 @@
 
             <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisConverter" />
+            <converters:FollowUpModeDisplayConverter x:Key="FollowUpModeDisplayConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

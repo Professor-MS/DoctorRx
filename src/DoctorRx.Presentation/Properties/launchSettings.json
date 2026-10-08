@@ -1,10 +1,7 @@
 {
   "profiles": {
     "DoctorRx.Presentation": {
-      "commandName": "Project",
-      "environmentVariables": {
-        "DOCTORRX_DEMO": "1"
-      }
+      "commandName": "Project"
     }
   }
 }

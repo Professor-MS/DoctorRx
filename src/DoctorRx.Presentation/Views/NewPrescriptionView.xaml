@@ -260,6 +260,15 @@
                                             Visibility="{Binding IsEditingMedicine, Converter={StaticResource BoolToVisConverter}}" Padding="10,2" />
                                 </Grid>
 
+                                <!-- Inline Editor Validation Error Banner -->
+                                <Border Background="{StaticResource DangerRedLightBrush}" BorderBrush="{StaticResource DangerRedBrush}" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,10"
+                                        Visibility="{Binding HasEditorError, Converter={StaticResource BoolToVisConverter}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource IconWarning}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource DangerRedBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding EditorErrorMessage}" Foreground="{StaticResource DangerRedBrush}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBodyMuted}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Border>
+
                                 <!-- Row 1: Search / Medicine Name, Form, Strength, Generic -->
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
@@ -270,7 +279,7 @@
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                         <TextBlock Text="Medicine Name *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox x:Name="MedicineSearchBox" Text="{Binding MedicineSearchQuery, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Search Formulary / Enter Medicine Name *" AutomationProperties.Name="Medicine Name Input" TabIndex="10" />
+                                        <TextBox x:Name="MedicineSearchBox" Text="{Binding MedicineName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Search Formulary / Enter Medicine Name *" AutomationProperties.Name="Medicine Name Input" TabIndex="10" />
                                         <!-- Autocomplete Results -->
                                         <ListBox ItemsSource="{Binding MedicineSearchResults}" MaxHeight="140" Margin="0,2,0,0"
                                                  Visibility="{Binding MedicineSearchResults.Count, Converter={StaticResource BoolToVisConverter}}">
@@ -318,7 +327,7 @@
                                     <!-- Dose with Chips -->
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                         <TextBlock Text="Dose *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox Text="{Binding Dose, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Dose * (e.g. 1 tab)" AutomationProperties.Name="Dose Input" />
+                                        <TextBox x:Name="DoseTextBox" Text="{Binding Dose, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Dose * (e.g. 1 tab)" AutomationProperties.Name="Dose Input" />
                                         <WrapPanel Margin="0,4,0,0">
                                             <Button Content="1/2 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1/2 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                             <Button Content="1 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
@@ -329,17 +338,17 @@
                                         </WrapPanel>
                                     </StackPanel>
 
-                                    <!-- Frequency with Chips -->
+                                    <!-- Frequency with Plain-Language Chips -->
                                     <StackPanel Grid.Column="1" Margin="0,0,8,0">
                                         <TextBlock Text="Frequency *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Frequency * (e.g. TDS)" AutomationProperties.Name="Frequency Input" />
+                                        <TextBox x:Name="FrequencyTextBox" Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Frequency * (e.g. Twice daily)" AutomationProperties.Name="Frequency Input" />
                                         <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="OD" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="OD" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="BD" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="BD" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="TDS" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="TDS" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="QID" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="QID" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="SOS" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="SOS" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="PRN" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="PRN" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="Once daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Once daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="Twice daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Twice daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="Three times daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Three times daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="Four times daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Four times daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="As needed" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="As needed" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="At bedtime" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="At bedtime" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                         </WrapPanel>
                                     </StackPanel>
 
@@ -398,7 +407,7 @@
                         </Border>
 
                         <!-- PRESCRIBED MEDICINES NUMBERED LIST -->
-                        <ItemsControl ItemsSource="{Binding PrescribedMedicines}">
+                        <ItemsControl x:Name="PrescribedMedicinesControl" ItemsSource="{Binding PrescribedMedicines}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
                                     <Border Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,0,0,8">
@@ -494,6 +503,11 @@
                             <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                 <TextBlock Text="Follow-up Mode" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                 <ComboBox SelectedItem="{Binding FollowUpMode}" Height="34" VerticalContentAlignment="Center">
+                                    <ComboBox.ItemTemplate>
+                                        <DataTemplate>
+                                            <TextBlock Text="{Binding Converter={StaticResource FollowUpModeDisplayConverter}}" />
+                                        </DataTemplate>
+                                    </ComboBox.ItemTemplate>
                                     <appEnums:FollowUpMode>None</appEnums:FollowUpMode>
                                     <appEnums:FollowUpMode>InDays</appEnums:FollowUpMode>
                                     <appEnums:FollowUpMode>InWeeks</appEnums:FollowUpMode>
@@ -533,7 +547,7 @@
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Text="Ready to Issue Prescription" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" />
-                            <TextBlock Text="Finalization freezes clinical snapshots, assigns sequential prescription number, and deletes draft." Style="{StaticResource BodyMuted}" />
+                            <TextBlock Text="Once issued, this prescription cannot be edited." Style="{StaticResource BodyMuted}" />
                         </StackPanel>
                         <Button Grid.Column="1" Content="Finalize Prescription" Command="{Binding FinalizePrescriptionCommand}" Style="{StaticResource PrimaryButton}" Padding="24,10" FontSize="{StaticResource FontSizeH3}" FontWeight="Bold" AutomationProperties.Name="Finalize Prescription Bottom Button" />
                     </Grid>

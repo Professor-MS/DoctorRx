@@ -63,6 +63,7 @@ public static class StaTestRunner
 
                 app.Resources.Add("BoolToVisConverter", new BooleanToVisibilityConverter());
                 app.Resources.Add("InverseBoolToVisConverter", new InverseBoolToVisibilityConverter());
+                app.Resources.Add("FollowUpModeDisplayConverter", new FollowUpModeDisplayConverter());
             }
         }
     }

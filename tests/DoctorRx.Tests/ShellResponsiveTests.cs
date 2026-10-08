@@ -342,7 +342,7 @@ public class ShellResponsiveTests
         public void ShowWarning(string title, string message) { }
         public void ShowError(string title, string message) { }
         public bool ShowConfirmation(string title, string message) => true;
-        public bool? ShowConfirmationWithCancel(string title, string message) => true;
+        public bool? ShowConfirmationWithCancel(string title, string message, string yesText = "Yes", string noText = "No", string cancelText = "Cancel") => true;
     }
 
     private class StubDraftService : IDraftService

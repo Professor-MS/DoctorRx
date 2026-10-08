@@ -18,7 +18,7 @@ public partial class CustomDialogWindow : Window
         ConfirmationWithCancel
     }
 
-    public CustomDialogWindow(string title, string message, DialogType type, Window? owner = null)
+    public CustomDialogWindow(string title, string message, DialogType type, Window? owner = null, string? primaryLabel = null, string? secondaryLabel = null, string? cancelLabel = null)
     {
         InitializeComponent();
 
@@ -56,7 +56,7 @@ public partial class CustomDialogWindow : Window
         TitleTextBlock.Text = title;
         MessageTextBlock.Text = message;
 
-        ConfigureDialogType(type);
+        ConfigureDialogType(type, primaryLabel, secondaryLabel, cancelLabel);
 
         Loaded += (s, e) =>
         {
@@ -65,7 +65,7 @@ public partial class CustomDialogWindow : Window
         };
     }
 
-    private void ConfigureDialogType(DialogType type)
+    private void ConfigureDialogType(DialogType type, string? primaryLabel = null, string? secondaryLabel = null, string? cancelLabel = null)
     {
         switch (type)
         {
@@ -73,7 +73,7 @@ public partial class CustomDialogWindow : Window
                 IconPath.Data = (Geometry)FindResource("IconInfo");
                 IconPath.Fill = (Brush)FindResource("PrimaryTealDarkBrush");
                 IconBadge.Background = (Brush)FindResource("PrimaryTealUltraLightBrush");
-                PrimaryButton.Content = "OK";
+                PrimaryButton.Content = primaryLabel ?? "OK";
                 SecondaryButton.Visibility = Visibility.Collapsed;
                 CancelButton.Visibility = Visibility.Collapsed;
                 break;
@@ -82,7 +82,7 @@ public partial class CustomDialogWindow : Window
                 IconPath.Data = (Geometry)FindResource("IconWarning");
                 IconPath.Fill = new SolidColorBrush(Color.FromRgb(217, 119, 6)); // Amber-600
                 IconBadge.Background = new SolidColorBrush(Color.FromRgb(254, 243, 199)); // Amber-100
-                PrimaryButton.Content = "OK";
+                PrimaryButton.Content = primaryLabel ?? "OK";
                 SecondaryButton.Visibility = Visibility.Collapsed;
                 CancelButton.Visibility = Visibility.Collapsed;
                 break;
@@ -91,7 +91,7 @@ public partial class CustomDialogWindow : Window
                 IconPath.Data = (Geometry)FindResource("IconWarning");
                 IconPath.Fill = (Brush)FindResource("DangerRedBrush");
                 IconBadge.Background = (Brush)FindResource("DangerRedLightBrush");
-                PrimaryButton.Content = "OK";
+                PrimaryButton.Content = primaryLabel ?? "OK";
                 SecondaryButton.Visibility = Visibility.Collapsed;
                 CancelButton.Visibility = Visibility.Collapsed;
                 break;
@@ -100,8 +100,8 @@ public partial class CustomDialogWindow : Window
                 IconPath.Data = (Geometry)FindResource("IconInfo");
                 IconPath.Fill = (Brush)FindResource("PrimaryTealDarkBrush");
                 IconBadge.Background = (Brush)FindResource("PrimaryTealUltraLightBrush");
-                PrimaryButton.Content = "Yes";
-                SecondaryButton.Content = "No";
+                PrimaryButton.Content = primaryLabel ?? "Yes";
+                SecondaryButton.Content = secondaryLabel ?? "No";
                 SecondaryButton.Visibility = Visibility.Visible;
                 SecondaryButton.IsCancel = true; // Esc triggers No
                 CancelButton.Visibility = Visibility.Collapsed;
@@ -111,11 +111,11 @@ public partial class CustomDialogWindow : Window
                 IconPath.Data = (Geometry)FindResource("IconInfo");
                 IconPath.Fill = (Brush)FindResource("PrimaryTealDarkBrush");
                 IconBadge.Background = (Brush)FindResource("PrimaryTealUltraLightBrush");
-                PrimaryButton.Content = "Yes";
-                SecondaryButton.Content = "No";
+                PrimaryButton.Content = primaryLabel ?? "Yes";
+                SecondaryButton.Content = secondaryLabel ?? "No";
                 SecondaryButton.Visibility = Visibility.Visible;
                 SecondaryButton.IsCancel = false;
-                CancelButton.Content = "Cancel";
+                CancelButton.Content = cancelLabel ?? "Cancel";
                 CancelButton.Visibility = Visibility.Visible;
                 CancelButton.IsCancel = true; // Esc triggers Cancel
                 break;
