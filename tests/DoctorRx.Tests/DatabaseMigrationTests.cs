@@ -443,4 +443,200 @@ public class DatabaseMigrationTests : IDisposable
             Assert.Contains("FOREIGN KEY constraint failed", ex.Message);
         }
     }
+
+    [Fact]
+    public async Task AmendPrescriptionAsync_ForcedFailure_LeavesOriginalUntouched()
+    {
+        // Arrange
+        var factory = CreateFactory(_appPaths.DatabasePath);
+        var migrator = new DatabaseMigrator(factory, _appPaths, NullLogger<DatabaseMigrator>.Instance);
+        await migrator.MigrateDatabaseAsync();
+
+        var uowFactory = new UnitOfWorkFactory(factory);
+        var clock = new SystemClock();
+        var rxLogger = NullLogger<PrescriptionService>.Instance;
+        var rxService = new PrescriptionService(uowFactory, clock, rxLogger);
+
+        int doctorId;
+        int patientId;
+        await using (var ctx = factory.CreateDbContext())
+        {
+            var doc = new Doctor { Name = "Dr. Active", Qualification = "MBBS", RegistrationNumber = "1234", Specialization = "GP", ClinicName = "Clinic", IsActive = true };
+            var pat = new Patient { RecordNumber = "P-000500", Name = "Imran Khan", NormalizedName = "imran khan", DateOfBirth = new DateOnly(1980, 1, 1), Gender = Gender.Male };
+            ctx.Doctors.Add(doc);
+            ctx.Patients.Add(pat);
+            await ctx.SaveChangesAsync();
+            doctorId = doc.Id;
+            patientId = pat.Id;
+        }
+
+        // Finalize original prescription
+        var createDto = new CreatePrescriptionDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            PrescriptionDate = clock.Today,
+            ChiefComplaints = "Fever",
+            Items = new List<CreatePrescriptionMedicineDto>
+            {
+                new()
+                {
+                    MedicineName = "Panadol",
+                    Form = "Tablet",
+                    Strength = "500 mg",
+                    Dose = "1 tab",
+                    Frequency = "TDS",
+                    Route = "Oral",
+                    Duration = "3 days"
+                }
+            }
+        };
+
+        var finalResult = await rxService.FinalizePrescriptionAsync(createDto);
+        Assert.True(finalResult.IsSuccess);
+        int originalRxId = finalResult.Value!.Id;
+
+        // Act: Attempt Amend with an invalid payload (e.g. invalid medicine line missing required Dose)
+        var brokenAmendDto = new CreatePrescriptionDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            PrescriptionDate = clock.Today,
+            ChiefComplaints = "Still has fever",
+            Items = new List<CreatePrescriptionMedicineDto>
+            {
+                new()
+                {
+                    MedicineName = "Panadol",
+                    Form = "Tablet",
+                    Strength = "500 mg",
+                    Dose = "", // Invalid: Missing dose triggers failure
+                    Frequency = "TDS",
+                    Route = "Oral",
+                    Duration = "3 days"
+                }
+            }
+        };
+
+        var amendResult = await rxService.AmendPrescriptionAsync(originalRxId, brokenAmendDto);
+        Assert.False(amendResult.IsSuccess);
+
+        // Assert: Original prescription is still Finalized and untouched (rollback preserved state)
+        var originalAfterFailure = await rxService.GetPrescriptionByIdAsync(originalRxId);
+        Assert.NotNull(originalAfterFailure);
+        Assert.Equal(PrescriptionStatus.Finalized, originalAfterFailure.Status);
+        Assert.Equal(0, originalAfterFailure.AmendmentNumber);
+    }
+
+    /// <summary>
+    /// Explains and tests the anti-tamper trigger 'trg_prevent_prescription_medicine_insert_after_terminal':
+    /// In DoctorRx, prescription items are inserted atomically alongside the prescription during finalization
+    /// (when Prescription.Status == Finalized = 1). Because 1 is not in (2, 3), items insert without error.
+    /// However, once a prescription is in a terminal state (Cancelled = 2 or Superseded = 3), subsequent attempts
+    /// to append medicine lines via raw SQL or rogue code are strictly prohibited by the SQLite engine trigger.
+    /// </summary>
+    [Fact]
+    public async Task SQLiteTriggers_InsertAfterTerminal_BlocksInsertsOnCancelledOrSupersededPrescriptions()
+    {
+        // Arrange
+        var factory = CreateFactory(_appPaths.DatabasePath);
+        var migrator = new DatabaseMigrator(factory, _appPaths, NullLogger<DatabaseMigrator>.Instance);
+        await migrator.MigrateDatabaseAsync();
+
+        var uowFactory = new UnitOfWorkFactory(factory);
+        var clock = new SystemClock();
+        var rxLogger = NullLogger<PrescriptionService>.Instance;
+        var rxService = new PrescriptionService(uowFactory, clock, rxLogger);
+
+        int doctorId;
+        int patientId;
+        await using (var ctx = factory.CreateDbContext())
+        {
+            var doc = new Doctor { Name = "Dr. Active", Qualification = "MBBS", RegistrationNumber = "777", Specialization = "GP", ClinicName = "Clinic", IsActive = true };
+            var pat = new Patient { RecordNumber = "P-000777", Name = "Naveed", NormalizedName = "naveed", DateOfBirth = new DateOnly(1992, 5, 5), Gender = Gender.Male };
+            ctx.Doctors.Add(doc);
+            ctx.Patients.Add(pat);
+            await ctx.SaveChangesAsync();
+            doctorId = doc.Id;
+            patientId = pat.Id;
+        }
+
+        // 1. Finalize and then Cancel prescription
+        var createDto = new CreatePrescriptionDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            PrescriptionDate = clock.Today,
+            ChiefComplaints = "Headache",
+            Items = new List<CreatePrescriptionMedicineDto>
+            {
+                new() { MedicineName = "Aspirin", Form = "Tablet", Strength = "300 mg", Dose = "1 tab", Frequency = "OD", Route = "Oral", Duration = "1 day" }
+            }
+        };
+
+        var finalResult = await rxService.FinalizePrescriptionAsync(createDto);
+        Assert.True(finalResult.IsSuccess);
+        int cancelledRxId = finalResult.Value!.Id;
+
+        var cancelResult = await rxService.CancelPrescriptionAsync(cancelledRxId, "Patient cancelled visit");
+        Assert.True(cancelResult.IsSuccess);
+
+        // Attempt raw SQL insert into Cancelled prescription: Must be blocked by trigger
+        await using (var conn = new SqliteConnection($"Data Source={_appPaths.DatabasePath}"))
+        {
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $@"
+                INSERT INTO PrescriptionMedicines 
+                (PrescriptionId, MedicineName, Form, Strength, Dose, Frequency, Route, Duration, SortOrder)
+                VALUES ({cancelledRxId}, 'IllegalMed', 'Tablet', '10mg', '1 tab', 'OD', 'Oral', '1 day', 2);";
+
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Cannot add medicine items to a cancelled or superseded prescription", ex.Message);
+        }
+
+        // 2. Finalize and then Supersede (via Amend) another prescription
+        var createDto2 = new CreatePrescriptionDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            PrescriptionDate = clock.Today,
+            ChiefComplaints = "Back pain",
+            Items = new List<CreatePrescriptionMedicineDto>
+            {
+                new() { MedicineName = "Brufen", Form = "Tablet", Strength = "400 mg", Dose = "1 tab", Frequency = "BD", Route = "Oral", Duration = "3 days" }
+            }
+        };
+        var finalResult2 = await rxService.FinalizePrescriptionAsync(createDto2);
+        Assert.True(finalResult2.IsSuccess);
+        int originalSupersededId = finalResult2.Value!.Id;
+
+        var amendDto = new CreatePrescriptionDto
+        {
+            PatientId = patientId,
+            DoctorId = doctorId,
+            PrescriptionDate = clock.Today,
+            ChiefComplaints = "Back pain ongoing",
+            Items = new List<CreatePrescriptionMedicineDto>
+            {
+                new() { MedicineName = "Brufen", Form = "Tablet", Strength = "400 mg", Dose = "1 tab", Frequency = "TDS", Route = "Oral", Duration = "5 days" }
+            }
+        };
+        var amendResult = await rxService.AmendPrescriptionAsync(originalSupersededId, amendDto);
+        Assert.True(amendResult.IsSuccess);
+
+        // Attempt raw SQL insert into Superseded prescription: Must be blocked by trigger
+        await using (var conn = new SqliteConnection($"Data Source={_appPaths.DatabasePath}"))
+        {
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = $@"
+                INSERT INTO PrescriptionMedicines 
+                (PrescriptionId, MedicineName, Form, Strength, Dose, Frequency, Route, Duration, SortOrder)
+                VALUES ({originalSupersededId}, 'IllegalMed2', 'Tablet', '10mg', '1 tab', 'OD', 'Oral', '1 day', 2);";
+
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Cannot add medicine items to a cancelled or superseded prescription", ex.Message);
+        }
+    }
 }
