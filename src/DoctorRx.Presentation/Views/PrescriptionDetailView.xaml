@@ -8,6 +8,7 @@
              mc:Ignorable="d" 
              d:DesignHeight="900" d:DesignWidth="1000"
              Background="{StaticResource SlateBackgroundBrush}"
+             UseLayoutRounding="True" SnapsToDevicePixels="True"
              AutomationProperties.Name="Prescription Detail View">
 
     <Grid>
@@ -19,7 +20,7 @@
         </Grid.RowDefinitions>
 
         <!-- ================= TOP TOOLBAR ================= -->
-        <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14">
+        <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="20,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -27,126 +28,141 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="← Back" Command="{Binding BackCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,16,0" AutomationProperties.Name="Back to Dashboard" />
-                    <TextBlock Text="{Binding Prescription.PrescriptionNumber}" Style="{StaticResource HeadingLarge}" Margin="0,0,14,0" />
+                    <Button Command="{Binding BackCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,14,0" Padding="10,6"
+                            ToolTip="Back to Dashboard" AutomationProperties.Name="Back to Dashboard">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconArrowBack}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Back" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
 
-                    <!-- Status Badge -->
-                    <Border Background="{StaticResource SuccessGreenLightBrush}" CornerRadius="12" Padding="12,4" VerticalAlignment="Center"
+                    <TextBlock Text="{Binding Prescription.PrescriptionNumber}" Style="{StaticResource HeadingLarge}" Margin="0,0,12,0" VerticalAlignment="Center" />
+
+                    <!-- Status Badges -->
+                    <Border Background="{StaticResource SuccessGreenLightBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center"
                             Visibility="{Binding IsFinalized, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="Finalized (Locked)" FontWeight="Bold" Foreground="{StaticResource SuccessGreenBrush}" FontSize="12" />
+                        <TextBlock Text="Finalized (Locked)" FontWeight="Bold" Foreground="{StaticResource SuccessGreenBrush}" FontSize="{StaticResource FontSizeCaption}" />
                     </Border>
-                    <Border Background="{StaticResource DangerRedLightBrush}" CornerRadius="12" Padding="12,4" VerticalAlignment="Center"
+                    <Border Background="{StaticResource DangerRedLightBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center"
                             Visibility="{Binding IsCancelled, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="Cancelled" FontWeight="Bold" Foreground="{StaticResource DangerRedBrush}" FontSize="12" />
+                        <TextBlock Text="Cancelled" FontWeight="Bold" Foreground="{StaticResource DangerRedBrush}" FontSize="{StaticResource FontSizeCaption}" />
                     </Border>
-                    <Border Background="{StaticResource SlateBorderBrush}" CornerRadius="12" Padding="12,4" VerticalAlignment="Center"
+                    <Border Background="{StaticResource SlateBorderBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center"
                             Visibility="{Binding IsSuperseded, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="Superseded" FontWeight="Bold" Foreground="{StaticResource SlateMediumBrush}" FontSize="12" />
+                        <TextBlock Text="Superseded" FontWeight="Bold" Foreground="{StaticResource SlateMediumBrush}" FontSize="{StaticResource FontSizeCaption}" />
                     </Border>
                 </StackPanel>
 
                 <!-- Action Buttons: Print, Amend, Cancel -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Print Prescription" Command="{Binding PrintCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,10,0" AutomationProperties.Name="Print Prescription" />
-                    <Button Content="Amend Prescription" Command="{Binding AmendCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" 
-                            Visibility="{Binding CanAmendOrCancel, Converter={StaticResource BoolToVisConverter}}" AutomationProperties.Name="Amend Prescription" />
-                    <Button Content="Cancel Prescription" Command="{Binding CancelCommand}" Style="{StaticResource DangerOutlineButton}" 
-                            Visibility="{Binding CanAmendOrCancel, Converter={StaticResource BoolToVisConverter}}" AutomationProperties.Name="Cancel Prescription" />
+                    <Button Command="{Binding PrintCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="14,7"
+                            ToolTip="Open Print Preview &amp; Print" AutomationProperties.Name="Print Prescription">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconPrint}" Width="14" Height="14" Stretch="Uniform" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Print Preview" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+                    <Button Content="Amend" Command="{Binding AmendCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Padding="12,7"
+                            Visibility="{Binding CanAmendOrCancel, Converter={StaticResource BoolToVisConverter}}" 
+                            ToolTip="Create amendment superseding this prescription" AutomationProperties.Name="Amend Prescription" />
+                    <Button Content="Cancel Rx" Command="{Binding CancelCommand}" Style="{StaticResource DangerOutlineButton}" Padding="12,7"
+                            Visibility="{Binding CanAmendOrCancel, Converter={StaticResource BoolToVisConverter}}" 
+                            ToolTip="Cancel this prescription permanently" AutomationProperties.Name="Cancel Prescription" />
                 </StackPanel>
             </Grid>
         </Border>
 
         <!-- ================= CLINICAL DOCUMENT PAD ================= -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,20">
-            <Border MaxWidth="900" Style="{StaticResource CardContainer}" Padding="32">
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20,16">
+            <Border MaxWidth="900" Style="{StaticResource CardContainer}" Padding="28">
                 <StackPanel>
 
                     <!-- CLINIC & DOCTOR HEADER -->
-                    <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,2" Padding="0,0,0,20" Margin="0,0,0,20">
+                    <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,2" Padding="0,0,0,16" Margin="0,0,0,18">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <StackPanel>
-                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.ClinicName}" FontSize="22" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" />
-                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.Name, StringFormat='Dr. {0}'}" FontSize="16" FontWeight="SemiBold" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.ClinicName}" FontSize="{StaticResource FontSizeH1}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" />
+                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.Name, StringFormat='Dr. {0}'}" FontSize="{StaticResource FontSizeH2}" FontWeight="SemiBold" Margin="0,3,0,0" />
                                 <TextBlock Text="{Binding Prescription.DoctorSnapshot.Qualification}" Style="{StaticResource BodyMuted}" />
                                 <TextBlock Text="{Binding Prescription.DoctorSnapshot.Specialization}" Style="{StaticResource BodyMuted}" />
                                 <TextBlock Text="{Binding Prescription.DoctorSnapshot.RegistrationNumber, StringFormat='PMC/PMDC: {0}'}" Style="{StaticResource BodyMuted}" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
-                                <TextBlock Text="{Binding Prescription.PrescriptionDate, StringFormat='Date: {0:dd MMMM yyyy}'}" FontWeight="SemiBold" FontSize="14" />
-                                <TextBlock Text="{Binding Prescription.PrescriptionNumber, StringFormat='Rx ID: {0}'}" Style="{StaticResource BodyMuted}" Margin="0,4,0,0" />
+                                <TextBlock Text="{Binding Prescription.PrescriptionDate, StringFormat='Date: {0:dd MMMM yyyy}'}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
+                                <TextBlock Text="{Binding Prescription.PrescriptionNumber, StringFormat='Rx ID: {0}'}" Style="{StaticResource BodyMuted}" Margin="0,3,0,0" />
                             </StackPanel>
                         </Grid>
                     </Border>
 
-                    <!-- PATIENT DEMOGRAPHICS BAR -->
-                    <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="16,12" Margin="0,0,0,20">
+                    <!-- PATIENT DEMOGRAPHICS BAR (Reflowing with star columns) -->
+                    <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="14,10" Margin="0,0,0,18">
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="1.5*" />
+                                <ColumnDefinition Width="2*" MinWidth="130" />
+                                <ColumnDefinition Width="*" MinWidth="75" />
+                                <ColumnDefinition Width="*" MinWidth="75" />
+                                <ColumnDefinition Width="1.5*" MinWidth="100" />
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0">
-                                <TextBlock Text="Patient Name" Style="{StaticResource BodyMuted}" FontSize="11" />
-                                <TextBlock Text="{Binding Prescription.PatientSnapshot.Name}" FontWeight="Bold" FontSize="15" />
+                                <TextBlock Text="Patient Name" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock Text="{Binding Prescription.PatientSnapshot.Name}" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <StackPanel Grid.Column="1">
-                                <TextBlock Text="Age" Style="{StaticResource BodyMuted}" FontSize="11" />
-                                <TextBlock Text="{Binding Prescription.PatientSnapshot.AgeText}" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="Age" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock Text="{Binding Prescription.PatientSnapshot.AgeText}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
                             </StackPanel>
                             <StackPanel Grid.Column="2">
-                                <TextBlock Text="Gender" Style="{StaticResource BodyMuted}" FontSize="11" />
-                                <TextBlock Text="{Binding Prescription.PatientSnapshot.Gender}" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="Gender" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock Text="{Binding Prescription.PatientSnapshot.Gender}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
                             </StackPanel>
                             <StackPanel Grid.Column="3">
-                                <TextBlock Text="MR / Record #" Style="{StaticResource BodyMuted}" FontSize="11" />
-                                <TextBlock Text="{Binding Prescription.PatientId, StringFormat='P-{0:D4}'}" FontWeight="SemiBold" FontSize="14" />
+                                <TextBlock Text="MR / Record #" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock Text="{Binding Prescription.PatientId, StringFormat='P-{0:D4}'}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
                             </StackPanel>
                         </Grid>
                     </Border>
 
                     <!-- OBSERVATIONS (IF RECORDED) -->
-                    <Border Background="#FAFAFA" CornerRadius="6" Padding="14,10" Margin="0,0,0,20"
+                    <Border Background="#FAFAFA" CornerRadius="6" Padding="12,8" Margin="0,0,0,18"
                             Visibility="{Binding Prescription.ChiefComplaints, Converter={StaticResource BoolToVisConverter}}">
                         <StackPanel>
-                            <TextBlock Text="Chief Complaints &amp; Clinical Notes" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkBrush}" Margin="0,0,0,4" />
+                            <TextBlock Text="Chief Complaints &amp; Clinical Notes" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkBrush}" FontSize="{StaticResource FontSizeCaption}" Margin="0,0,0,4" />
                             <TextBlock Text="{Binding Prescription.ChiefComplaints}" Style="{StaticResource BodyRegular}" />
-                            <TextBlock Text="{Binding Prescription.ClinicalNotes}" Style="{StaticResource BodyMuted}" Margin="0,4,0,0" />
+                            <TextBlock Text="{Binding Prescription.ClinicalNotes}" Style="{StaticResource BodyMuted}" Margin="0,3,0,0" />
                         </StackPanel>
                     </Border>
 
                     <!-- PRESCRIBED MEDICINES (Rx) -->
-                    <TextBlock Text="Rx Prescribed Medications" FontWeight="Bold" FontSize="16" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,0,12" />
+                    <TextBlock Text="Rx Prescribed Medications" FontWeight="Bold" FontSize="{StaticResource FontSizeH2}" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,0,10" />
 
                     <ItemsControl ItemsSource="{Binding Prescription.Items}">
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="0,12" Margin="0,0,0,4">
+                                <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="0,10" Margin="0,0,0,4">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="32" />
-                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="*" MinWidth="180" />
                                             <ColumnDefinition Width="Auto" />
                                         </Grid.ColumnDefinitions>
 
-                                        <TextBlock Text="{Binding SortOrder, StringFormat='{}{0}.'}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="14" VerticalAlignment="Top" />
+                                        <TextBlock Text="{Binding SortOrder, StringFormat='{}{0}.'}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeBody}" VerticalAlignment="Top" />
 
-                                        <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                                        <StackPanel Grid.Column="1" Margin="0,0,12,0">
                                             <StackPanel Orientation="Horizontal">
                                                 <TextBlock Text="{Binding Form}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,6,0" />
-                                                <TextBlock Text="{Binding MedicineName}" FontWeight="Bold" FontSize="15" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,6,0" />
+                                                <TextBlock Text="{Binding MedicineName}" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,6,0" />
                                                 <TextBlock Text="{Binding Strength}" FontWeight="SemiBold" Foreground="{StaticResource SlateMediumBrush}" Margin="0,0,8,0" />
                                                 <TextBlock Text="{Binding GenericName, StringFormat='({0})'}" Style="{StaticResource BodyMuted}" VerticalAlignment="Center" />
                                             </StackPanel>
                                             <!-- Plain language formatted directions -->
-                                            <TextBlock Text="{Binding FormattedDirections}" FontWeight="Medium" Foreground="{StaticResource SlateDarkBrush}" Margin="0,4,0,0" />
+                                            <TextBlock Text="{Binding FormattedDirections}" FontWeight="Medium" Foreground="{StaticResource SlateDarkBrush}" Margin="0,3,0,0" />
                                             <!-- Special Instructions if present -->
-                                            <TextBlock Text="{Binding Instructions}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="13" Margin="0,3,0,0"
+                                            <TextBlock Text="{Binding Instructions}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeBodyMuted}" Margin="0,2,0,0"
                                                        behaviors:AutoFlowDirection.IsEnabled="True"
                                                        Visibility="{Binding Instructions, Converter={StaticResource BoolToVisConverter}}" />
                                         </StackPanel>
@@ -159,22 +175,22 @@
                     </ItemsControl>
 
                     <!-- GENERAL ADVICE & FOLLOW-UP -->
-                    <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="16" Margin="0,20,0,0">
+                    <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="14,10" Margin="0,18,0,0">
                         <StackPanel>
-                            <TextBlock Text="General Advice / ہدایات" FontWeight="Bold" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,0,6" />
-                            <TextBlock Text="{Binding Prescription.GeneralAdvice}" Style="{StaticResource BodyRegular}" TextWrapping="Wrap" behaviors:AutoFlowDirection.IsEnabled="True" Margin="0,0,0,12" />
+                            <TextBlock Text="General Advice / ہدایات" FontWeight="Bold" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,0,4" />
+                            <TextBlock Text="{Binding Prescription.GeneralAdvice}" Style="{StaticResource BodyRegular}" TextWrapping="Wrap" behaviors:AutoFlowDirection.IsEnabled="True" Margin="0,0,0,10" />
 
-                            <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Padding="0,10,0,0">
+                            <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Padding="0,8,0,0">
                                 <StackPanel Orientation="Horizontal">
-                                    <TextBlock Text="Follow-up Appointment: " FontWeight="Bold" Foreground="{StaticResource SlateDarkBrush}" />
-                                    <TextBlock Text="{Binding Prescription.FollowUpText}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" />
+                                    <TextBlock Text="Follow-up Appointment: " FontWeight="Bold" Foreground="{StaticResource SlateDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                                    <TextBlock Text="{Binding Prescription.FollowUpText}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
                     </Border>
 
                     <!-- FOOTER METADATA -->
-                    <TextBlock Text="{Binding Prescription.FinalizedAtUtc, StringFormat='Issued &amp; Locked: {0:dd MMM yyyy hh:mm tt UTC}'}" Style="{StaticResource BodyMuted}" HorizontalAlignment="Right" Margin="0,24,0,0" FontSize="11" />
+                    <TextBlock Text="{Binding Prescription.FinalizedAtUtc, StringFormat='Issued &amp; Locked: {0:dd MMM yyyy hh:mm tt UTC}'}" Style="{StaticResource CaptionMuted}" HorizontalAlignment="Right" Margin="0,20,0,0" />
 
                 </StackPanel>
             </Border>

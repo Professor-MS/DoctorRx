@@ -14,10 +14,35 @@ public class MainWindowViewModel : ViewModelBase
     private readonly IDoctorService _doctorService;
     private readonly IDialogService _dialogService;
     private readonly IDraftService _draftService;
+    private readonly IWindowPlacementService? _windowPlacementService;
     private ViewModelBase? _currentView;
     private string _currentViewTitle = "Dashboard";
     private DoctorDto? _activeDoctor;
     private NavigationDestination _selectedDestination = NavigationDestination.Dashboard;
+
+    private bool _isSidebarCollapsed;
+    private bool _hasExplicitSidebarOverride;
+
+    public bool IsSidebarCollapsed
+    {
+        get => _isSidebarCollapsed;
+        set
+        {
+            if (SetProperty(ref _isSidebarCollapsed, value))
+            {
+                OnPropertyChanged(nameof(SidebarWidth));
+            }
+        }
+    }
+
+    public bool HasExplicitSidebarOverride => _hasExplicitSidebarOverride;
+
+    public double SidebarWidth => IsSidebarCollapsed 
+        ? LayoutBreakpoints.SidebarCollapsedWidth 
+        : LayoutBreakpoints.SidebarExpandedWidth;
+
+    public ICommand ToggleSidebarCommand { get; }
+    public ICommand HandleEscapeCommand { get; }
 
     // Doctor profile setup modal/drawer
     private bool _isDoctorSetupOpen;
@@ -179,14 +204,22 @@ public class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isHelpOverlayOpen, value);
     }
 
-    public MainWindowViewModel(INavigationService navigationService, IDoctorService doctorService, IDialogService dialogService, IDraftService draftService)
+    public MainWindowViewModel(
+        INavigationService navigationService,
+        IDoctorService doctorService,
+        IDialogService dialogService,
+        IDraftService draftService,
+        IWindowPlacementService? windowPlacementService = null)
     {
         _navigationService = navigationService;
         _doctorService = doctorService;
         _dialogService = dialogService;
         _draftService = draftService;
+        _windowPlacementService = windowPlacementService;
 
         _navigationService.CurrentViewModelChanged += OnCurrentViewModelChanged;
+
+        ToggleSidebarCommand = new RelayCommand(ToggleSidebar);
 
         NavigateToDashboardCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Dashboard));
         NavigateToNewPrescriptionCommand = new RelayCommand(() =>
@@ -209,6 +242,7 @@ public class MainWindowViewModel : ViewModelBase
         SaveDoctorSetupCommand = new AsyncRelayCommand(SaveDoctorSetupAsync);
 
         ToggleHelpOverlayCommand = new RelayCommand(() => IsHelpOverlayOpen = !IsHelpOverlayOpen);
+        HandleEscapeCommand = new RelayCommand(HandleEscape);
         SaveCurrentDraftCommand = new AsyncRelayCommand(async () =>
         {
             if (CurrentView is NewPrescriptionViewModel newRxVm)
@@ -218,19 +252,95 @@ public class MainWindowViewModel : ViewModelBase
         });
     }
 
+    public void HandleEscape()
+    {
+        if (IsHelpOverlayOpen)
+        {
+            IsHelpOverlayOpen = false;
+        }
+        else if (IsDoctorSetupOpen)
+        {
+            IsDoctorSetupOpen = false;
+        }
+        else if (CurrentView is PatientsViewModel patientsVm && patientsVm.IsDrawerOpen)
+        {
+            patientsVm.CloseDrawerCommand.Execute(null);
+        }
+        else if (CurrentView is NewPrescriptionViewModel rxVm && rxVm.IsEditingMedicine)
+        {
+            rxVm.CancelEditMedicineCommand.Execute(null);
+        }
+    }
+
+    public void ToggleSidebar()
+    {
+        _hasExplicitSidebarOverride = true;
+        IsSidebarCollapsed = !IsSidebarCollapsed;
+
+        if (_windowPlacementService != null)
+        {
+            var placement = _windowPlacementService.LoadPlacement() ?? new WindowPlacementSettings();
+            placement.IsSidebarCollapsedOverride = IsSidebarCollapsed;
+            _windowPlacementService.SavePlacement(placement);
+        }
+    }
+
+    public void UpdateLayoutWidth(double width)
+    {
+        if (width <= 0) return;
+
+        var newMode = LayoutBreakpoints.DetermineMode(width);
+        UpdateLayoutMode(newMode);
+
+        if (!_hasExplicitSidebarOverride)
+        {
+            IsSidebarCollapsed = (LayoutMode == LayoutMode.Compact);
+        }
+
+        if (CurrentView != null)
+        {
+            CurrentView.UpdateLayoutMode(newMode);
+        }
+    }
+
     public override async Task InitializeAsync(object? parameter = null)
     {
+        if (_windowPlacementService != null)
+        {
+            var placement = _windowPlacementService.LoadPlacement();
+            if (placement?.IsSidebarCollapsedOverride != null)
+            {
+                _hasExplicitSidebarOverride = true;
+                IsSidebarCollapsed = placement.IsSidebarCollapsedOverride.Value;
+            }
+            else
+            {
+                IsSidebarCollapsed = (LayoutMode == LayoutMode.Compact);
+            }
+        }
+        else
+        {
+            IsSidebarCollapsed = (LayoutMode == LayoutMode.Compact);
+        }
+
+        Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Loading active doctor...");
         ActiveDoctor = await _doctorService.GetActiveDoctorAsync();
+        Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Active doctor is {DoctorName}", ActiveDoctor?.Name ?? "NONE");
+
         _navigationService.NavigateTo(NavigationDestination.Dashboard);
+        Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Navigated to Dashboard.");
 
         if (HasActiveDoctor)
         {
             var draftCount = await _draftService.GetCountAsync();
+            Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Draft count is {DraftCount}", draftCount);
             if (draftCount > 0)
             {
+                Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Prompting draft recovery dialog...");
                 var prompt = _dialogService.ShowConfirmation(
                     "Recover In-Progress Drafts",
                     $"There is {draftCount} unfinalized prescription draft(s) saved from a previous session.\n\nWould you like to resume editing your draft now?");
+                Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Draft recovery dialog result is {PromptResult}", prompt);
                 if (prompt)
                 {
                     var drafts = await _draftService.ListAsync();
@@ -241,6 +351,7 @@ public class MainWindowViewModel : ViewModelBase
                 }
             }
         }
+        Serilog.Log.Information("MainWindowViewModel.InitializeAsync: Initialization finished successfully.");
     }
 
     public bool? ConfirmCloseWithUnsavedChanges()
@@ -349,6 +460,7 @@ public class MainWindowViewModel : ViewModelBase
     private void OnCurrentViewModelChanged(ViewModelBase viewModel)
     {
         CurrentView = viewModel;
+        viewModel.UpdateLayoutMode(LayoutMode);
         SelectedDestination = _navigationService.CurrentDestination;
 
         CurrentViewTitle = _navigationService.CurrentDestination switch

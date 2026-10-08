@@ -69,7 +69,27 @@ public class PrescriptionDetailViewModel : ViewModelBase
 
     private void PrintPrescription()
     {
-        _dialogService.ShowInformation("Print Prescription", "Prescription print preview is initialized for standard A4/A5 clinical pads.");
+        if (Prescription == null) return;
+
+        var app = System.Windows.Application.Current;
+        if (app != null)
+        {
+            if (!app.Dispatcher.CheckAccess())
+            {
+                app.Dispatcher.Invoke(() =>
+                {
+                    var preview = new Views.PrintPreviewWindow(Prescription);
+                    preview.ShowDialog();
+                });
+                return;
+            }
+
+            var window = new Views.PrintPreviewWindow(Prescription);
+            window.ShowDialog();
+            return;
+        }
+
+        _dialogService.ShowInformation("Print Prescription", $"Prescription print preview initialized for {Prescription.PrescriptionNumber}.");
     }
 
     private async Task CancelPrescriptionAsync()

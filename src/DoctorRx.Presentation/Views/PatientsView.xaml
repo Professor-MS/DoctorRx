@@ -6,71 +6,74 @@
              xmlns:vm="clr-namespace:DoctorRx.Presentation.ViewModels"
              mc:Ignorable="d" 
              d:DataContext="{d:DesignInstance Type=vm:PatientsViewModel}"
-             d:DesignHeight="750" d:DesignWidth="1100">
+             d:DesignHeight="750" d:DesignWidth="1100"
+             UseLayoutRounding="True" SnapsToDevicePixels="True">
 
-    <Grid Margin="30,24,30,30">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="*" />
-            <!-- Side Drawer Column for Registering/Editing -->
-            <ColumnDefinition Width="Auto" />
-        </Grid.ColumnDefinitions>
-
-        <!-- Left / Main Patient Directory Area -->
-        <Grid Grid.Column="0" Margin="0,0,15,0">
+    <Grid Margin="24,20,24,24">
+        <!-- Main Content Area: Search Toolbar + Patients Table -->
+        <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
             <!-- Search and Action Toolbar -->
-            <Grid Grid.Row="0" Margin="0,0,0,20">
+            <Grid Grid.Row="0" Margin="0,0,0,16">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="380" />
-                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" MinWidth="220" MaxWidth="440" />
+                    <ColumnDefinition Width="12" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
 
-                <!-- Search Box -->
+                <!-- Responsive Search Box -->
                 <Grid Grid.Column="0">
                     <TextBox Text="{Binding SearchQuery, UpdateSourceTrigger=PropertyChanged}"
                              Style="{StaticResource ModernTextBox}"
-                             Padding="36,9,28,9" />
-                    <!-- Search Icon Symbol -->
-                    <TextBlock Text="🔍" FontSize="12" Foreground="{StaticResource SlateLightBrush}"
-                               HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
-                               IsHitTestVisible="False" />
+                             Padding="36,9,28,9"
+                             AutomationProperties.Name="Search Patients Input" />
+                    <!-- Search Vector Icon -->
+                    <Path Data="{StaticResource IconSearch}" Width="14" Height="14" Stretch="Uniform" 
+                          Fill="{StaticResource SlateLightBrush}"
+                          HorizontalAlignment="Left" VerticalAlignment="Center" Margin="12,0,0,0"
+                          IsHitTestVisible="False" />
                     <!-- Clear Button -->
                     <Button Style="{StaticResource SecondaryButton}"
                             Command="{Binding ClearSearchCommand}"
                             HorizontalAlignment="Right" VerticalAlignment="Center"
-                            Margin="0,0,6,0" Padding="6,2" BorderThickness="0"
-                            Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="✕" FontSize="11" Foreground="{StaticResource SlateLightBrush}" />
+                            Margin="0,0,6,0" Padding="6,4" BorderThickness="0"
+                            Visibility="{Binding HasSearchQuery, Converter={StaticResource BoolToVisConverter}}"
+                            AutomationProperties.Name="Clear Search Query">
+                        <Path Data="{StaticResource IconClose}" Width="10" Height="10" Stretch="Uniform" Fill="{StaticResource SlateLightBrush}" />
                     </Button>
                 </Grid>
 
-                <!-- Action Buttons -->
+                <!-- Action Buttons Toolbar -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                     <CheckBox Content="Show Archived" 
                               IsChecked="{Binding ShowArchived}" 
                               VerticalAlignment="Center" 
-                              Margin="0,0,16,0" 
-                              FontSize="12" />
+                              Margin="0,0,14,0" 
+                              FontSize="{StaticResource FontSizeCaption}"
+                              AutomationProperties.Name="Toggle Show Archived Patients" />
 
                     <Button Style="{StaticResource SecondaryButton}"
                             Command="{Binding RefreshCommand}"
-                            Margin="0,0,10,0" Padding="14,8">
+                            Margin="0,0,8,0" Padding="12,8"
+                            ToolTip="Refresh Patient Directory"
+                            AutomationProperties.Name="Refresh Patient Directory">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="↻" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <Path Data="{StaticResource IconRefresh}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
                             <TextBlock Text="Refresh" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
 
                     <Button Style="{StaticResource PrimaryButton}"
                             Command="{Binding OpenNewPatientDrawerCommand}"
-                            Padding="16,8">
+                            Padding="16,8"
+                            ToolTip="Register New Patient (Opens Registration Drawer)"
+                            AutomationProperties.Name="Register New Patient">
                         <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="+ " FontWeight="Bold" VerticalAlignment="Center" />
+                            <Path Data="{StaticResource IconPlus}" Width="14" Height="14" Stretch="Uniform" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
                             <TextBlock Text="Register New Patient" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
@@ -88,10 +91,10 @@
                     Visibility="{Binding HasSearchError, Converter={StaticResource BoolToVisConverter}}">
                 <TextBlock Text="{Binding SearchErrorMessage}" 
                            Foreground="{StaticResource DangerRedBrush}" 
-                           FontSize="12" TextWrapping="Wrap" />
+                           FontSize="{StaticResource FontSizeCaption}" TextWrapping="Wrap" />
             </Border>
 
-            <!-- Patients Table -->
+            <!-- Patients DataGrid Table Card -->
             <Border Grid.Row="1" Style="{StaticResource CardContainer}" Padding="0">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -104,52 +107,103 @@
                               SelectedItem="{Binding SelectedPatient}"
                               Style="{StaticResource ModernDataGrid}">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Record #" Binding="{Binding RecordNumber}" Width="95" />
-                            <DataGridTextColumn Header="Patient Name" Binding="{Binding Name}" Width="1.5*" />
-                            <DataGridTextColumn Header="Age" Binding="{Binding Age, StringFormat='{}{0} yrs'}" Width="90" />
-                            <DataGridTemplateColumn Header="Gender" Width="100">
+                            <DataGridTextColumn Header="Record #" Binding="{Binding RecordNumber}" Width="1*" MinWidth="75" />
+                            <DataGridTextColumn Header="Patient Name" Binding="{Binding Name}" Width="2*" MinWidth="130" />
+                            <DataGridTextColumn Header="Age" Binding="{Binding Age, StringFormat='{}{0} yrs'}" Width="1*" MinWidth="65" />
+                            <DataGridTemplateColumn Header="Gender" Width="1*" MinWidth="75">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <Border Background="#F1F5F9" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left">
-                                            <TextBlock Text="{Binding Gender}" FontSize="12" Foreground="{StaticResource SlateDarkBrush}" />
+                                        <Border Background="#F1F5F9" CornerRadius="4" Padding="6,2" HorizontalAlignment="Left">
+                                            <TextBlock Text="{Binding Gender}" FontSize="{StaticResource FontSizeCaption}" Foreground="{StaticResource SlateDarkBrush}" />
                                         </Border>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Phone" Binding="{Binding FormattedPhone}" Width="130" />
-                            <DataGridTextColumn Header="Address / City" Binding="{Binding Address}" Width="1.5*" />
+                            <DataGridTextColumn Header="Phone" Binding="{Binding FormattedPhone}" Width="1.5*" MinWidth="105" />
                             
-                            <!-- Row Actions Column -->
-                            <DataGridTemplateColumn Header="Actions" Width="220">
+                            <!-- Address / City (Hidden in Compact) -->
+                            <DataGridTextColumn Header="Address / City" Binding="{Binding Address}" Width="2*" MinWidth="110"
+                                                Visibility="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVisConverter}}" />
+
+                            <!-- Row Actions Column (Responsive: text buttons in Normal/Wide, icon buttons in Compact) -->
+                            <DataGridTemplateColumn Header="Actions" Width="2*" MinWidth="110">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                            <Button Content="Edit"
-                                                    Style="{StaticResource SecondaryButton}"
-                                                    Command="{Binding DataContext.EditPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Padding="8,3" FontSize="11.5" Margin="0,0,4,0" />
-                                            
-                                            <Button Content="+ Rx"
-                                                    Style="{StaticResource PrimaryButton}"
-                                                    Command="{Binding DataContext.CreatePrescriptionForPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Padding="10,3" FontSize="11.5" Margin="0,0,4,0" />
+                                        <Grid VerticalAlignment="Center">
+                                            <!-- Standard Action Buttons (Normal / Wide) -->
+                                            <StackPanel Orientation="Horizontal"
+                                                        Visibility="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource InverseBoolToVisConverter}}">
+                                                <Button Content="Edit"
+                                                        Style="{StaticResource SecondaryButton}"
+                                                        Command="{Binding DataContext.EditPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Padding="8,3" FontSize="{StaticResource FontSizeCaption}" Margin="0,0,4,0"
+                                                        AutomationProperties.Name="Edit Patient" />
+                                                
+                                                <Button Content="+ Rx"
+                                                        Style="{StaticResource PrimaryButton}"
+                                                        Command="{Binding DataContext.CreatePrescriptionForPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Padding="10,3" FontSize="{StaticResource FontSizeCaption}" Margin="0,0,4,0"
+                                                        AutomationProperties.Name="Prescribe For Patient" />
 
-                                            <Button Content="Archive"
-                                                    Style="{StaticResource SecondaryButton}"
-                                                    Command="{Binding DataContext.ArchivePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsArchived, Converter={StaticResource InverseBoolToVisConverter}}"
-                                                    Padding="6,3" FontSize="11" />
+                                                <Button Content="Archive"
+                                                        Style="{StaticResource SecondaryButton}"
+                                                        Command="{Binding DataContext.ArchivePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding IsArchived, Converter={StaticResource InverseBoolToVisConverter}}"
+                                                        Padding="6,3" FontSize="{StaticResource FontSizeCaption}"
+                                                        AutomationProperties.Name="Archive Patient" />
 
-                                            <Button Content="Restore"
-                                                    Style="{StaticResource SecondaryButton}"
-                                                    Command="{Binding DataContext.RestorePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
-                                                    CommandParameter="{Binding}"
-                                                    Visibility="{Binding IsArchived, Converter={StaticResource BoolToVisConverter}}"
-                                                    Padding="6,3" FontSize="11" />
-                                        </StackPanel>
+                                                <Button Content="Restore"
+                                                        Style="{StaticResource SecondaryButton}"
+                                                        Command="{Binding DataContext.RestorePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        Visibility="{Binding IsArchived, Converter={StaticResource BoolToVisConverter}}"
+                                                        Padding="6,3" FontSize="{StaticResource FontSizeCaption}"
+                                                        AutomationProperties.Name="Restore Patient" />
+                                            </StackPanel>
+
+                                            <!-- Compact Icon Action Buttons (Compact Mode) -->
+                                            <StackPanel Orientation="Horizontal"
+                                                        Visibility="{Binding DataContext.IsCompact, RelativeSource={RelativeSource AncestorType=UserControl}, Converter={StaticResource BoolToVisConverter}}">
+                                                <Button Style="{StaticResource CompactIconButton}"
+                                                        Command="{Binding DataContext.EditPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Edit Patient Details"
+                                                        Margin="0,0,4,0"
+                                                        AutomationProperties.Name="Edit Patient Details">
+                                                    <Path Data="{StaticResource IconEdit}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
+                                                </Button>
+
+                                                <Button Style="{StaticResource CompactPrimaryIconButton}"
+                                                        Command="{Binding DataContext.CreatePrescriptionForPatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="New Prescription for Patient"
+                                                        Margin="0,0,4,0"
+                                                        AutomationProperties.Name="Create Prescription">
+                                                    <Path Data="{StaticResource IconNewPrescription}" Width="12" Height="12" Stretch="Uniform" Fill="White" />
+                                                </Button>
+
+                                                <Button Style="{StaticResource CompactDangerIconButton}"
+                                                        Command="{Binding DataContext.ArchivePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Archive Patient"
+                                                        Visibility="{Binding IsArchived, Converter={StaticResource InverseBoolToVisConverter}}"
+                                                        AutomationProperties.Name="Archive Patient">
+                                                    <Path Data="{StaticResource IconArchive}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource DangerRedBrush}" />
+                                                </Button>
+
+                                                <Button Style="{StaticResource CompactIconButton}"
+                                                        Command="{Binding DataContext.RestorePatientCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                                        CommandParameter="{Binding}"
+                                                        ToolTip="Restore Patient"
+                                                        Visibility="{Binding IsArchived, Converter={StaticResource BoolToVisConverter}}"
+                                                        AutomationProperties.Name="Restore Patient">
+                                                    <Path Data="{StaticResource IconCheck}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource PrimaryTealDarkBrush}" />
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
@@ -161,13 +215,14 @@
                         <Grid>
                             <TextBlock Text="{Binding Patients.Count, StringFormat='Showing {0} loaded records'}"
                                        Foreground="{StaticResource SlateMutedBrush}"
-                                       FontSize="12" VerticalAlignment="Center" HorizontalAlignment="Left" />
+                                       FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" HorizontalAlignment="Left" />
 
                             <Button Style="{StaticResource SecondaryButton}"
                                     Command="{Binding LoadMorePatientsCommand}"
                                     HorizontalAlignment="Right" Padding="12,5"
-                                    Visibility="{Binding HasMorePatients, Converter={StaticResource BoolToVisConverter}}">
-                                <TextBlock Text="Load More Patients (Next 50)" FontSize="12" FontWeight="SemiBold" />
+                                    Visibility="{Binding HasMorePatients, Converter={StaticResource BoolToVisConverter}}"
+                                    AutomationProperties.Name="Load Next 50 Patients">
+                                <TextBlock Text="Load More Patients (Next 50)" FontSize="{StaticResource FontSizeCaption}" FontWeight="SemiBold" />
                             </Button>
                         </Grid>
                     </Border>
@@ -175,111 +230,137 @@
             </Border>
         </Grid>
 
-        <!-- Right Side Drawer / Registration Panel -->
-        <Border Grid.Column="1" 
-                Width="380"
-                Style="{StaticResource CardContainer}"
-                Padding="24"
-                Visibility="{Binding IsDrawerOpen, Converter={StaticResource BoolToVisConverter}}">
+        <!-- ================= PATIENT REGISTRATION / EDIT OVERLAY DRAWER ================= -->
+        <!-- Responsive overlay: clamp(35% of window, 320, 440) DIPs; full-width in Compact (<800) -->
+        <Grid Visibility="{Binding IsDrawerOpen, Converter={StaticResource BoolToVisConverter}}" Panel.ZIndex="100">
+            <!-- Dismissable Backdrop -->
+            <Border Background="#40000000">
+                <Border.InputBindings>
+                    <MouseBinding Gesture="LeftClick" Command="{Binding CloseDrawerCommand}" />
+                </Border.InputBindings>
+            </Border>
 
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <!-- Drawer Header -->
-                    <Grid Margin="0,0,0,20">
-                        <TextBlock Text="{Binding DrawerTitle}" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Command="{Binding CloseDrawerCommand}"
-                                HorizontalAlignment="Right" Padding="8,4" BorderThickness="0">
-                            <TextBlock Text="✕" FontSize="12" />
-                        </Button>
-                    </Grid>
+            <!-- Slide-in Drawer Container -->
+            <Border Width="{Binding DrawerWidth}"
+                    HorizontalAlignment="Right"
+                    Background="{StaticResource SurfaceWhiteBrush}"
+                    BorderBrush="{StaticResource SlateBorderBrush}"
+                    BorderThickness="1,0,0,0"
+                    Padding="22">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="20" Direction="180" ShadowDepth="4" Opacity="0.15" Color="#0F172A" />
+                </Border.Effect>
 
-                    <!-- Error Alert Banner -->
-                    <Border Background="{StaticResource DangerRedLightBrush}"
-                            BorderBrush="{StaticResource DangerRedBrush}"
-                            BorderThickness="1"
-                            CornerRadius="6"
-                            Padding="12,8"
-                            Margin="0,0,0,16"
-                            Visibility="{Binding HasFormError, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="{Binding FormErrorMessage}" 
-                                   Foreground="{StaticResource DangerRedBrush}" 
-                                   FontSize="12" TextWrapping="Wrap" />
-                    </Border>
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel>
+                        <!-- Drawer Header -->
+                        <Grid Margin="0,0,0,18">
+                            <TextBlock Text="{Binding DrawerTitle}" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding CloseDrawerCommand}"
+                                    HorizontalAlignment="Right" Padding="8,4" BorderThickness="0"
+                                    ToolTip="Close Drawer (Esc)"
+                                    AutomationProperties.Name="Close Patient Drawer">
+                                <Path Data="{StaticResource IconClose}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
+                            </Button>
+                        </Grid>
 
-                    <!-- Patient Name -->
-                    <TextBlock Text="Patient Full Name *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                    <TextBox Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" 
-                             Style="{StaticResource ModernTextBox}" Margin="0,0,0,14" />
+                        <!-- Error Alert Banner -->
+                        <Border Background="{StaticResource DangerRedLightBrush}"
+                                BorderBrush="{StaticResource DangerRedBrush}"
+                                BorderThickness="1"
+                                CornerRadius="6"
+                                Padding="12,8"
+                                Margin="0,0,0,16"
+                                Visibility="{Binding HasFormError, Converter={StaticResource BoolToVisConverter}}">
+                            <TextBlock Text="{Binding FormErrorMessage}" 
+                                       Foreground="{StaticResource DangerRedBrush}" 
+                                       FontSize="{StaticResource FontSizeCaption}" TextWrapping="Wrap" />
+                        </Border>
 
-                    <!-- Date of Birth and Age Row -->
-                    <Grid Margin="0,0,0,14">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="14" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+                        <!-- Patient Name -->
+                        <TextBlock Text="Patient Full Name *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding FormName, UpdateSourceTrigger=PropertyChanged}" 
+                                 Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                 AutomationProperties.Name="Patient Full Name Input" />
 
-                        <StackPanel Grid.Column="0">
-                            <TextBlock Text="Date of Birth" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <DatePicker SelectedDate="{Binding FormDateOfBirth}" />
+                        <!-- Date of Birth and Age Row -->
+                        <Grid Margin="0,0,0,12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="1.4*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Date of Birth" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <DatePicker SelectedDate="{Binding FormDateOfBirth}" AutomationProperties.Name="Patient Date of Birth" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Age (Years)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding FormAge, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" 
+                                         Style="{StaticResource ModernTextBox}"
+                                         AutomationProperties.Name="Patient Age Input" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Gender Row -->
+                        <StackPanel Margin="0,0,0,12">
+                            <TextBlock Text="Gender" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                            <ComboBox ItemsSource="{Binding AvailableGenders}"
+                                      SelectedItem="{Binding FormGender}"
+                                      Style="{StaticResource ModernComboBox}"
+                                      AutomationProperties.Name="Patient Gender Selector" />
                         </StackPanel>
 
-                        <StackPanel Grid.Column="2">
-                            <TextBlock Text="Age (Years)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                            <TextBox Text="{Binding FormAge, UpdateSourceTrigger=PropertyChanged, TargetNullValue=''}" 
-                                     Style="{StaticResource ModernTextBox}" />
-                        </StackPanel>
-                    </Grid>
+                        <!-- Phone Number -->
+                        <TextBlock Text="Contact Number" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding FormPhone, UpdateSourceTrigger=PropertyChanged}" 
+                                 Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                 AutomationProperties.Name="Patient Contact Number Input" />
 
-                    <!-- Gender Row -->
-                    <StackPanel Margin="0,0,0,14">
-                        <TextBlock Text="Gender" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                        <ComboBox ItemsSource="{Binding AvailableGenders}"
-                                  SelectedItem="{Binding FormGender}"
-                                  Style="{StaticResource ModernComboBox}" />
+                        <!-- Address -->
+                        <TextBlock Text="Address / Location" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding FormAddress, UpdateSourceTrigger=PropertyChanged}" 
+                                 Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                 AutomationProperties.Name="Patient Address Input" />
+
+                        <!-- Known Allergies -->
+                        <TextBlock Text="Known Drug Allergies" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding FormKnownAllergies, UpdateSourceTrigger=PropertyChanged}" 
+                                 Style="{StaticResource ModernTextBox}" Margin="0,0,0,12"
+                                 AutomationProperties.Name="Patient Known Drug Allergies Input" />
+
+                        <!-- Medical History Notes -->
+                        <TextBlock Text="Medical History Notes" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding FormMedicalHistory, UpdateSourceTrigger=PropertyChanged}" 
+                                 Style="{StaticResource ModernTextBox}" Height="70"
+                                 TextWrapping="Wrap" AcceptsReturn="True"
+                                 VerticalContentAlignment="Top" Margin="0,0,0,20"
+                                 AutomationProperties.Name="Patient Medical History Notes Input" />
+
+                        <!-- Drawer Actions -->
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="10" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <Button Grid.Column="0" Content="Cancel" 
+                                    Style="{StaticResource SecondaryButton}"
+                                    Command="{Binding CloseDrawerCommand}"
+                                    AutomationProperties.Name="Cancel Patient Drawer Button" />
+
+                            <Button Grid.Column="2" Content="Save Patient" 
+                                    Style="{StaticResource PrimaryButton}"
+                                    Command="{Binding SavePatientCommand}"
+                                    AutomationProperties.Name="Save Patient Button" />
+                        </Grid>
                     </StackPanel>
-
-                    <!-- Phone Number -->
-                    <TextBlock Text="Contact Number" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                    <TextBox Text="{Binding FormPhone, UpdateSourceTrigger=PropertyChanged}" 
-                             Style="{StaticResource ModernTextBox}" Margin="0,0,0,14" />
-
-                    <!-- Address -->
-                    <TextBlock Text="Address / Location" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                    <TextBox Text="{Binding FormAddress, UpdateSourceTrigger=PropertyChanged}" 
-                             Style="{StaticResource ModernTextBox}" Margin="0,0,0,14" />
-
-                    <!-- Known Allergies -->
-                    <TextBlock Text="Known Drug Allergies" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                    <TextBox Text="{Binding FormKnownAllergies, UpdateSourceTrigger=PropertyChanged}" 
-                             Style="{StaticResource ModernTextBox}" Margin="0,0,0,14" />
-
-                    <!-- Medical History Notes -->
-                    <TextBlock Text="Medical History Notes" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,6" />
-                    <TextBox Text="{Binding FormMedicalHistory, UpdateSourceTrigger=PropertyChanged}" 
-                             Style="{StaticResource ModernTextBox}" Height="70"
-                             TextWrapping="Wrap" AcceptsReturn="True"
-                             VerticalContentAlignment="Top" Margin="0,0,0,24" />
-
-                    <!-- Drawer Actions -->
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="12" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-
-                        <Button Grid.Column="0" Content="Cancel" 
-                                Style="{StaticResource SecondaryButton}"
-                                Command="{Binding CloseDrawerCommand}" />
-
-                        <Button Grid.Column="2" Content="Save Patient" 
-                                Style="{StaticResource PrimaryButton}"
-                                Command="{Binding SavePatientCommand}" />
-                    </Grid>
-                </StackPanel>
-            </ScrollViewer>
-        </Border>
+                </ScrollViewer>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

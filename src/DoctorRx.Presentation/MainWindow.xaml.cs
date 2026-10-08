@@ -1,21 +1,52 @@
 using System.ComponentModel;
 using System.Windows;
+using DoctorRx.Presentation.Services;
 using DoctorRx.Presentation.ViewModels;
 
 namespace DoctorRx.Presentation;
 
 public partial class MainWindow : Window
 {
+    private readonly IWindowPlacementService? _placementService;
     private bool _isExplicitlyClosing;
 
-    public MainWindow(MainWindowViewModel viewModel)
+    public MainWindow(MainWindowViewModel viewModel, IWindowPlacementService? placementService = null)
     {
+        _placementService = placementService;
         InitializeComponent();
         DataContext = viewModel;
 
-        Loaded += async (s, e) =>
+        // Apply saved placement or first-run bounds
+        _placementService?.ApplyPlacement(this);
+        viewModel.UpdateLayoutWidth(Width > 0 ? Width : ActualWidth);
+
+        SizeChanged += (s, e) =>
         {
-            await viewModel.InitializeAsync();
+            viewModel.UpdateLayoutWidth(e.NewSize.Width);
+        };
+
+        DpiChanged += (s, e) =>
+        {
+            // PerMonitorV2: Ensure layout adjusts smoothly when moved across monitors with different DPI scaling
+            UpdateLayout();
+        };
+
+        Loaded += (s, e) =>
+        {
+            Serilog.Log.Information("MainWindow Loaded event fired. ActualWidth: {Width}, ActualHeight: {Height}", ActualWidth, ActualHeight);
+            viewModel.UpdateLayoutWidth(ActualWidth);
+            Activate();
+            Focus();
+        };
+
+        ContentRendered += (s, e) =>
+        {
+            Serilog.Log.Information("MainWindow ContentRendered event fired. Window is fully visible and rendered.");
+            Dispatcher.InvokeAsync(async () =>
+            {
+                await viewModel.InitializeAsync();
+                Serilog.Log.Information("MainWindow ViewModel initialized successfully.");
+            }, System.Windows.Threading.DispatcherPriority.ApplicationIdle);
         };
 
         Closing += OnClosing;
@@ -48,6 +79,12 @@ public partial class MainWindow : Window
 
             _isExplicitlyClosing = true;
             Close();
+            return;
+        }
+
+        if (DataContext is MainWindowViewModel vm)
+        {
+            _placementService?.PersistPlacement(this, vm.HasExplicitSidebarOverride ? vm.IsSidebarCollapsed : null);
         }
     }
 }

@@ -9,6 +9,13 @@ public partial class NewPrescriptionView : UserControl
     public NewPrescriptionView()
     {
         InitializeComponent();
+        SizeChanged += (s, e) =>
+        {
+            if (DataContext is NewPrescriptionViewModel vm && e.NewSize.Width > 0)
+            {
+                vm.UpdateLayoutMode(Services.LayoutBreakpoints.DetermineMode(e.NewSize.Width));
+            }
+        };
     }
 
     private void OnMedicineEditorKeyDown(object sender, KeyEventArgs e)

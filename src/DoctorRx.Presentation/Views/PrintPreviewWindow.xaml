@@ -1,0 +1,243 @@
+<Window x:Class="DoctorRx.Presentation.Views.PrintPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="clr-namespace:DoctorRx.Presentation.ViewModels"
+        xmlns:behaviors="clr-namespace:DoctorRx.Presentation.Behaviors"
+        mc:Ignorable="d"
+        Title="DoctorRx - Prescription Print Preview"
+        MinWidth="700" MinHeight="480"
+        Width="920" Height="680"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource SlateBackgroundBrush}"
+        FontFamily="{StaticResource AppFont}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top Preview Toolbar -->
+            <RowDefinition Height="Auto" />
+            <!-- Document Viewport -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ================= PREVIEW TOOLBAR ================= -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" 
+                BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" 
+                Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Path Data="{StaticResource IconPrint}" Width="18" Height="18" Stretch="Uniform" Fill="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <TextBlock Text="Print Preview - Standard Clinical Pad" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" VerticalAlignment="Center" />
+                    <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="4" Padding="8,2" Margin="12,0,0,0" VerticalAlignment="Center">
+                        <TextBlock x:Name="PaperSizeText" Text="A4 / A5 Auto-Fit" FontSize="{StaticResource FontSizeCaption}" Foreground="{StaticResource SlateMediumBrush}" />
+                    </Border>
+                </StackPanel>
+
+                <!-- Zoom and Print Actions -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Fit Width -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnFitWidthClicked" Padding="10,6" Margin="0,0,6,0"
+                            ToolTip="Fit Width to Viewport" AutomationProperties.Name="Fit Width">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconZoomWidth}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Fit Width" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Zoom To Fit -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnZoomToFitClicked" Padding="10,6" Margin="0,0,6,0"
+                            ToolTip="Zoom to Fit Full Page" AutomationProperties.Name="Zoom to Fit">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconZoomFit}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Zoom to Fit" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Zoom In -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnZoomInClicked" Padding="8,4" Margin="0,0,4,0"
+                            ToolTip="Zoom In" AutomationProperties.Name="Zoom In">
+                        <TextBlock Text="+" FontSize="14" FontWeight="Bold" />
+                    </Button>
+
+                    <!-- Zoom Out -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnZoomOutClicked" Padding="8,4" Margin="0,0,10,0"
+                            ToolTip="Zoom Out" AutomationProperties.Name="Zoom Out">
+                        <TextBlock Text="−" FontSize="14" FontWeight="Bold" />
+                    </Button>
+
+                    <!-- Print Now Button -->
+                    <Button Style="{StaticResource PrimaryButton}" Click="OnPrintClicked" Padding="16,7" Margin="0,0,8,0"
+                            ToolTip="Send to System Printer" AutomationProperties.Name="Send to Printer">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconPrint}" Width="14" Height="14" Stretch="Uniform" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Print" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Close Window -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnCloseClicked" Padding="12,7"
+                            ToolTip="Close Preview" AutomationProperties.Name="Close Preview Window">
+                        <TextBlock Text="Close" VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= DOCUMENT VIEWPORT ================= -->
+        <ScrollViewer x:Name="DocumentScrollViewer" Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                      Padding="24,20" Background="#475569">
+            <Border x:Name="PaperContainer"
+                    Background="White" 
+                    BorderBrush="#CBD5E1" 
+                    BorderThickness="1" 
+                    CornerRadius="2" 
+                    Width="640" MinHeight="900"
+                    HorizontalAlignment="Center" VerticalAlignment="Top"
+                    Padding="36,32">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" Direction="270" ShadowDepth="4" Opacity="0.25" Color="#000000" />
+                </Border.Effect>
+                <Border.LayoutTransform>
+                    <ScaleTransform x:Name="DocumentScaleTransform" ScaleX="1.0" ScaleY="1.0" />
+                </Border.LayoutTransform>
+
+                <StackPanel x:Name="PrintableContentArea">
+                    <!-- CLINIC / DOCTOR HEADER -->
+                    <Border BorderBrush="{StaticResource PrimaryTealDarkBrush}" BorderThickness="0,0,0,2" Padding="0,0,0,16" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="ClinicNameText" Text="Central Family Clinic" FontSize="20" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" />
+                                <TextBlock x:Name="DoctorNameText" Text="Dr. Muhammad Usman" FontSize="15" FontWeight="SemiBold" Margin="0,3,0,0" />
+                                <TextBlock x:Name="DoctorQualificationText" Text="MBBS, FCPS" Style="{StaticResource BodyMuted}" />
+                                <TextBlock x:Name="DoctorSpecializationText" Text="General Medicine" Style="{StaticResource BodyMuted}" />
+                                <TextBlock x:Name="DoctorRegText" Text="PMDC: 12345-P" Style="{StaticResource BodyMuted}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
+                                <TextBlock x:Name="PrescriptionDateText" Text="Date: 08 Oct 2026" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
+                                <TextBlock x:Name="PrescriptionNumberText" Text="Rx # 20261008-0001" Style="{StaticResource BodyMuted}" Margin="0,3,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- PATIENT DEMOGRAPHICS -->
+                    <Border Background="#F8FAFC" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12,8" Margin="0,0,0,16">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="2*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="1.2*" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="Patient Name" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock x:Name="PatientNameText" Text="Ahmed Khan" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1">
+                                <TextBlock Text="Age" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock x:Name="PatientAgeText" Text="45 yrs" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="Gender" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock x:Name="PatientGenderText" Text="Male" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3">
+                                <TextBlock Text="MRN" Style="{StaticResource CaptionMuted}" />
+                                <TextBlock x:Name="PatientRecordText" Text="MR-00124" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- CLINICAL OBSERVATIONS / VITALS -->
+                    <Border x:Name="ObservationsBorder" Background="#FAFAFA" CornerRadius="4" Padding="10,6" Margin="0,0,0,16">
+                        <StackPanel>
+                            <TextBlock Text="Observations &amp; Vitals:" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                            <TextBlock x:Name="ChiefComplaintsText" Text="Fever, cough for 3 days." Style="{StaticResource BodyRegular}" Margin="0,2,0,0" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- MEDICINES LIST -->
+                    <Grid Margin="0,0,0,8">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="32" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Grid.Column="0" Width="26" Height="26" Background="{StaticResource PrimaryTealUltraLightBrush}" CornerRadius="13" VerticalAlignment="Center">
+                            <TextBlock Text="Rx" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource FontSizeCaption}" />
+                        </Border>
+                        <TextBlock Grid.Column="1" Text="Prescribed Medications" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    </Grid>
+
+                    <ItemsControl x:Name="MedicinesItemsControl">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="0,8" Margin="0,0,0,2">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="28" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <TextBlock Text="{Binding SortOrder, StringFormat='{}{0}.'}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeBody}" />
+                                        <StackPanel Grid.Column="1" Margin="0,0,12,0">
+                                            <StackPanel Orientation="Horizontal">
+                                                <TextBlock Text="{Binding Form}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,4,0" />
+                                                <TextBlock Text="{Binding MedicineName}" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,6,0" />
+                                                <TextBlock Text="{Binding Strength}" FontWeight="SemiBold" Foreground="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" />
+                                                <TextBlock Text="{Binding GenericName, StringFormat='({0})'}" Style="{StaticResource BodyMuted}" VerticalAlignment="Center" />
+                                            </StackPanel>
+                                            <TextBlock Text="{Binding FormattedDirections}" FontWeight="Medium" Foreground="{StaticResource SlateDarkBrush}" Margin="0,2,0,0" />
+                                            <TextBlock Text="{Binding Instructions}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeBodyMuted}" Margin="0,2,0,0"
+                                                       behaviors:AutoFlowDirection.IsEnabled="True"
+                                                       Visibility="{Binding Instructions, Converter={StaticResource BoolToVisConverter}}" />
+                                        </StackPanel>
+                                        <TextBlock Grid.Column="2" Text="{Binding Duration}" FontWeight="SemiBold" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Top" />
+                                    </Grid>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <!-- ADVICE & FOLLOW-UP -->
+                    <Border x:Name="AdviceBorder" Background="#F8FAFC" CornerRadius="4" Padding="12,10" Margin="0,16,0,0">
+                        <StackPanel>
+                            <TextBlock Text="General Advice / ہدایات:" FontWeight="Bold" Foreground="{StaticResource SlateDarkestBrush}" FontSize="{StaticResource FontSizeCaption}" Margin="0,0,0,4" />
+                            <TextBlock x:Name="AdviceText" Text="Adequate rest and fluid intake." Style="{StaticResource BodyRegular}" TextWrapping="Wrap" Margin="0,0,0,8" behaviors:AutoFlowDirection.IsEnabled="True" />
+                            <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Padding="0,6,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Follow-up: " FontWeight="Bold" Foreground="{StaticResource SlateDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                                    <TextBlock x:Name="FollowUpText" Text="After 5 days" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- FOOTER / SIGNATURE -->
+                    <Grid Margin="0,40,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="200" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="FooterMetadataText" Text="Issued electronically via DoctorRx" Style="{StaticResource CaptionMuted}" VerticalAlignment="Bottom" />
+                        <StackPanel Grid.Column="1" HorizontalAlignment="Right">
+                            <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Width="180" Margin="0,0,0,4" />
+                            <TextBlock Text="Doctor Signature / Stamp" Style="{StaticResource CaptionMuted}" HorizontalAlignment="Center" />
+                        </StackPanel>
+                    </Grid>
+                </StackPanel>
+            </Border>
+        </ScrollViewer>
+    </Grid>
+</Window>

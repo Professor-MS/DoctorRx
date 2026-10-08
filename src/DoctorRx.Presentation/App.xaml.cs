@@ -30,6 +30,9 @@ public partial class App : System.Windows.Application
     {
         base.OnStartup(e);
 
+        // Prevent WPF from shutting down before MainWindow is created and shown
+        ShutdownMode = ShutdownMode.OnExplicitShutdown;
+
         // 1. Single Instance Check via Local named Mutex
         _singleInstanceMutex = new Mutex(true, MutexName, out bool isOnlyInstance);
         if (!isOnlyInstance)
@@ -114,6 +117,7 @@ public partial class App : System.Windows.Application
                     // Register Presentation services
                     services.AddSingleton<INavigationService, NavigationService>();
                     services.AddSingleton<IDialogService, DialogService>();
+                    services.AddSingleton<IWindowPlacementService, WindowPlacementService>();
 
                     // Register ViewModels
                     services.AddSingleton<MainWindowViewModel>();
@@ -132,16 +136,26 @@ public partial class App : System.Windows.Application
 
             await _host.StartAsync();
 
-            // Run database migrations/initialization
+            Serilog.Log.Information("Startup Step 1: Initializing database...");
             using (var scope = _host.Services.CreateScope())
             {
                 var dbInitializer = scope.ServiceProvider.GetRequiredService<IDatabaseInitializer>();
                 await dbInitializer.InitializeAsync();
             }
+            Serilog.Log.Information("Startup Step 2: Database initialized successfully.");
 
-            // Launch the Main Window
+            Serilog.Log.Information("Startup Step 3: Resolving MainWindow from DI container...");
             var mainWindow = _host.Services.GetRequiredService<MainWindow>();
+            MainWindow = mainWindow;
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            Serilog.Log.Information("Startup Step 4: Calling mainWindow.Show()...");
             mainWindow.Show();
+            Serilog.Log.Information("Startup Step 5: Calling mainWindow.Activate()...");
+            mainWindow.Activate();
+            mainWindow.Topmost = true;
+            mainWindow.Topmost = false;
+            mainWindow.Focus();
+            Serilog.Log.Information("Startup Step 6: OnStartup completed successfully.");
         }
         catch (Exception ex)
         {

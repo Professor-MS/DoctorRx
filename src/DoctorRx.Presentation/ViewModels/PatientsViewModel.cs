@@ -138,7 +138,40 @@ public class PatientsViewModel : ViewModelBase
     public bool IsEditing
     {
         get => _isEditing;
-        set => SetProperty(ref _isEditing, value);
+        set
+        {
+            if (SetProperty(ref _isEditing, value))
+            {
+                OnPropertyChanged(nameof(DrawerTitle));
+            }
+        }
+    }
+
+    private double _availableWidth;
+
+    public double AvailableWidth
+    {
+        get => _availableWidth;
+        set
+        {
+            if (SetProperty(ref _availableWidth, value))
+            {
+                OnPropertyChanged(nameof(IsDrawerFullWidth));
+                OnPropertyChanged(nameof(DrawerWidth));
+            }
+        }
+    }
+
+    public bool IsDrawerFullWidth => AvailableWidth > 0 && AvailableWidth < 800;
+
+    public double DrawerWidth
+    {
+        get
+        {
+            if (IsDrawerFullWidth) return AvailableWidth;
+            if (AvailableWidth <= 0) return 380;
+            return Math.Clamp(AvailableWidth * 0.35, 320, 440);
+        }
     }
 
     public string DrawerTitle => IsEditing ? "Edit Patient Details" : "Register New Patient";

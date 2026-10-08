@@ -4,12 +4,14 @@
              xmlns:converters="clr-namespace:DoctorRx.Presentation.Converters">
     <Application.Resources>
         <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="/DoctorRx.Presentation;component/Theme/Colors.xaml" />
+                <ResourceDictionary Source="/DoctorRx.Presentation;component/Theme/Icons.xaml" />
+                <ResourceDictionary Source="/DoctorRx.Presentation;component/Theme/Styles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
             <BooleanToVisibilityConverter x:Key="BoolToVisConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisConverter" />
-            <ResourceDictionary.MergedDictionaries>
-                <ResourceDictionary Source="Theme/Colors.xaml" />
-                <ResourceDictionary Source="Theme/Styles.xaml" />
-            </ResourceDictionary.MergedDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

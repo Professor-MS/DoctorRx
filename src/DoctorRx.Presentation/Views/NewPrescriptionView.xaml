@@ -10,6 +10,7 @@
              mc:Ignorable="d" 
              d:DesignHeight="1200" d:DesignWidth="1100"
              Background="{StaticResource SlateBackgroundBrush}"
+             UseLayoutRounding="True" SnapsToDevicePixels="True"
              AutomationProperties.Name="New Prescription Composer Screen">
 
     <Grid>
@@ -23,7 +24,7 @@
         </Grid.RowDefinitions>
 
         <!-- ================= TOP TOOLBAR ================= -->
-        <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="24,14">
+        <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="20,12">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -31,20 +32,20 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="{Binding ScreenTitle}" Style="{StaticResource HeadingLarge}" Margin="0,0,16,0" />
+                    <TextBlock Text="{Binding ScreenTitle}" Style="{StaticResource HeadingLarge}" Margin="0,0,14,0" VerticalAlignment="Center" />
                     <!-- Autosave Indicator -->
                     <Border Background="{StaticResource PrimaryTealUltraLightBrush}" CornerRadius="12" Padding="10,4" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{StaticResource PrimaryTealDarkBrush}" VerticalAlignment="Center" Margin="0,0,6,0" />
-                            <TextBlock Text="{Binding LastSavedText}" Style="{StaticResource BodyMuted}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontWeight="Medium" />
+                            <TextBlock Text="{Binding LastSavedText}" Style="{StaticResource CaptionMuted}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontWeight="Medium" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
 
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Content="Discard Draft" Command="{Binding CancelOrDiscardCommand}" Style="{StaticResource DangerOutlineButton}" Margin="0,0,10,0" AutomationProperties.Name="Discard Draft Button" />
-                    <Button Content="Save Draft (Ctrl+S)" Command="{Binding SaveDraftExplicitCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" AutomationProperties.Name="Save Draft Button" />
-                    <Button Content="Finalize Prescription" Command="{Binding FinalizePrescriptionCommand}" Style="{StaticResource PrimaryButton}" FontWeight="SemiBold" Padding="20,10" AutomationProperties.Name="Finalize Prescription Button" />
+                    <Button Content="Discard" Command="{Binding CancelOrDiscardCommand}" Style="{StaticResource DangerOutlineButton}" Margin="0,0,8,0" Padding="12,7" ToolTip="Discard Current Draft" AutomationProperties.Name="Discard Draft Button" />
+                    <Button Content="Save Draft (Ctrl+S)" Command="{Binding SaveDraftExplicitCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Padding="12,7" ToolTip="Save Draft Manually" AutomationProperties.Name="Save Draft Button" />
+                    <Button Content="Finalize Prescription" Command="{Binding FinalizePrescriptionCommand}" Style="{StaticResource PrimaryButton}" FontWeight="SemiBold" Padding="16,8" ToolTip="Finalize &amp; Lock Prescription" AutomationProperties.Name="Finalize Prescription Button" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -56,14 +57,14 @@
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
-                <TextBlock Text="{Binding UndoBannerText}" Foreground="White" FontWeight="Medium" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding UndoBannerText}" Foreground="White" FontWeight="Medium" FontSize="{StaticResource FontSizeBodyMuted}" VerticalAlignment="Center" />
                 <Button Grid.Column="1" Content="Undo" Command="{Binding UndoDeleteMedicineCommand}" Style="{StaticResource PrimaryButton}" Background="{StaticResource PrimaryTealLightBrush}" Padding="14,4" />
             </Grid>
         </Border>
 
         <!-- ================= MAIN SCROLLABLE CONTENT ================= -->
-        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="24,18">
-            <StackPanel MaxWidth="1100" HorizontalAlignment="Stretch">
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20,16">
+            <StackPanel HorizontalAlignment="Stretch">
 
                 <!-- 1. PATIENT SELECTION & CARD -->
                 <Border Style="{StaticResource CardContainer}" Margin="0,0,0,16">
@@ -85,7 +86,12 @@
                                          Style="{StaticResource SearchBox}" 
                                          Tag="Search by patient name, MR number, or phone..." 
                                          AutomationProperties.Name="Patient Search Box" />
-                                <Button Grid.Column="1" Content="+ Register New Patient" Command="{Binding OpenQuickRegisterDrawerCommand}" Style="{StaticResource SecondaryButton}" Margin="12,0,0,0" AutomationProperties.Name="Open Register Patient Button" />
+                                <Button Grid.Column="1" Command="{Binding OpenQuickRegisterDrawerCommand}" Style="{StaticResource SecondaryButton}" Margin="10,0,0,0" Padding="12,7" AutomationProperties.Name="Open Register Patient Button">
+                                    <StackPanel Orientation="Horizontal">
+                                        <Path Data="{StaticResource IconPlus}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="Register New Patient" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                             </Grid>
 
                             <!-- Live Search Suggestions -->
@@ -116,19 +122,31 @@
                                     <TextBlock Text="Quick Patient Registration" FontWeight="SemiBold" Margin="0,0,0,10" />
                                     <Grid Margin="0,0,0,10">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="*" />
-                                            <ColumnDefinition Width="100" />
-                                            <ColumnDefinition Width="120" />
-                                            <ColumnDefinition Width="160" />
+                                            <ColumnDefinition Width="2*" />
+                                            <ColumnDefinition Width="1*" />
+                                            <ColumnDefinition Width="1.2*" />
+                                            <ColumnDefinition Width="1.5*" />
                                         </Grid.ColumnDefinitions>
-                                        <TextBox Grid.Column="0" Text="{Binding NewPatientName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Full Name *" Margin="0,0,8,0" AutomationProperties.Name="New Patient Name" />
-                                        <TextBox Grid.Column="1" Text="{Binding NewPatientAge, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Age (Years) *" Margin="0,0,8,0" AutomationProperties.Name="New Patient Age" />
-                                        <ComboBox Grid.Column="2" SelectedItem="{Binding NewPatientGender}" Margin="0,0,8,0" VerticalContentAlignment="Center">
-                                            <domainEnums:Gender>Male</domainEnums:Gender>
-                                            <domainEnums:Gender>Female</domainEnums:Gender>
-                                            <domainEnums:Gender>Other</domainEnums:Gender>
-                                        </ComboBox>
-                                        <TextBox Grid.Column="3" Text="{Binding NewPatientPhone, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Phone (Optional)" AutomationProperties.Name="New Patient Phone" />
+                                        <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                            <TextBlock Text="Full Name *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                            <TextBox Text="{Binding NewPatientName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Full Name *" AutomationProperties.Name="New Patient Name" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                            <TextBlock Text="Age (Years) *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                            <TextBox Text="{Binding NewPatientAge, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Age (Years) *" AutomationProperties.Name="New Patient Age" />
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                            <TextBlock Text="Gender *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                            <ComboBox SelectedItem="{Binding NewPatientGender}" Height="38" VerticalContentAlignment="Center">
+                                                <domainEnums:Gender>Male</domainEnums:Gender>
+                                                <domainEnums:Gender>Female</domainEnums:Gender>
+                                                <domainEnums:Gender>Other</domainEnums:Gender>
+                                            </ComboBox>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="3">
+                                            <TextBlock Text="Phone (Optional)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                            <TextBox Text="{Binding NewPatientPhone, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Phone (Optional)" AutomationProperties.Name="New Patient Phone" />
+                                        </StackPanel>
                                     </Grid>
                                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                         <Button Content="Cancel" Command="{Binding CloseQuickRegisterDrawerCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" />
@@ -148,9 +166,9 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="{Binding SelectedPatient.Name}" FontSize="18" FontWeight="Bold" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,12,0" />
+                                        <TextBlock Text="{Binding SelectedPatient.Name}" FontSize="{StaticResource FontSizeH2}" FontWeight="Bold" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,12,0" />
                                         <Border Background="{StaticResource PrimaryTealUltraLightBrush}" CornerRadius="4" Padding="8,2" VerticalAlignment="Center" Margin="0,0,8,0">
-                                            <TextBlock Text="{Binding SelectedPatient.RecordNumber}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="12" />
+                                            <TextBlock Text="{Binding SelectedPatient.RecordNumber}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
                                         </Border>
                                         <TextBlock Text="{Binding SelectedPatient.DisplayAgeGender}" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                         <TextBlock Text="•" Foreground="{StaticResource SlateLightBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
@@ -159,12 +177,13 @@
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPatient.LastVisitDate, StringFormat='Last Visit: {0:dd MMM yyyy}'}" Style="{StaticResource BodyMuted}" VerticalAlignment="Center" />
                                 </Grid>
 
-                                <!-- Allergies Alert Banner (Soft Red) -->
+                                <!-- Allergies Alert Banner -->
                                 <Border Background="{StaticResource DangerRedLightBrush}" BorderBrush="{StaticResource DangerRedBrush}" BorderThickness="1" CornerRadius="6" Padding="12,6" Margin="0,10,0,0"
                                         Visibility="{Binding HasAllergiesAlert, Converter={StaticResource BoolToVisConverter}}">
                                     <StackPanel Orientation="Horizontal">
-                                        <TextBlock Text="⚠ KNOWN ALLERGIES: " FontWeight="Bold" Foreground="{StaticResource DangerRedBrush}" FontSize="12.5" />
-                                        <TextBlock Text="{Binding SelectedPatient.KnownAllergies}" FontWeight="SemiBold" Foreground="{StaticResource DangerRedBrush}" FontSize="12.5" />
+                                        <Path Data="{StaticResource IconWarning}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource DangerRedBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="KNOWN ALLERGIES: " FontWeight="Bold" Foreground="{StaticResource DangerRedBrush}" FontSize="{StaticResource FontSizeBodyMuted}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding SelectedPatient.KnownAllergies}" FontWeight="SemiBold" Foreground="{StaticResource DangerRedBrush}" FontSize="{StaticResource FontSizeBodyMuted}" VerticalAlignment="Center" />
                                     </StackPanel>
                                 </Border>
                             </StackPanel>
@@ -178,19 +197,37 @@
                         <TextBlock Text="Clinical Observations &amp; Vitals" Style="{StaticResource HeadingSmall}" Margin="0,0,0,12" />
                         <Grid Margin="0,0,0,10">
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="2*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="2*" MinWidth="140" />
+                                <ColumnDefinition Width="*" MinWidth="80" />
+                                <ColumnDefinition Width="*" MinWidth="80" />
+                                <ColumnDefinition Width="*" MinWidth="80" />
+                                <ColumnDefinition Width="*" MinWidth="80" />
                             </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0" Text="{Binding ChiefComplaints, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Chief Complaints" Margin="0,0,8,0" AutomationProperties.Name="Chief Complaints" />
-                            <TextBox Grid.Column="1" Text="{Binding BloodPressure, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="BP (mmHg)" Margin="0,0,8,0" AutomationProperties.Name="Blood Pressure" />
-                            <TextBox Grid.Column="2" Text="{Binding PulseRate, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Pulse (bpm)" Margin="0,0,8,0" AutomationProperties.Name="Pulse Rate" />
-                            <TextBox Grid.Column="3" Text="{Binding Temperature, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Temp (°F)" Margin="0,0,8,0" AutomationProperties.Name="Temperature" />
-                            <TextBox Grid.Column="4" Text="{Binding WeightKg, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Weight (kg)" AutomationProperties.Name="Weight" />
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="Chief Complaints" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding ChiefComplaints, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Chief Complaints" AutomationProperties.Name="Chief Complaints" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                <TextBlock Text="BP (mmHg)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding BloodPressure, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="BP (mmHg)" AutomationProperties.Name="Blood Pressure" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                <TextBlock Text="Pulse (bpm)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding PulseRate, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Pulse (bpm)" AutomationProperties.Name="Pulse Rate" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="3" Margin="0,0,8,0">
+                                <TextBlock Text="Temp (°F)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding Temperature, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Temp (°F)" AutomationProperties.Name="Temperature" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="Weight (kg)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding WeightKg, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Weight (kg)" AutomationProperties.Name="Weight" />
+                            </StackPanel>
                         </Grid>
-                        <TextBox Text="{Binding ClinicalNotes, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Clinical Examination &amp; Diagnostic Notes (Optional)" Height="50" TextWrapping="Wrap" AcceptsReturn="True" AutomationProperties.Name="Clinical Notes" />
+                        <StackPanel>
+                            <TextBlock Text="Clinical Examination &amp; Diagnostic Notes (Optional)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding ClinicalNotes, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Clinical Examination &amp; Diagnostic Notes (Optional)" Height="50" TextWrapping="Wrap" AcceptsReturn="True" AutomationProperties.Name="Clinical Notes" />
+                        </StackPanel>
                     </StackPanel>
                 </Border>
 
@@ -199,7 +236,7 @@
                     <StackPanel>
                         <TextBlock Text="Rx Prescribed Medicines" Style="{StaticResource HeadingMedium}" Margin="0,0,0,12" />
 
-                        <!-- INLINE MEDICINE EDITOR (Zero Clinical Defaults) -->
+                        <!-- INLINE MEDICINE EDITOR -->
                         <Border Background="#F1F5F9" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16" PreviewKeyDown="OnMedicineEditorKeyDown">
                             <StackPanel>
                                 <Grid Margin="0,0,0,10">
@@ -211,12 +248,13 @@
                                 <!-- Row 1: Search / Medicine Name, Form, Strength, Generic -->
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="1.5*" />
+                                        <ColumnDefinition Width="2*" MinWidth="150" />
+                                        <ColumnDefinition Width="*" MinWidth="80" />
+                                        <ColumnDefinition Width="*" MinWidth="90" />
+                                        <ColumnDefinition Width="1.5*" MinWidth="120" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                        <TextBlock Text="Medicine Name *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                         <TextBox x:Name="MedicineSearchBox" Text="{Binding MedicineSearchQuery, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Search Formulary / Enter Medicine Name *" AutomationProperties.Name="Medicine Name Input" TabIndex="10" />
                                         <!-- Autocomplete Results -->
                                         <ListBox ItemsSource="{Binding MedicineSearchResults}" MaxHeight="140" Margin="0,2,0,0"
@@ -240,60 +278,74 @@
                                             </ListBox.ItemTemplate>
                                         </ListBox>
                                     </StackPanel>
-                                    <TextBox Grid.Column="1" Text="{Binding Form, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Form (e.g. Tab)" Margin="0,0,8,0" AutomationProperties.Name="Medicine Form" />
-                                    <TextBox Grid.Column="2" Text="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Strength (e.g. 500mg)" Margin="0,0,8,0" AutomationProperties.Name="Medicine Strength" />
-                                    <TextBox Grid.Column="3" Text="{Binding GenericName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Generic Formulation" AutomationProperties.Name="Medicine Generic Name" />
+                                    <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                        <TextBlock Text="Form" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding Form, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Form (e.g. Tab)" AutomationProperties.Name="Medicine Form" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                        <TextBlock Text="Strength" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding Strength, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Strength (e.g. 500mg)" AutomationProperties.Name="Medicine Strength" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="3">
+                                        <TextBlock Text="Generic Formulation" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding GenericName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Generic Formulation" AutomationProperties.Name="Medicine Generic Name" />
+                                    </StackPanel>
                                 </Grid>
 
-                                <!-- Row 2: Dose, Frequency, Duration, Route -->
+                                <!-- Row 2: Dose, Frequency, Duration, Route & Meal Relation (Reflowing Grid) -->
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="*" MinWidth="110" />
+                                        <ColumnDefinition Width="*" MinWidth="110" />
+                                        <ColumnDefinition Width="*" MinWidth="110" />
+                                        <ColumnDefinition Width="*" MinWidth="110" />
                                     </Grid.ColumnDefinitions>
                                     <!-- Dose with Chips -->
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                        <TextBlock Text="Dose *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding Dose, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Dose * (e.g. 1 tab)" AutomationProperties.Name="Dose Input" />
                                         <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="1/2 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1/2 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="1 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="2 tabs" Command="{Binding SelectDoseChipCommand}" CommandParameter="2 tabs" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="5 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="5 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="10 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="10 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="1 drop" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 drop" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
+                                            <Button Content="1/2 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1/2 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="1 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="2 tabs" Command="{Binding SelectDoseChipCommand}" CommandParameter="2 tabs" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="5 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="5 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="10 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="10 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="1 drop" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 drop" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                         </WrapPanel>
                                     </StackPanel>
 
                                     <!-- Frequency with Chips -->
                                     <StackPanel Grid.Column="1" Margin="0,0,8,0">
+                                        <TextBlock Text="Frequency *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Frequency * (e.g. TDS)" AutomationProperties.Name="Frequency Input" />
                                         <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="OD" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="OD" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="BD" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="BD" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="TDS" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="TDS" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="QID" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="QID" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="SOS" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="SOS" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="PRN" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="PRN" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="11" />
+                                            <Button Content="OD" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="OD" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="BD" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="BD" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="TDS" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="TDS" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="QID" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="QID" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="SOS" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="SOS" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="PRN" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="PRN" Style="{StaticResource SecondaryButton}" Padding="5,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                         </WrapPanel>
                                     </StackPanel>
 
                                     <!-- Duration with Chips -->
                                     <StackPanel Grid.Column="2" Margin="0,0,8,0">
+                                        <TextBlock Text="Duration" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding Duration, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Duration (e.g. 5 days)" AutomationProperties.Name="Duration Input" />
                                         <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="3 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="3 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="5 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="5 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="7 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="7 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="14 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="14 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
-                                            <Button Content="1 month" Command="{Binding SelectDurationChipCommand}" CommandParameter="1 month" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="11" />
+                                            <Button Content="3 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="3 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="5 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="5 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="7 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="7 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="14 days" Command="{Binding SelectDurationChipCommand}" CommandParameter="14 days" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                                            <Button Content="1 month" Command="{Binding SelectDurationChipCommand}" CommandParameter="1 month" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                         </WrapPanel>
                                     </StackPanel>
 
                                     <!-- Route & Meal Relation -->
                                     <StackPanel Grid.Column="3">
+                                        <TextBlock Text="Route" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding Route, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Route (e.g. Oral)" Margin="0,0,0,6" AutomationProperties.Name="Route Input" />
+                                        <TextBlock Text="Meal Relation" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
                                         <ComboBox SelectedItem="{Binding MealRelation}" Height="34" VerticalContentAlignment="Center">
                                             <domainEnums:MealRelation>AsDirected</domainEnums:MealRelation>
                                             <domainEnums:MealRelation>BeforeMeal</domainEnums:MealRelation>
@@ -312,13 +364,15 @@
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBox Grid.Column="0" Text="{Binding Instructions, UpdateSourceTrigger=PropertyChanged}" 
-                                             Style="{StaticResource SearchBox}" 
-                                             Tag="Special Instructions / ہدایات (Auto RTL for Urdu / LTR for English)" 
-                                             behaviors:AutoFlowDirection.IsEnabled="True"
-                                             Margin="0,0,12,0" 
-                                             AutomationProperties.Name="Special Instructions Input" />
-                                    <CheckBox Grid.Column="1" Content="Add to clinic formulary catalog" IsChecked="{Binding AddToCatalog}" VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="0" Margin="0,0,12,0">
+                                        <TextBlock Text="Special Instructions / ہدایات" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding Instructions, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource SearchBox}" 
+                                                 Tag="Special Instructions / ہدایات (Auto RTL for Urdu / LTR for English)" 
+                                                 behaviors:AutoFlowDirection.IsEnabled="True"
+                                                 AutomationProperties.Name="Special Instructions Input" />
+                                    </StackPanel>
+                                    <CheckBox Grid.Column="1" Content="Add to formulary catalog" IsChecked="{Binding AddToCatalog}" VerticalAlignment="Center" Margin="0,16,0,0" />
                                 </Grid>
 
                                 <!-- Row 4: Submit Button -->
@@ -342,31 +396,35 @@
 
                                             <!-- Bullet / Line Number -->
                                             <Border Grid.Column="0" Background="{StaticResource PrimaryTealUltraLightBrush}" CornerRadius="12" Width="26" Height="26" Margin="0,0,12,0" VerticalAlignment="Center">
-                                                <TextBlock Text="Rx" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="11" />
+                                                <TextBlock Text="Rx" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="{StaticResource FontSizeCaption}" />
                                             </Border>
 
                                             <!-- Medicine Line Content -->
                                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                 <StackPanel Orientation="Horizontal">
                                                     <TextBlock Text="{Binding Form}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,6,0" />
-                                                    <TextBlock Text="{Binding MedicineName}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,6,0" />
+                                                    <TextBlock Text="{Binding MedicineName}" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" Margin="0,0,6,0" />
                                                     <TextBlock Text="{Binding Strength}" FontWeight="SemiBold" Foreground="{StaticResource SlateMediumBrush}" Margin="0,0,8,0" />
-                                                    <TextBlock Text="{Binding GenericName, StringFormat='({0})'}" Foreground="{StaticResource SlateMutedBrush}" FontSize="12.5" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding GenericName, StringFormat='({0})'}" Foreground="{StaticResource SlateMutedBrush}" FontSize="{StaticResource FontSizeBodyMuted}" VerticalAlignment="Center" />
                                                 </StackPanel>
                                                 <!-- Plain-language directions -->
                                                 <TextBlock Text="{Binding FormattedDirections}" FontWeight="Medium" Foreground="{StaticResource SlateDarkBrush}" Margin="0,3,0,0" />
                                                 <!-- Special Instructions if present -->
-                                                <TextBlock Text="{Binding Instructions}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="12.5" Margin="0,2,0,0"
+                                                <TextBlock Text="{Binding Instructions}" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeBodyMuted}" Margin="0,2,0,0"
                                                            behaviors:AutoFlowDirection.IsEnabled="True"
                                                            Visibility="{Binding Instructions, Converter={StaticResource BoolToVisConverter}}" />
                                             </StackPanel>
 
-                                            <!-- Actions: Edit, Move Up, Move Down, Delete -->
+                                            <!-- Actions: Move Up, Move Down, Edit, Delete -->
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                                                <Button Content="▲" Command="{Binding DataContext.MoveUpMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,0" ToolTip="Move Up" />
-                                                <Button Content="▼" Command="{Binding DataContext.MoveDownMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,6,0" ToolTip="Move Down" />
-                                                <Button Content="Edit" Command="{Binding DataContext.EditMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,6,0" />
-                                                <Button Content="Delete" Command="{Binding DataContext.DeleteMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource DangerOutlineButton}" Padding="10,4" />
+                                                <Button Command="{Binding DataContext.MoveUpMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource SecondaryButton}" Padding="6,4" Margin="0,0,4,0" ToolTip="Move Up" AutomationProperties.Name="Move Medicine Up">
+                                                    <Path Data="{StaticResource IconArrowUp}" Width="10" Height="10" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
+                                                </Button>
+                                                <Button Command="{Binding DataContext.MoveDownMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource SecondaryButton}" Padding="6,4" Margin="0,0,6,0" ToolTip="Move Down" AutomationProperties.Name="Move Medicine Down">
+                                                    <Path Data="{StaticResource IconArrowDown}" Width="10" Height="10" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
+                                                </Button>
+                                                <Button Content="Edit" Command="{Binding DataContext.EditMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource SecondaryButton}" Padding="10,4" Margin="0,0,6,0" AutomationProperties.Name="Edit Prescribed Medicine" />
+                                                <Button Content="Delete" Command="{Binding DataContext.DeleteMedicineRowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" CommandParameter="{Binding}" Style="{StaticResource DangerOutlineButton}" Padding="10,4" AutomationProperties.Name="Delete Prescribed Medicine" />
                                             </StackPanel>
                                         </Grid>
                                     </Border>
@@ -375,7 +433,7 @@
                         </ItemsControl>
 
                         <!-- Empty state when no medicines yet -->
-                        <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="30" Margin="0,4,0,0"
+                        <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="24" Margin="0,4,0,0"
                                 Visibility="{Binding PrescribedMedicines.Count, Converter={StaticResource InverseBoolToVisConverter}}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock Text="No medicines prescribed yet." FontWeight="SemiBold" Foreground="{StaticResource SlateMutedBrush}" HorizontalAlignment="Center" />
@@ -386,48 +444,55 @@
                 </Border>
 
                 <!-- 4. ADVICE & FOLLOW-UP -->
-                <Border Style="{StaticResource CardContainer}" Margin="0,0,0,24">
+                <Border Style="{StaticResource CardContainer}" Margin="0,0,0,20">
                     <StackPanel>
                         <TextBlock Text="General Advice &amp; Follow-up" Style="{StaticResource HeadingSmall}" Margin="0,0,0,12" />
 
                         <!-- Advice Text Box with AutoFlowDirection -->
-                        <TextBox Text="{Binding GeneralAdvice, UpdateSourceTrigger=PropertyChanged}" 
-                                 Style="{StaticResource SearchBox}" 
-                                 Tag="General advice, dietary instructions, precautions (Urdu/English auto-aligned)..." 
-                                 Height="80" TextWrapping="Wrap" AcceptsReturn="True" 
-                                 behaviors:AutoFlowDirection.IsEnabled="True"
-                                 AutomationProperties.Name="General Advice Input"
-                                 Margin="0,0,0,8" />
+                        <StackPanel Margin="0,0,0,8">
+                            <TextBlock Text="General Advice / ہدایات و پرہیز" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                            <TextBox Text="{Binding GeneralAdvice, UpdateSourceTrigger=PropertyChanged}" 
+                                     Style="{StaticResource SearchBox}" 
+                                     Tag="General advice, dietary instructions, precautions (Urdu/English auto-aligned)..." 
+                                     Height="80" TextWrapping="Wrap" AcceptsReturn="True" 
+                                     behaviors:AutoFlowDirection.IsEnabled="True"
+                                     AutomationProperties.Name="General Advice Input" />
+                        </StackPanel>
 
                         <!-- Bilingual Advice Presets -->
-                        <WrapPanel Margin="0,0,0,14">
-                            <TextBlock Text="Common Presets: " Foreground="{StaticResource SlateMutedBrush}" VerticalAlignment="Center" Margin="0,0,6,4" FontSize="12" />
-                            <Button Content="پانی کا زیادہ استعمال کریں" Command="{Binding AddAdvicePresetCommand}" CommandParameter="پانی کا زیادہ استعمال کریں (Drink plenty of fluids)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="11" />
-                            <Button Content="مرچ اور تلی اشیاء سے پرہیز" Command="{Binding AddAdvicePresetCommand}" CommandParameter="مرچ اور تلی ہوئی اشیاء سے پرہیز کریں (Avoid spicy and oily food)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="11" />
-                            <Button Content="مکمل آرام کریں" Command="{Binding AddAdvicePresetCommand}" CommandParameter="مکمل آرام کریں (Adequate bed rest)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="11" />
-                            <Button Content="مکمل کورس کریں" Command="{Binding AddAdvicePresetCommand}" CommandParameter="ادویات کا مکمل کورس کریں (Complete full course of medication)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="11" />
-                            <Button Content="ایمرجنسی میں فوری رجوع" Command="{Binding AddAdvicePresetCommand}" CommandParameter="طبیعت خراب ہونے پر فوری رجوع کریں (Return immediately in case of emergency)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="11" />
+                        <WrapPanel Margin="0,0,0,12">
+                            <TextBlock Text="Common Presets: " Foreground="{StaticResource SlateMutedBrush}" VerticalAlignment="Center" Margin="0,0,6,4" FontSize="{StaticResource FontSizeCaption}" />
+                            <Button Content="پانی کا زیادہ استعمال کریں" Command="{Binding AddAdvicePresetCommand}" CommandParameter="پانی کا زیادہ استعمال کریں (Drink plenty of fluids)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                            <Button Content="مرچ اور تلی اشیاء سے پرہیز" Command="{Binding AddAdvicePresetCommand}" CommandParameter="مرچ اور تلی ہوئی اشیاء سے پرہیز کریں (Avoid spicy and oily food)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                            <Button Content="مکمل آرام کریں" Command="{Binding AddAdvicePresetCommand}" CommandParameter="مکمل آرام کریں (Adequate bed rest)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                            <Button Content="مکمل کورس کریں" Command="{Binding AddAdvicePresetCommand}" CommandParameter="ادویات کا مکمل کورس کریں (Complete full course of medication)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
+                            <Button Content="ایمرجنسی میں فوری رجوع" Command="{Binding AddAdvicePresetCommand}" CommandParameter="طبیعت خراب ہونے پر فوری رجوع کریں (Return immediately in case of emergency)" Style="{StaticResource SecondaryButton}" Padding="6,2" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                         </WrapPanel>
 
                         <!-- Follow-up Configuration & Preview -->
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="180" />
+                                <ColumnDefinition Width="160" />
                                 <ColumnDefinition Width="120" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <ComboBox Grid.Column="0" SelectedItem="{Binding FollowUpMode}" Height="34" VerticalContentAlignment="Center" Margin="0,0,8,0">
-                                <appEnums:FollowUpMode>None</appEnums:FollowUpMode>
-                                <appEnums:FollowUpMode>InDays</appEnums:FollowUpMode>
-                                <appEnums:FollowUpMode>InWeeks</appEnums:FollowUpMode>
-                                <appEnums:FollowUpMode>InMonths</appEnums:FollowUpMode>
-                                <appEnums:FollowUpMode>SOS</appEnums:FollowUpMode>
-                                <appEnums:FollowUpMode>PRN</appEnums:FollowUpMode>
-                            </ComboBox>
-                            <TextBox Grid.Column="1" Text="{Binding FollowUpInterval, UpdateSourceTrigger=PropertyChanged}" 
-                                     Style="{StaticResource SearchBox}" 
-                                     Visibility="{Binding IsIntervalFollowUp, Converter={StaticResource BoolToVisConverter}}" 
-                                     Tag="Days" Margin="0,0,12,0" AutomationProperties.Name="Follow Up Interval" />
+                            <StackPanel Grid.Column="0" Margin="0,0,8,0">
+                                <TextBlock Text="Follow-up Mode" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <ComboBox SelectedItem="{Binding FollowUpMode}" Height="34" VerticalContentAlignment="Center">
+                                    <appEnums:FollowUpMode>None</appEnums:FollowUpMode>
+                                    <appEnums:FollowUpMode>InDays</appEnums:FollowUpMode>
+                                    <appEnums:FollowUpMode>InWeeks</appEnums:FollowUpMode>
+                                    <appEnums:FollowUpMode>InMonths</appEnums:FollowUpMode>
+                                    <appEnums:FollowUpMode>SOS</appEnums:FollowUpMode>
+                                    <appEnums:FollowUpMode>PRN</appEnums:FollowUpMode>
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,12,0" Visibility="{Binding IsIntervalFollowUp, Converter={StaticResource BoolToVisConverter}}">
+                                <TextBlock Text="Interval (Number)" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
+                                <TextBox Text="{Binding FollowUpInterval, UpdateSourceTrigger=PropertyChanged}" 
+                                         Style="{StaticResource SearchBox}" 
+                                         Tag="Days" AutomationProperties.Name="Follow Up Interval" />
+                            </StackPanel>
                             <Border Grid.Column="2" Background="{StaticResource SlateBackgroundBrush}" CornerRadius="6" Padding="12,6" VerticalAlignment="Center">
                                 <StackPanel Orientation="Horizontal">
                                     <TextBlock Text="Follow-up note: " Foreground="{StaticResource SlateMutedBrush}" FontWeight="Medium" />
@@ -445,17 +510,17 @@
                 </Border>
 
                 <!-- BOTTOM FINALIZE BAR -->
-                <Border Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="20,16" Margin="0,0,0,30">
+                <Border Background="{StaticResource SurfaceWhiteBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="10" Padding="18,14" Margin="0,0,0,24">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="Ready to Issue Prescription" FontWeight="Bold" FontSize="15" Foreground="{StaticResource SlateDarkestBrush}" />
+                            <TextBlock Text="Ready to Issue Prescription" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" />
                             <TextBlock Text="Finalization freezes clinical snapshots, assigns sequential prescription number, and deletes draft." Style="{StaticResource BodyMuted}" />
                         </StackPanel>
-                        <Button Grid.Column="1" Content="Finalize Prescription" Command="{Binding FinalizePrescriptionCommand}" Style="{StaticResource PrimaryButton}" Padding="28,12" FontSize="15" FontWeight="Bold" AutomationProperties.Name="Finalize Prescription Bottom Button" />
+                        <Button Grid.Column="1" Content="Finalize Prescription" Command="{Binding FinalizePrescriptionCommand}" Style="{StaticResource PrimaryButton}" Padding="24,10" FontSize="{StaticResource FontSizeH3}" FontWeight="Bold" AutomationProperties.Name="Finalize Prescription Bottom Button" />
                     </Grid>
                 </Border>
 

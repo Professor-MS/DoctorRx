@@ -45,35 +45,100 @@ public class NavigationService : INavigationService
 
 public class DialogService : IDialogService
 {
+    private static void RunOnUi(Action action)
+    {
+        var app = System.Windows.Application.Current;
+        if (app?.Dispatcher != null && !app.Dispatcher.CheckAccess())
+        {
+            app.Dispatcher.Invoke(action);
+            return;
+        }
+        action();
+    }
+
+    private static T RunOnUi<T>(Func<T> action)
+    {
+        var app = System.Windows.Application.Current;
+        if (app?.Dispatcher != null && !app.Dispatcher.CheckAccess())
+        {
+            return app.Dispatcher.Invoke(action);
+        }
+        return action();
+    }
+
     public void ShowInformation(string title, string message)
     {
-        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+        RunOnUi(() =>
+        {
+            if (System.Windows.Application.Current == null)
+            {
+                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Information);
+                return;
+            }
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.Information);
+            dialog.ShowDialog();
+        });
     }
 
     public void ShowWarning(string title, string message)
     {
-        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+        RunOnUi(() =>
+        {
+            if (System.Windows.Application.Current == null)
+            {
+                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.Warning);
+            dialog.ShowDialog();
+        });
     }
 
     public void ShowError(string title, string message)
     {
-        MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+        RunOnUi(() =>
+        {
+            if (System.Windows.Application.Current == null)
+            {
+                MessageBox.Show(message, title, MessageBoxButton.OK, MessageBoxImage.Error);
+                return;
+            }
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.Error);
+            dialog.ShowDialog();
+        });
     }
 
     public bool ShowConfirmation(string title, string message)
     {
-        var result = MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question);
-        return result == MessageBoxResult.Yes;
+        return RunOnUi(() =>
+        {
+            if (System.Windows.Application.Current == null)
+            {
+                return MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
+            }
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.Confirmation);
+            dialog.ShowDialog();
+            return dialog.DialogBooleanResult == true;
+        });
     }
 
     public bool? ShowConfirmationWithCancel(string title, string message)
     {
-        var result = MessageBox.Show(message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
-        return result switch
+        return RunOnUi(() =>
         {
-            MessageBoxResult.Yes => true,
-            MessageBoxResult.No => false,
-            _ => null
-        };
+            if (System.Windows.Application.Current == null)
+            {
+                var res = MessageBox.Show(message, title, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                return res switch
+                {
+                    MessageBoxResult.Yes => true,
+                    MessageBoxResult.No => false,
+                    _ => null
+                };
+            }
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.ConfirmationWithCancel);
+            dialog.ShowDialog();
+            return dialog.DialogBooleanResult;
+        });
     }
 }

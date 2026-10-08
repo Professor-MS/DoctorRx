@@ -7,8 +7,9 @@
         xmlns:views="clr-namespace:DoctorRx.Presentation.Views"
         mc:Ignorable="d"
         Title="DoctorRx - Clinical Prescription Management" 
-        Height="800" Width="1240"
-        MinHeight="520" MinWidth="960"
+        MinHeight="520" MinWidth="900"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource SlateBackgroundBrush}"
         FontFamily="{StaticResource AppFont}">
@@ -17,46 +18,60 @@
         <KeyBinding Key="N" Modifiers="Control" Command="{Binding NavigateToNewPrescriptionCommand}" />
         <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCurrentDraftCommand}" />
         <KeyBinding Key="F1" Command="{Binding ToggleHelpOverlayCommand}" />
+        <KeyBinding Key="Esc" Command="{Binding HandleEscapeCommand}" />
     </Window.InputBindings>
 
     <Window.Resources>
+        <!-- Shared shadow effect -->
+        <DropShadowEffect
+            x:Key="DropShadow"
+            BlurRadius="10"
+            ShadowDepth="2"
+            Opacity="0.2" />
+
         <!-- DataTemplates mapping ViewModels to their respective Views -->
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
             <views:DashboardView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:PatientsViewModel}">
             <views:PatientsView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:NewPrescriptionViewModel}">
             <views:NewPrescriptionView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:PrescriptionDetailViewModel}">
             <views:PrescriptionDetailView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:PrescriptionHistoryViewModel}">
             <views:ScaffoldedFeatureView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:MedicinesViewModel}">
             <views:ScaffoldedFeatureView />
         </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:ScaffoldedFeatureView />
         </DataTemplate>
     </Window.Resources>
 
-    <Grid>
+    <Grid UseLayoutRounding="True" SnapsToDevicePixels="True">
         <Grid.ColumnDefinitions>
-            <!-- Navigation Sidebar -->
-            <ColumnDefinition Width="240" />
+            <!-- Navigation Sidebar (Collapsible: 240 in Wide/Normal, 64 in Compact) -->
+            <ColumnDefinition Width="Auto" />
             <!-- Main Content Area -->
             <ColumnDefinition Width="*" />
         </Grid.ColumnDefinitions>
 
         <!-- ================= SIDEBAR ================= -->
-        <Border Grid.Column="0" Background="{StaticResource SlateDarkestBrush}">
+        <Border Grid.Column="0" Width="{Binding SidebarWidth}" Background="{StaticResource SlateDarkestBrush}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <!-- Brand Header -->
+                    <!-- Brand / Hamburger Header -->
                     <RowDefinition Height="Auto" />
                     <!-- Navigation Items -->
                     <RowDefinition Height="*" />
@@ -64,19 +79,47 @@
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
-                <!-- Brand / Logo Header -->
-                <Border Grid.Row="0" Padding="20,24,20,20" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- Modern Rx Pill / Cross Icon -->
-                        <Border Width="38" Height="38" CornerRadius="8" Background="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,12,0">
-                            <TextBlock Text="Rx" Foreground="White" FontSize="18" FontWeight="Bold" 
-                                       HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0" />
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock Text="DoctorRx" Foreground="White" FontSize="18" FontWeight="Bold" />
-                            <TextBlock Text="Prescription Suite" Foreground="{StaticResource SlateLightBrush}" FontSize="11" />
-                        </StackPanel>
-                    </StackPanel>
+                <!-- Brand / Logo Header & Hamburger Button -->
+                <Border Grid.Row="0" Padding="12,16" BorderBrush="#1E293B" BorderThickness="0,0,0,1">
+                    <Grid>
+                        <!-- Expanded Header: Logo + Title + Hamburger Button -->
+                        <Grid Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Modern Rx Pill / Cross Icon -->
+                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="8" Background="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,10,0">
+                                <TextBlock Text="Rx" Foreground="White" FontSize="16" FontWeight="Bold" 
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-2,0,0" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="DoctorRx" Foreground="White" FontSize="16" FontWeight="Bold" />
+                                <TextBlock Text="Prescription Suite" Foreground="{StaticResource SlateLightBrush}" FontSize="12" />
+                            </StackPanel>
+
+                            <!-- Hamburger Toggle Button -->
+                            <Button Grid.Column="2" Style="{StaticResource HamburgerButton}"
+                                    Command="{Binding ToggleSidebarCommand}"
+                                    ToolTip="Collapse Navigation Menu"
+                                    AutomationProperties.Name="Toggle Navigation Sidebar">
+                                <Path Data="{StaticResource IconHamburger}" Fill="{StaticResource SlateLightBrush}" Width="18" Height="18" Stretch="Uniform" />
+                            </Button>
+                        </Grid>
+
+                        <!-- Collapsed Header: Centered Hamburger Button Only -->
+                        <Button Style="{StaticResource HamburgerButton}"
+                                Command="{Binding ToggleSidebarCommand}"
+                                ToolTip="Expand Navigation Menu"
+                                AutomationProperties.Name="Toggle Navigation Sidebar"
+                                HorizontalAlignment="Center"
+                                Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource BoolToVisConverter}}">
+                            <Path Data="{StaticResource IconHamburger}" Fill="{StaticResource SlateLightBrush}" Width="18" Height="18" Stretch="Uniform" />
+                        </Button>
+                    </Grid>
                 </Border>
 
                 <!-- Navigation Rail Tabs -->
@@ -84,90 +127,150 @@
                     <StackPanel>
                         <!-- Section Label -->
                         <TextBlock Text="MAIN NAVIGATION" Foreground="{StaticResource SlateMutedBrush}" 
-                                   FontSize="10.5" FontWeight="SemiBold" Margin="24,0,0,10" />
+                                   FontSize="12" FontWeight="SemiBold" Margin="16,0,0,10"
+                                   Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
 
                         <!-- Dashboard Button -->
                         <Button Style="{StaticResource NavButton}"
-                                Command="{Binding NavigateToDashboardCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📊" Margin="0,0,12,0" FontSize="14" />
-                                <TextBlock Text="Dashboard" VerticalAlignment="Center" />
-                            </StackPanel>
+                                Command="{Binding NavigateToDashboardCommand}"
+                                ToolTip="Dashboard"
+                                AutomationProperties.Name="Dashboard">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconDashboard}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="Dashboard" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
                         </Button>
 
                         <!-- New Prescription Button -->
                         <Button Style="{StaticResource NavButton}"
-                                Command="{Binding NavigateToNewPrescriptionCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📝" Margin="0,0,12,0" FontSize="14" />
-                                <TextBlock Text="New Prescription" VerticalAlignment="Center" />
-                            </StackPanel>
+                                Command="{Binding NavigateToNewPrescriptionCommand}"
+                                ToolTip="New Prescription"
+                                AutomationProperties.Name="New Prescription">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconNewPrescription}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="New Prescription" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
                         </Button>
 
                         <!-- Patients Button -->
                         <Button Style="{StaticResource NavButton}"
-                                Command="{Binding NavigateToPatientsCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="👥" Margin="0,0,12,0" FontSize="14" />
-                                <TextBlock Text="Patients" VerticalAlignment="Center" />
-                            </StackPanel>
+                                Command="{Binding NavigateToPatientsCommand}"
+                                ToolTip="Patients"
+                                AutomationProperties.Name="Patients">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconPatients}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="Patients" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
                         </Button>
 
                         <!-- Prescription History Button -->
                         <Button Style="{StaticResource NavButton}"
-                                Command="{Binding NavigateToHistoryCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="📜" Margin="0,0,12,0" FontSize="14" />
-                                <TextBlock Text="Prescription History" VerticalAlignment="Center" />
-                            </StackPanel>
+                                Command="{Binding NavigateToHistoryCommand}"
+                                ToolTip="Prescription History"
+                                AutomationProperties.Name="Prescription History">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconHistory}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="Prescription History" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
                         </Button>
 
                         <!-- Medicines Button -->
                         <Button Style="{StaticResource NavButton}"
-                                Command="{Binding NavigateToMedicinesCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="💊" Margin="0,0,12,0" FontSize="14" />
-                                <TextBlock Text="Medicines" VerticalAlignment="Center" />
-                            </StackPanel>
+                                Command="{Binding NavigateToMedicinesCommand}"
+                                ToolTip="Medicines"
+                                AutomationProperties.Name="Medicines">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconMedicines}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="Medicines" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
                         </Button>
 
                         <!-- Section Label -->
                         <TextBlock Text="SYSTEM" Foreground="{StaticResource SlateMutedBrush}" 
-                                   FontSize="10.5" FontWeight="SemiBold" Margin="24,20,0,10" />
+                                   FontSize="12" FontWeight="SemiBold" Margin="16,20,0,10"
+                                   Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
 
                         <!-- Settings Button -->
                         <Button Style="{StaticResource NavButton}"
-                                Command="{Binding NavigateToSettingsCommand}">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="⚙" Margin="0,0,12,0" FontSize="14" />
-                                <TextBlock Text="Settings" VerticalAlignment="Center" />
-                            </StackPanel>
+                                Command="{Binding NavigateToSettingsCommand}"
+                                ToolTip="Settings"
+                                AutomationProperties.Name="Settings">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconSettings}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="Settings" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
                         </Button>
                     </StackPanel>
                 </ScrollViewer>
 
                 <!-- Active Doctor Profile Footer -->
-                <Border Grid.Row="2" Background="#0B1120" Padding="16,14" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
+                <Border Grid.Row="2" Background="#0B1120" Padding="12,12" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
+                        <!-- Expanded Doctor Info -->
+                        <Grid Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
 
-                        <!-- Doctor Avatar -->
-                        <Border Grid.Column="0" Width="34" Height="34" CornerRadius="17" 
-                                Background="#1E293B" Margin="0,0,10,0">
-                            <TextBlock Text="👨‍⚕️" FontSize="16" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            <!-- Doctor Avatar -->
+                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" 
+                                    Background="#1E293B" Margin="0,0,10,0">
+                                <Path Data="{StaticResource IconDoctorAvatar}" Style="{StaticResource SidebarIcon}" Fill="{StaticResource PrimaryTealLightBrush}" />
+                            </Border>
+
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" 
+                                           Foreground="White" FontSize="12.5" FontWeight="SemiBold" 
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" />
+                                <TextBlock Text="{Binding ActiveDoctor.Specialization, FallbackValue='Consultant Physician'}" 
+                                           Foreground="{StaticResource SlateLightBrush}" FontSize="12" 
+                                           TextTrimming="CharacterEllipsis"
+                                           ToolTip="{Binding ActiveDoctor.Specialization, FallbackValue='Consultant Physician'}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <!-- Collapsed Doctor Avatar Only -->
+                        <Border Width="36" Height="36" CornerRadius="18" 
+                                Background="#1E293B" HorizontalAlignment="Center"
+                                AutomationProperties.Name="Active Doctor Profile"
+                                Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource BoolToVisConverter}}">
+                            <Border.ToolTip>
+                                <ToolTip Content="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" />
+                            </Border.ToolTip>
+                            <Path Data="{StaticResource IconDoctorAvatar}" Style="{StaticResource SidebarIcon}" Fill="{StaticResource PrimaryTealLightBrush}" />
                         </Border>
-
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" 
-                                       Foreground="White" FontSize="12.5" FontWeight="SemiBold" 
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock Text="{Binding ActiveDoctor.Specialization, FallbackValue='Consultant Physician'}" 
-                                       Foreground="{StaticResource SlateLightBrush}" FontSize="11" 
-                                       TextTrimming="CharacterEllipsis" />
-                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
@@ -177,17 +280,17 @@
         <Grid Grid.Column="1">
             <Grid.RowDefinitions>
                 <!-- Top Header Bar -->
-                <RowDefinition Height="64" />
+                <RowDefinition Height="Auto" MinHeight="56" />
                 <!-- Screen Body -->
                 <RowDefinition Height="*" />
                 <!-- Status Bar -->
-                <RowDefinition Height="28" />
+                <RowDefinition Height="Auto" MinHeight="28" />
             </Grid.RowDefinitions>
 
             <!-- Top Header Bar -->
             <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" 
                     BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1"
-                    Padding="30,0">
+                    Padding="24,12">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -196,24 +299,28 @@
 
                     <!-- Active Page Title -->
                     <TextBlock Grid.Column="0" Text="{Binding CurrentViewTitle}" 
-                               Style="{StaticResource HeadingMedium}" VerticalAlignment="Center" />
+                               Style="{StaticResource HeadingMedium}" 
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="{Binding CurrentViewTitle}"
+                               VerticalAlignment="Center" />
 
                     <!-- Top Bar Badges -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Local Offline Status Badge -->
                         <Border Background="{StaticResource SuccessGreenLightBrush}" 
-                                CornerRadius="12" Padding="10,4" Margin="0,0,14,0">
+                                CornerRadius="12" Padding="10,4" Margin="0,0,12,0">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Ellipse Width="7" Height="7" Fill="{StaticResource SuccessGreenBrush}" Margin="0,0,6,0" />
                                 <TextBlock Text="Offline-First • Local SQLite" Foreground="{StaticResource SuccessGreenBrush}" 
-                                           FontSize="11.5" FontWeight="SemiBold" />
+                                           FontSize="12" FontWeight="SemiBold" />
                             </StackPanel>
                         </Border>
 
-                        <!-- Current Date -->
+                        <!-- Current Date (Hidden in Compact mode) -->
                         <TextBlock Text="{Binding CurrentDateFormatted}" 
                                    Foreground="{StaticResource SlateMutedBrush}" 
-                                   FontSize="12.5" VerticalAlignment="Center" />
+                                   FontSize="12.5" VerticalAlignment="Center"
+                                   Visibility="{Binding IsCompact, Converter={StaticResource InverseBoolToVisConverter}}" />
                     </StackPanel>
                 </Grid>
             </Border>
@@ -235,7 +342,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="⚠️" FontSize="16" Margin="0,0,10,0" VerticalAlignment="Center" />
+                            <Path Data="{StaticResource IconWarning}" Fill="#D97706" Width="18" Height="18" Stretch="Uniform" Margin="0,0,10,0" VerticalAlignment="Center" />
                             <TextBlock Text="{Binding DoctorBannerText}" 
                                        Foreground="#92400E" FontWeight="SemiBold" FontSize="13" VerticalAlignment="Center" />
                         </StackPanel>
@@ -244,8 +351,10 @@
                     </Grid>
                 </Border>
 
-                <!-- Current View Host -->
-                <ContentControl Grid.Row="1" Content="{Binding CurrentView}" />
+                <!-- Current View Host with Vertical Scroll and Disabled Horizontal Scroll -->
+                <ScrollViewer x:Name="MainContentScrollViewer" Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <ContentControl Content="{Binding CurrentView}" Focusable="False" />
+                </ScrollViewer>
 
                 <!-- Doctor Profile Setup Modal Drawer Overlay -->
                 <Grid Grid.Row="0" Grid.RowSpan="2" 
@@ -253,8 +362,8 @@
                     <!-- Semi-transparent backdrop -->
                     <Border Background="#80000000" />
 
-                    <!-- Centered Modal Card -->
-                    <Border Width="560" MaxHeight="680" 
+                    <!-- Centered Modal Card (Clamped for small viewports like 960x520) -->
+                    <Border MaxWidth="560" MaxHeight="470" Margin="16"
                             Style="{StaticResource CardContainer}" 
                             HorizontalAlignment="Center" VerticalAlignment="Center"
                             Padding="28">
@@ -264,8 +373,9 @@
                                     <TextBlock Text="Doctor &amp; Clinic Profile Setup" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
                                     <Button Style="{StaticResource SecondaryButton}"
                                             Command="{Binding CloseDoctorSetupCommand}"
-                                            HorizontalAlignment="Right" Padding="8,4" BorderThickness="0">
-                                        <TextBlock Text="✕" FontSize="12" />
+                                            HorizontalAlignment="Right" Padding="8,4" BorderThickness="0"
+                                            AutomationProperties.Name="Close Doctor Setup Dialog">
+                                        <Path Data="{StaticResource IconClose}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
                                     </Button>
                                 </Grid>
 
@@ -384,99 +494,117 @@
             <!-- Bottom Status Bar -->
             <Border Grid.Row="2" Background="{StaticResource SurfaceWhiteBrush}" 
                     BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0"
-                    Padding="20,0">
+                    Padding="20,4">
                 <Grid VerticalAlignment="Center">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <TextBlock Grid.Column="0" Text="DoctorRx v1.0.0 • Clean Architecture • EF Core SQLite Engine Ready" 
-                               Foreground="{StaticResource SlateLightBrush}" FontSize="11" />
+                    <TextBlock Grid.Column="0" 
+                               Text="DoctorRx v1.0.0 • Clean Architecture • EF Core SQLite Engine Ready" 
+                               Foreground="{StaticResource SlateLightBrush}" 
+                               FontSize="12" 
+                               TextTrimming="CharacterEllipsis"
+                               ToolTip="DoctorRx v1.0.0 • Clean Architecture • EF Core SQLite Engine Ready"
+                               VerticalAlignment="Center" />
 
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <Button Style="{StaticResource SecondaryButton}" 
                                 Command="{Binding ToggleHelpOverlayCommand}" 
-                                Padding="8,2" Margin="0,0,12,0" FontSize="11"
+                                Padding="8,2" Margin="0,0,12,0" FontSize="12"
+                                ToolTip="Clinical Keyboard Shortcuts Guide"
                                 AutomationProperties.Name="Open Keyboard Shortcuts Guide">
-                            <TextBlock Text="⌨ Shortcuts (F1)" />
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource IconShortcuts}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Shortcuts (F1)" VerticalAlignment="Center" />
+                            </StackPanel>
                         </Button>
                         <TextBlock Text="Visual Studio 2026 Compatible • .NET 10 LTS" 
-                                   Foreground="{StaticResource SlateLightBrush}" FontSize="11" VerticalAlignment="Center" />
+                                   Foreground="{StaticResource SlateLightBrush}" FontSize="12" VerticalAlignment="Center"
+                                   Visibility="{Binding IsCompact, Converter={StaticResource InverseBoolToVisConverter}}" />
                     </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
-        <!-- Keyboard Shortcuts Help Overlay (F1) (Task 5, Amendment 9) -->
+        <!-- Keyboard Shortcuts Help Overlay (F1) -->
         <Grid Grid.ColumnSpan="2" Background="#80000000"
               Visibility="{Binding IsHelpOverlayOpen, Converter={StaticResource BoolToVisConverter}}"
               Panel.ZIndex="999">
-            <Border Background="White" CornerRadius="12" Width="600" VerticalAlignment="Center" HorizontalAlignment="Center"
-                    Padding="28" Effect="{StaticResource DropShadow}">
-                <StackPanel>
-                    <Grid Margin="0,0,0,16">
-                        <TextBlock Text="⌨ Clinical Keyboard Shortcuts" Style="{StaticResource HeadingMedium}" />
-                        <Button Content="✕" Command="{Binding ToggleHelpOverlayCommand}" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right" Padding="8,2"
-                                AutomationProperties.Name="Close Shortcuts Overlay" />
-                    </Grid>
+            <Border Background="White" CornerRadius="12" MaxWidth="600" MaxHeight="480" Margin="16"
+                    VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Padding="24" Effect="{StaticResource DropShadow}">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel>
+                        <Grid Margin="0,0,0,16">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Path Data="{StaticResource IconShortcuts}" Width="18" Height="18" Stretch="Uniform" Fill="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,8,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Clinical Keyboard Shortcuts" Style="{StaticResource HeadingMedium}" VerticalAlignment="Center" />
+                            </StackPanel>
+                            <Button Command="{Binding ToggleHelpOverlayCommand}" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right" Padding="8,2"
+                                    AutomationProperties.Name="Close Shortcuts Overlay">
+                                <Path Data="{StaticResource IconClose}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
+                            </Button>
+                        </Grid>
 
                     <Border Background="#F8FAFC" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,20">
                         <StackPanel>
                             <!-- Shortcut Row 1 -->
                             <Grid Margin="0,0,0,12">
                                 <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
-                                    <TextBlock Text="Ctrl + N" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Ctrl + N" FontWeight="Bold" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="Start a New Prescription from any screen" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                                <TextBlock Text="Start a New Prescription from any screen" Margin="95,3,0,0" FontWeight="SemiBold" FontSize="12.5" Foreground="#1E293B" />
                             </Grid>
 
                             <!-- Shortcut Row 2 -->
                             <Grid Margin="0,0,0,12">
                                 <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
-                                    <TextBlock Text="Ctrl + S" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Ctrl + S" FontWeight="Bold" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="Manually save current draft prescription" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                                <TextBlock Text="Manually save current draft prescription" Margin="95,3,0,0" FontWeight="SemiBold" FontSize="12.5" Foreground="#1E293B" />
                             </Grid>
 
                             <!-- Shortcut Row 3 -->
                             <Grid Margin="0,0,0,12">
                                 <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
-                                    <TextBlock Text="Enter" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Enter" FontWeight="Bold" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="Add medicine to prescription &amp; refocus Medicine name input" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                                <TextBlock Text="Add medicine to prescription &amp; refocus Medicine name input" Margin="95,3,0,0" FontWeight="SemiBold" FontSize="12.5" Foreground="#1E293B" />
                             </Grid>
 
                             <!-- Shortcut Row 4 -->
                             <Grid Margin="0,0,0,12">
                                 <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
-                                    <TextBlock Text="Esc" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Esc" FontWeight="Bold" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="Cancel medicine editor &amp; refocus Medicine name input" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                                <TextBlock Text="Cancel medicine editor &amp; refocus Medicine name input" Margin="95,3,0,0" FontWeight="SemiBold" FontSize="12.5" Foreground="#1E293B" />
                             </Grid>
 
                             <!-- Shortcut Row 5 -->
                             <Grid Margin="0,0,0,12">
                                 <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
-                                    <TextBlock Text="Tab" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                    <TextBlock Text="Tab" FontWeight="Bold" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="Move forward across clinical inputs in natural order" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                                <TextBlock Text="Move forward across clinical inputs in natural order" Margin="95,3,0,0" FontWeight="SemiBold" FontSize="12.5" Foreground="#1E293B" />
                             </Grid>
 
                             <!-- Shortcut Row 6 -->
                             <Grid>
                                 <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
-                                    <TextBlock Text="F1" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                    <TextBlock Text="F1" FontWeight="Bold" FontFamily="Consolas" FontSize="12" HorizontalAlignment="Center" />
                                 </Border>
-                                <TextBlock Text="Toggle this Keyboard Shortcuts guide" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                                <TextBlock Text="Toggle this Keyboard Shortcuts guide" Margin="95,3,0,0" FontWeight="SemiBold" FontSize="12.5" Foreground="#1E293B" />
                             </Grid>
                         </StackPanel>
                     </Border>
 
                     <Button Content="Close (F1 / Esc)" Command="{Binding ToggleHelpOverlayCommand}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" Padding="20,8"
-                            AutomationProperties.Name="Close Help Button" />
+                            FontSize="12" AutomationProperties.Name="Close Help Button" />
                 </StackPanel>
-            </Border>
-        </Grid>
+            </ScrollViewer>
+        </Border>
+    </Grid>
     </Grid>
 </Window>

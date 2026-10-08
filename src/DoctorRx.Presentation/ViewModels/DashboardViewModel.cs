@@ -57,6 +57,36 @@ public class DashboardViewModel : ViewModelBase
         }
     }
 
+    private double _availableWidth;
+
+    public double AvailableWidth
+    {
+        get => _availableWidth;
+        set
+        {
+            if (SetProperty(ref _availableWidth, value))
+            {
+                OnPropertyChanged(nameof(StatCardColumns));
+            }
+        }
+    }
+
+    public int StatCardColumns
+    {
+        get
+        {
+            if (AvailableWidth > 0 && AvailableWidth < 480) return 1;
+            if (IsWide) return 4;
+            return 2;
+        }
+    }
+
+    protected override void OnLayoutModeChanged(LayoutMode newMode)
+    {
+        base.OnLayoutModeChanged(newMode);
+        OnPropertyChanged(nameof(StatCardColumns));
+    }
+
     public bool HasActiveDrafts => ActiveDraftsCount > 0;
 
     public ObservableCollection<PrescriptionSummaryDto> RecentPrescriptions { get; } = new();
