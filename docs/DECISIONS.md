@@ -129,6 +129,72 @@ This document records architectural and technical decisions made during the Doct
 - **Status**: Accepted
 - **Decision**: Enforce single instance via named mutex `Local\DoctorRx_SingleInstance_Mutex`. When a secondary instance launches, it signals a named `EventWaitHandle` (`Local\DoctorRx_SingleInstance_Event`) and exits. The primary running instance responds by bringing its `MainWindow` to the foreground.
 - **Reason**:
-  - Running multiple instances concurrently on SQLite desktop apps risks lock contention.
-  - Smooth physician UX: launching the shortcut again restores the already open app rather than failing silently or causing multiple conflicting windows.
+- Running multiple instances concurrently on SQLite desktop apps risks lock contention.
+- Smooth physician UX: launching the shortcut again restores the already open app rather than failing silently or causing multiple conflicting windows.
+
+---
+
+## ADR 012: Zero Clinical Defaulting Principle & Non-Clinical Autocomplete
+- **Status**: Accepted
+- **Decision**: DoctorRx never suggests, defaults, pre-fills, or silently alters any clinical field (Dose, Frequency, Duration, Route, Instructions, Timing, Meal Relation). Autocomplete from the physician's medicine catalog is strictly restricted to non-clinical catalog identity information (Medicine Name, Generic Name, Form, Strength), and all pre-filled identity fields remain editable by the doctor.
+- **Reason**:
+  - The physician makes every clinical decision. Automated clinical guesses or defaulting introduce unacceptable clinical liability and danger of medication errors.
+- **Alternatives Rejected**:
+  - "Smart" auto-filling of standard adult doses (e.g., auto-filling "1 tab TDS"): Clinically unsafe; causes habituation where doctors overlook erroneous default doses.
+
+---
+
+## ADR 013: Draft Autosave Concurrency, Serialization, and Zombie Draft Elimination
+- **Status**: Accepted
+- **Decision**: 
+  - Autosaves execute via debounced (2s) and safety interval (15s) timers, serialized behind a `SemaphoreSlim(1, 1)` (last write wins).
+  - When finalization starts, autosave timers are stopped immediately, any in-flight background save is awaited, and composer state is marked `IsFinalized = true` to cause any future save calls to refuse to write.
+  - Upon successful database commit of the finalized prescription, the draft is atomically deleted.
+- **Reason**:
+  - Eliminates "zombie drafts" where a lagging timer write re-creates a draft record after the prescription has already been finalized.
+- **Alternatives Rejected**:
+  - Unsynchronized fire-and-forget background saves: Leads to SQLite concurrency locks and race conditions during finalization.
+
+---
+
+## ADR 014: Untrusted Draft Patient Data and Fresh Live Database Snapshots
+- **Status**: Accepted
+- **Decision**: 
+  - Patient demographics stored in the draft JSON payload are treated strictly as untrusted fallback hints for offline recovery.
+  - On draft recovery, the application refreshes patient display information directly from the `Patients` table in SQLite.
+  - On prescription finalization, doctor and patient snapshots are captured strictly from live database records, never from draft JSON or in-memory state.
+- **Reason**:
+  - If a patient's phone number or address was corrected in the clinic master database while a draft was open, finalization must bind to the true master record, not obsolete draft copies.
+- **Alternatives Rejected**:
+  - Blindly trusting draft payload snapshots: Allows stale patient demographics to be permanently stamped into immutable prescriptions.
+
+---
+
+## ADR 015: Medicine Form as Non-Blocking Validation Warning
+- **Status**: Accepted
+- **Decision**: Missing `Form` (e.g., Tablet, Syrup, Injection) is classified as a non-blocking warning rather than a fatal validation error. Blocking errors are strictly limited to: no patient selected, no medicine rows, missing medicine name, missing dose, missing frequency, or field character length violations.
+- **Reason**:
+  - Doctors occasionally prescribe items (e.g., compound powders, surgical dressings, special preparations) where a standard pharmaceutical form is omitted or not applicable. Doctors must not be blocked from issuing prescriptions for non-standard items.
+- **Alternatives Rejected**:
+  - Strict blocking validation on Form: Interrupted clinical workflow when prescribing compound preparations.
+
+---
+
+## ADR 016: Non-Blocking Window Close Draft Serialization
+- **Status**: Accepted
+- **Decision**: When `Window.Closing` is triggered with unsaved changes, the event is immediately cancelled (`e.Cancel = true`), an asynchronous confirmation dialog is presented, and upon confirmation, any pending draft is saved asynchronously (`await _draftService.SaveDraftAsync(...)`) before invoking `Application.Current.Shutdown()` or programmatic closing. No blocking calls (`.Result` or `.Wait()`) are ever permitted on the UI thread.
+- **Reason**:
+  - Calling synchronous blocking methods on WPF UI dispatcher threads causes deadlock risks and UI freezing.
+- **Alternatives Rejected**:
+  - Blocking `.Wait()` inside synchronous `Window.Closing`: Deadlock vulnerability.
+  - Discarding unsaved changes on window close: Data loss.
+
+---
+
+## ADR 017: Medicine Usage Ranking with B-Tree Indexing
+- **Status**: Accepted
+- **Decision**: Maintain `UsageCount` (INTEGER) and `LastUsedAtUtc` on `Medicines`, incremented upon prescription finalization. Autocomplete queries sort matching results by `UsageCount DESC, Name ASC`. The query planner utilizes `COLLATE NOCASE` B-Tree range scans to filter matching candidates before sorting the small result set in-memory, retaining sub-5ms latency.
+- **Reason**:
+  - Frequently prescribed medicines naturally rise to the top of the autocomplete suggestions without requiring manual favorites management.
+
 

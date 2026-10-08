@@ -34,20 +34,50 @@ DoctorRx
 2. **Atomic Gap-Free Numbering via `BEGIN IMMEDIATE`**:
    Prescription sequence numbers are allocated within the exact same database write transaction as the entity insertion. On transaction rollback, the sequence counter rolls back, guaranteeing zero burned numbers. On `SQLITE_BUSY`, the entire transaction retries with exponential backoff and jitter.
 
-3. **Offline-First & Local Storage**:
+3. **Zero Clinical Defaulting Principle**:
+   DoctorRx never suggests, defaults, or silently pre-fills dosages, frequencies, routes, or instructions. Autocomplete assists only with non-clinical catalog identity data (Name, Generic, Form, Strength), and all pre-filled fields remain editable by the doctor.
+
+4. **Robust Draft Autosave, Serialization & Crash Recovery**:
+   Prescription drafts are automatically saved every 2 seconds after edits (plus 15s safety interval) into SQLite. On application startup, unfinalized drafts are detected and offered for recovery with live patient database refresh. Saves are serialized to prevent race conditions and zombie drafts.
+
+5. **Keyboard-Driven Clinical Productivity & Accessibility**:
+   - `Ctrl+N`: New Prescription
+   - `Ctrl+S`: Manual Draft Save
+   - `F1`: Shortcuts and Guide modal overlay
+   - `Enter`: Add medicine item and refocus medicine search
+   - `Esc`: Cancel editing item and refocus medicine search
+   - Logical tab flow and `AutomationProperties.Name` on all controls.
+
+6. **Offline-First & Local Storage**:
    Data resides under `%LOCALAPPDATA%\DoctorRx\Data\doctorrx.db` with SQLite durability pragmas enforced on connection open: `WAL`, `foreign_keys=ON`, `busy_timeout=5000`, `synchronous=FULL`.
 
-4. **Indexed Keystroke Search with `COLLATE NOCASE`**:
-   Patient and medicine normalized names use `COLLATE NOCASE`, allowing SQLite prefix searches (`LIKE 'query%'`) to execute via indexed B-Tree range scans in sub-5ms across 100,000+ records.
+7. **Indexed Keystroke Search with `COLLATE NOCASE` & Usage Ranking**:
+   Patient and medicine normalized names use `COLLATE NOCASE`, allowing SQLite prefix searches (`LIKE 'query%'`) to execute via indexed B-Tree range scans in sub-5ms across 100,000+ records, ranked by clinical `UsageCount`.
 
-5. **Safe Migration, Automated Backups, and Legacy Guard**:
+8. **Safe Migration, Automated Backups, and Legacy Guard**:
    `DatabaseMigrator` creates pre-migration backups using SQLite Online Backup API only when pending migrations exist, keeps the last 5 backups, provides automatic rollback on migration failure, and halts gracefully if a legacy `EnsureCreated` database is detected.
 
-6. **Production Logging & Privacy**:
+9. **Production Logging & Privacy**:
    Serilog writes rolling daily logs to `%LOCALAPPDATA%\DoctorRx\Logs\doctorrx-.log`. Absolutely zero patient PII (names, phone digits, addresses, clinical notes, allergies) is ever logged. Unhandled exceptions display an 8-character hex reference ID for technical support without exposing raw stack traces to the clinic user.
 
-7. **Single Instance & PerMonitorV2 DPI Awareness**:
-   Enforced via named mutex `Local\DoctorRx_SingleInstance_Mutex` and named `EventWaitHandle`. Launching a secondary shortcut automatically activates and brings the running window to the foreground.
+10. **Single Instance & PerMonitorV2 DPI Awareness**:
+    Enforced via named mutex `Local\DoctorRx_SingleInstance_Mutex` and named `EventWaitHandle`. Launching a secondary shortcut automatically activates and brings the running window to the foreground.
+
+---
+
+## Testing & Verification
+
+For comprehensive testing instructions, manual crash test protocols, and performance benchmarks, see [TESTING.md](file:///c:/Users/Professor/Desktop/DoctorRx%20Project/docs/TESTING.md).
+
+Run the automated test suite:
+```bash
+dotnet test tests/DoctorRx.Tests/DoctorRx.Tests.csproj --filter "FullyQualifiedName!~Benchmark"
+```
+
+Run the 500k-record scalability benchmarks:
+```bash
+dotnet test tests/DoctorRx.Tests/DoctorRx.Tests.csproj --filter "FullyQualifiedName~Benchmark"
+```
 
 ---
 
@@ -66,11 +96,6 @@ Build the solution:
 dotnet build DoctorRx.sln
 ```
 
-Run the complete SQLite test suite (30 tests, including 100k benchmark):
-```bash
-dotnet test DoctorRx.sln
-```
-
 Launch the WPF application in clean production mode:
 ```bash
 dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj
@@ -81,3 +106,4 @@ Launch with demo seed data enabled:
 dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj -- --demo-data
 # OR set environment variable: DOCTORRX_DEMO=1
 ```
+
