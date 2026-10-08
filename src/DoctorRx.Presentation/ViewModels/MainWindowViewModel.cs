@@ -169,6 +169,15 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand OpenDoctorSetupCommand { get; }
     public ICommand CloseDoctorSetupCommand { get; }
     public ICommand SaveDoctorSetupCommand { get; }
+    public ICommand ToggleHelpOverlayCommand { get; }
+    public ICommand SaveCurrentDraftCommand { get; }
+
+    private bool _isHelpOverlayOpen;
+    public bool IsHelpOverlayOpen
+    {
+        get => _isHelpOverlayOpen;
+        set => SetProperty(ref _isHelpOverlayOpen, value);
+    }
 
     public MainWindowViewModel(INavigationService navigationService, IDoctorService doctorService, IDialogService dialogService, IDraftService draftService)
     {
@@ -198,6 +207,15 @@ public class MainWindowViewModel : ViewModelBase
         OpenDoctorSetupCommand = new RelayCommand(OpenDoctorSetup);
         CloseDoctorSetupCommand = new RelayCommand(() => IsDoctorSetupOpen = false);
         SaveDoctorSetupCommand = new AsyncRelayCommand(SaveDoctorSetupAsync);
+
+        ToggleHelpOverlayCommand = new RelayCommand(() => IsHelpOverlayOpen = !IsHelpOverlayOpen);
+        SaveCurrentDraftCommand = new AsyncRelayCommand(async () =>
+        {
+            if (CurrentView is NewPrescriptionViewModel newRxVm)
+            {
+                await newRxVm.SaveDraftInternalAsync(explicitUserSave: true);
+            }
+        });
     }
 
     public override async Task InitializeAsync(object? parameter = null)

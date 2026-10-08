@@ -13,6 +13,12 @@
         Background="{StaticResource SlateBackgroundBrush}"
         FontFamily="{StaticResource AppFont}">
 
+    <Window.InputBindings>
+        <KeyBinding Key="N" Modifiers="Control" Command="{Binding NavigateToNewPrescriptionCommand}" />
+        <KeyBinding Key="S" Modifiers="Control" Command="{Binding SaveCurrentDraftCommand}" />
+        <KeyBinding Key="F1" Command="{Binding ToggleHelpOverlayCommand}" />
+    </Window.InputBindings>
+
     <Window.Resources>
         <!-- DataTemplates mapping ViewModels to their respective Views -->
         <DataTemplate DataType="{x:Type vm:DashboardViewModel}">
@@ -388,11 +394,89 @@
                     <TextBlock Grid.Column="0" Text="DoctorRx v1.0.0 • Clean Architecture • EF Core SQLite Engine Ready" 
                                Foreground="{StaticResource SlateLightBrush}" FontSize="11" />
 
-                    <TextBlock Grid.Column="1" Text="Visual Studio 2026 Compatible • .NET 10 LTS" 
-                               Foreground="{StaticResource SlateLightBrush}" FontSize="11" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button Style="{StaticResource SecondaryButton}" 
+                                Command="{Binding ToggleHelpOverlayCommand}" 
+                                Padding="8,2" Margin="0,0,12,0" FontSize="11"
+                                AutomationProperties.Name="Open Keyboard Shortcuts Guide">
+                            <TextBlock Text="⌨ Shortcuts (F1)" />
+                        </Button>
+                        <TextBlock Text="Visual Studio 2026 Compatible • .NET 10 LTS" 
+                                   Foreground="{StaticResource SlateLightBrush}" FontSize="11" VerticalAlignment="Center" />
+                    </StackPanel>
                 </Grid>
             </Border>
         </Grid>
 
+        <!-- Keyboard Shortcuts Help Overlay (F1) (Task 5, Amendment 9) -->
+        <Grid Grid.ColumnSpan="2" Background="#80000000"
+              Visibility="{Binding IsHelpOverlayOpen, Converter={StaticResource BoolToVisConverter}}"
+              Panel.ZIndex="999">
+            <Border Background="White" CornerRadius="12" Width="600" VerticalAlignment="Center" HorizontalAlignment="Center"
+                    Padding="28" Effect="{StaticResource DropShadow}">
+                <StackPanel>
+                    <Grid Margin="0,0,0,16">
+                        <TextBlock Text="⌨ Clinical Keyboard Shortcuts" Style="{StaticResource HeadingMedium}" />
+                        <Button Content="✕" Command="{Binding ToggleHelpOverlayCommand}" Style="{StaticResource SecondaryButton}" HorizontalAlignment="Right" Padding="8,2"
+                                AutomationProperties.Name="Close Shortcuts Overlay" />
+                    </Grid>
+
+                    <Border Background="#F8FAFC" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,20">
+                        <StackPanel>
+                            <!-- Shortcut Row 1 -->
+                            <Grid Margin="0,0,0,12">
+                                <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
+                                    <TextBlock Text="Ctrl + N" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Start a New Prescription from any screen" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                            </Grid>
+
+                            <!-- Shortcut Row 2 -->
+                            <Grid Margin="0,0,0,12">
+                                <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
+                                    <TextBlock Text="Ctrl + S" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Manually save current draft prescription" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                            </Grid>
+
+                            <!-- Shortcut Row 3 -->
+                            <Grid Margin="0,0,0,12">
+                                <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
+                                    <TextBlock Text="Enter" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Add medicine to prescription &amp; refocus Medicine name input" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                            </Grid>
+
+                            <!-- Shortcut Row 4 -->
+                            <Grid Margin="0,0,0,12">
+                                <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
+                                    <TextBlock Text="Esc" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Cancel medicine editor &amp; refocus Medicine name input" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                            </Grid>
+
+                            <!-- Shortcut Row 5 -->
+                            <Grid Margin="0,0,0,12">
+                                <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
+                                    <TextBlock Text="Tab" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Move forward across clinical inputs in natural order" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                            </Grid>
+
+                            <!-- Shortcut Row 6 -->
+                            <Grid>
+                                <Border Background="#E2E8F0" CornerRadius="4" Padding="8,3" HorizontalAlignment="Left" Width="80">
+                                    <TextBlock Text="F1" FontWeight="Bold" FontFamily="Consolas" HorizontalAlignment="Center" />
+                                </Border>
+                                <TextBlock Text="Toggle this Keyboard Shortcuts guide" Margin="95,3,0,0" FontWeight="SemiBold" Foreground="#1E293B" />
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Content="Close (F1 / Esc)" Command="{Binding ToggleHelpOverlayCommand}" Style="{StaticResource PrimaryButton}" HorizontalAlignment="Right" Padding="20,8"
+                            AutomationProperties.Name="Close Help Button" />
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </Window>

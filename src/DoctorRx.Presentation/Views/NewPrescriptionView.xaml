@@ -152,11 +152,9 @@
                                         <Border Background="{StaticResource PrimaryTealUltraLightBrush}" CornerRadius="4" Padding="8,2" VerticalAlignment="Center" Margin="0,0,8,0">
                                             <TextBlock Text="{Binding SelectedPatient.RecordNumber}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="12" />
                                         </Border>
-                                        <TextBlock Text="{Binding SelectedPatient.AgeText}" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                        <TextBlock Text="{Binding SelectedPatient.DisplayAgeGender}" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
                                         <TextBlock Text="•" Foreground="{StaticResource SlateLightBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="{Binding SelectedPatient.Gender}" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="•" Foreground="{StaticResource SlateLightBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                        <TextBlock Text="{Binding SelectedPatient.Phone}" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" />
+                                        <TextBlock Text="{Binding SelectedPatient.FormattedPhone}" Foreground="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" />
                                     </StackPanel>
                                     <TextBlock Grid.Column="1" Text="{Binding SelectedPatient.LastVisitDate, StringFormat='Last Visit: {0:dd MMM yyyy}'}" Style="{StaticResource BodyMuted}" VerticalAlignment="Center" />
                                 </Grid>
@@ -202,7 +200,7 @@
                         <TextBlock Text="Rx Prescribed Medicines" Style="{StaticResource HeadingMedium}" Margin="0,0,0,12" />
 
                         <!-- INLINE MEDICINE EDITOR (Zero Clinical Defaults) -->
-                        <Border Background="#F1F5F9" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16">
+                        <Border Background="#F1F5F9" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="16" Margin="0,0,0,16" PreviewKeyDown="OnMedicineEditorKeyDown">
                             <StackPanel>
                                 <Grid Margin="0,0,0,10">
                                     <TextBlock Text="{Binding EditorHeaderTitle}" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkestBrush}" />
@@ -219,7 +217,7 @@
                                         <ColumnDefinition Width="1.5*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
-                                        <TextBox Text="{Binding MedicineSearchQuery, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Search Formulary / Enter Medicine Name *" AutomationProperties.Name="Medicine Name Input" />
+                                        <TextBox x:Name="MedicineSearchBox" Text="{Binding MedicineSearchQuery, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Search Formulary / Enter Medicine Name *" AutomationProperties.Name="Medicine Name Input" TabIndex="10" />
                                         <!-- Autocomplete Results -->
                                         <ListBox ItemsSource="{Binding MedicineSearchResults}" MaxHeight="140" Margin="0,2,0,0"
                                                  Visibility="{Binding MedicineSearchResults.Count, Converter={StaticResource BoolToVisConverter}}">
