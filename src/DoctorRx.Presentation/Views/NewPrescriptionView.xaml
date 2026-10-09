@@ -66,6 +66,20 @@
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="20,16">
             <StackPanel HorizontalAlignment="Stretch">
 
+                <!-- Correction Mode Banner -->
+                <Border Visibility="{Binding IsAmending, Converter={StaticResource BoolToVisConverter}}"
+                        Background="#FEF3C7" BorderBrush="#F59E0B" BorderThickness="1"
+                        CornerRadius="8" Padding="14,10" Margin="0,0,0,16">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Path Grid.Column="0" Data="{StaticResource IconWarning}" Fill="#D97706" Width="18" Height="18" Stretch="Uniform" VerticalAlignment="Center" Margin="0,0,10,0" />
+                        <TextBlock Grid.Column="1" Text="{Binding CorrectionBannerText}" Foreground="#92400E" FontWeight="SemiBold" FontSize="13.5" VerticalAlignment="Center" />
+                    </Grid>
+                </Border>
+
                 <!-- 1. PATIENT SELECTION & CARD -->
                 <Border Style="{StaticResource CardContainer}" Margin="0,0,0,16">
                     <StackPanel>

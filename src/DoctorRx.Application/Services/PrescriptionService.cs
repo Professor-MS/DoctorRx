@@ -54,6 +54,13 @@ public class PrescriptionService : IPrescriptionService
         return list.Select(MapToSummaryDto).ToList();
     }
 
+    public async Task<PrescriptionSummaryDto?> GetReplacementPrescriptionAsync(int parentPrescriptionId, CancellationToken cancellationToken = default)
+    {
+        await using var uow = _uowFactory.Create();
+        var replacement = await uow.Prescriptions.GetReplacementPrescriptionAsync(parentPrescriptionId, cancellationToken);
+        return replacement is null ? null : MapToSummaryDto(replacement);
+    }
+
     public async Task<Result<PrescriptionDetailDto>> FinalizePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default)
     {
         if (dto.PatientId <= 0)

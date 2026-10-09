@@ -16,6 +16,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
     private readonly INavigationService _navigationService;
     private readonly IDialogService _dialogService;
     private PrescriptionDetailDto? _prescription;
+    private PrescriptionSummaryDto? _replacementPrescription;
 
     public NavigationDestination ReturnDestination { get; private set; } = NavigationDestination.PrescriptionHistory;
 
@@ -30,9 +31,35 @@ public class PrescriptionDetailViewModel : ViewModelBase
                 OnPropertyChanged(nameof(IsCancelled));
                 OnPropertyChanged(nameof(IsSuperseded));
                 OnPropertyChanged(nameof(IsFinalized));
+                OnPropertyChanged(nameof(StatusBadgeText));
             }
         }
     }
+
+    public PrescriptionSummaryDto? ReplacementPrescription
+    {
+        get => _replacementPrescription;
+        private set
+        {
+            if (SetProperty(ref _replacementPrescription, value))
+            {
+                OnPropertyChanged(nameof(HasReplacementPrescription));
+                OnPropertyChanged(nameof(StatusBadgeText));
+            }
+        }
+    }
+
+    public bool HasReplacementPrescription => ReplacementPrescription != null;
+
+    public string StatusBadgeText => Prescription?.Status switch
+    {
+        PrescriptionStatus.Finalized => "Issued (locked)",
+        PrescriptionStatus.Cancelled => "Cancelled",
+        PrescriptionStatus.Superseded => ReplacementPrescription != null
+            ? $"Replaced by {ReplacementPrescription.PrescriptionNumber}"
+            : "Replaced",
+        _ => Prescription?.Status.ToString() ?? string.Empty
+    };
 
     public bool CanAmendOrCancel => Prescription?.Status == PrescriptionStatus.Finalized;
     public bool IsCancelled => Prescription?.Status == PrescriptionStatus.Cancelled;
@@ -42,7 +69,9 @@ public class PrescriptionDetailViewModel : ViewModelBase
     public ICommand BackCommand { get; }
     public ICommand PrintCommand { get; }
     public ICommand CancelCommand { get; }
-    public ICommand AmendCommand { get; }
+    public ICommand EditPrescriptionCommand { get; }
+    public ICommand AmendCommand => EditPrescriptionCommand;
+    public ICommand OpenReplacementCommand { get; }
 
     public PrescriptionDetailViewModel(
         IPrescriptionService prescriptionService,
@@ -56,7 +85,14 @@ public class PrescriptionDetailViewModel : ViewModelBase
         BackCommand = new RelayCommand(() => _navigationService.NavigateTo(ReturnDestination));
         PrintCommand = new RelayCommand(PrintPrescription);
         CancelCommand = new AsyncRelayCommand(CancelPrescriptionAsync);
-        AmendCommand = new RelayCommand(AmendPrescription);
+        EditPrescriptionCommand = new RelayCommand(EditPrescription);
+        OpenReplacementCommand = new RelayCommand(() =>
+        {
+            if (ReplacementPrescription != null)
+            {
+                _navigationService.NavigateTo(NavigationDestination.PrescriptionDetail, ReplacementPrescription.Id);
+            }
+        });
     }
 
     public override async Task InitializeAsync(object? parameter = null)
@@ -81,6 +117,15 @@ public class PrescriptionDetailViewModel : ViewModelBase
         else if (parameter is PrescriptionDetailDto detail)
         {
             Prescription = detail;
+        }
+
+        if (Prescription != null && Prescription.Status == PrescriptionStatus.Superseded)
+        {
+            ReplacementPrescription = await _prescriptionService.GetReplacementPrescriptionAsync(Prescription.Id);
+        }
+        else
+        {
+            ReplacementPrescription = null;
         }
     }
 
@@ -115,7 +160,9 @@ public class PrescriptionDetailViewModel : ViewModelBase
 
         var confirmed = _dialogService.ShowConfirmation(
             "Cancel Prescription",
-            $"Are you sure you want to cancel prescription {Prescription.PrescriptionNumber}? Cancelled prescriptions become read-only and cannot be undone.");
+            $"Are you sure you want to cancel prescription {Prescription.PrescriptionNumber}?\n\nThe prescription will remain on record marked as cancelled and cannot be uncancelled.",
+            confirmText: "Cancel Prescription",
+            cancelText: "Keep Prescription");
 
         if (!confirmed) return;
 
@@ -131,9 +178,18 @@ public class PrescriptionDetailViewModel : ViewModelBase
         }
     }
 
-    private void AmendPrescription()
+    private void EditPrescription()
     {
         if (Prescription == null) return;
+
+        var confirmed = _dialogService.ShowConfirmation(
+            "Edit Prescription",
+            $"This prescription ({Prescription.PrescriptionNumber}) has been issued and cannot be changed directly.\n\nEditing will create a corrected copy. The original is kept on record and marked as replaced.",
+            confirmText: "Create corrected copy",
+            cancelText: "Cancel");
+
+        if (!confirmed) return;
+
         _navigationService.NavigateTo(NavigationDestination.NewPrescription, Prescription);
     }
 }

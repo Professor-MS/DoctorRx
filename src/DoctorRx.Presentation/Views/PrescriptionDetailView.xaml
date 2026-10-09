@@ -41,19 +41,48 @@
                     <!-- Status Badges -->
                     <Border Background="{StaticResource SuccessGreenLightBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center"
                             Visibility="{Binding IsFinalized, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="Finalized (Locked)" FontWeight="Bold" Foreground="{StaticResource SuccessGreenBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                        <TextBlock Text="{Binding StatusBadgeText}" FontWeight="Bold" Foreground="{StaticResource SuccessGreenBrush}" FontSize="{StaticResource FontSizeCaption}" />
                     </Border>
                     <Border Background="{StaticResource DangerRedLightBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center"
                             Visibility="{Binding IsCancelled, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="Cancelled" FontWeight="Bold" Foreground="{StaticResource DangerRedBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                        <TextBlock Text="{Binding StatusBadgeText}" FontWeight="Bold" Foreground="{StaticResource DangerRedBrush}" FontSize="{StaticResource FontSizeCaption}" />
                     </Border>
-                    <Border Background="{StaticResource SlateBorderBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center"
-                            Visibility="{Binding IsSuperseded, Converter={StaticResource BoolToVisConverter}}">
-                        <TextBlock Text="Superseded" FontWeight="Bold" Foreground="{StaticResource SlateMediumBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                    <!-- Superseded with replacement: clickable link -->
+                    <Button Style="{StaticResource GhostButton}"
+                            Command="{Binding OpenReplacementCommand}"
+                            Padding="0"
+                            Margin="0"
+                            VerticalAlignment="Center"
+                            ToolTip="Open replacement prescription"
+                            Visibility="{Binding HasReplacementPrescription, Converter={StaticResource BoolToVisConverter}}">
+                        <Border Background="{StaticResource PrimaryTealUltraLightBrush}" BorderBrush="{StaticResource PrimaryTealLightBrush}" BorderThickness="1" CornerRadius="12" Padding="10,3">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding StatusBadgeText}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeCaption}" />
+                                <Path Data="{StaticResource IconArrowForward}" Width="10" Height="10" Fill="{StaticResource PrimaryTealDarkBrush}" Stretch="Uniform" Margin="6,0,0,0" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </Button>
+                    <!-- Superseded without replacement -->
+                    <Border Background="{StaticResource SlateBorderBrush}" CornerRadius="12" Padding="10,3" VerticalAlignment="Center">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Collapsed" />
+                                <Style.Triggers>
+                                    <MultiDataTrigger>
+                                        <MultiDataTrigger.Conditions>
+                                            <Condition Binding="{Binding IsSuperseded}" Value="True" />
+                                            <Condition Binding="{Binding HasReplacementPrescription}" Value="False" />
+                                        </MultiDataTrigger.Conditions>
+                                        <Setter Property="Visibility" Value="Visible" />
+                                    </MultiDataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <TextBlock Text="{Binding StatusBadgeText}" FontWeight="Bold" Foreground="{StaticResource SlateMediumBrush}" FontSize="{StaticResource FontSizeCaption}" />
                     </Border>
                 </StackPanel>
 
-                <!-- Action Buttons: Print, Amend, Cancel -->
+                <!-- Action Buttons: Print, Edit Prescription, Cancel Prescription -->
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Command="{Binding PrintCommand}" Style="{StaticResource PrimaryButton}" Margin="0,0,8,0" Padding="14,7"
                             ToolTip="Open Print Preview &amp; Print" AutomationProperties.Name="Print Prescription">
@@ -62,10 +91,10 @@
                             <TextBlock Text="Print Preview" FontWeight="SemiBold" VerticalAlignment="Center" />
                         </StackPanel>
                     </Button>
-                    <Button Content="Amend" Command="{Binding AmendCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Padding="12,7"
+                    <Button Content="Edit Prescription" Command="{Binding EditPrescriptionCommand}" Style="{StaticResource SecondaryButton}" Margin="0,0,8,0" Padding="12,7"
                             Visibility="{Binding CanAmendOrCancel, Converter={StaticResource BoolToVisConverter}}" 
-                            ToolTip="Create amendment superseding this prescription" AutomationProperties.Name="Amend Prescription" />
-                    <Button Content="Cancel Rx" Command="{Binding CancelCommand}" Style="{StaticResource DangerOutlineButton}" Padding="12,7"
+                            ToolTip="Create a corrected copy of this prescription" AutomationProperties.Name="Edit Prescription" />
+                    <Button Content="Cancel Prescription" Command="{Binding CancelCommand}" Style="{StaticResource DangerOutlineButton}" Padding="12,7"
                             Visibility="{Binding CanAmendOrCancel, Converter={StaticResource BoolToVisConverter}}" 
                             ToolTip="Cancel this prescription permanently" AutomationProperties.Name="Cancel Prescription" />
                 </StackPanel>

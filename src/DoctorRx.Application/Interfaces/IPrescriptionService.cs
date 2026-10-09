@@ -14,4 +14,5 @@ public interface IPrescriptionService
     Task<Result<PrescriptionDetailDto>> FinalizePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default);
     Task<Result<PrescriptionDetailDto>> AmendPrescriptionAsync(int originalId, CreatePrescriptionDto newContent, CancellationToken cancellationToken = default);
     Task<Result> CancelPrescriptionAsync(int id, string reason, CancellationToken cancellationToken = default);
+    Task<PrescriptionSummaryDto?> GetReplacementPrescriptionAsync(int parentPrescriptionId, CancellationToken cancellationToken = default) => Task.FromResult<PrescriptionSummaryDto?>(null);
 }

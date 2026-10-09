@@ -48,6 +48,7 @@ public class NewPrescriptionViewModel : ViewModelBase
     // State identifiers
     private Guid _draftKey = Guid.NewGuid();
     private int? _amendmentParentId;
+    private string? _amendmentParentPrescriptionNumber;
     private int _amendmentNumber;
     private string _lastSavedText = "Draft ready";
 
@@ -108,7 +109,9 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     public Guid DraftKey => _draftKey;
     public bool IsAmending => _amendmentParentId.HasValue;
-    public string ScreenTitle => IsAmending ? $"Amending Prescription #{_amendmentParentId} (Amendment A{_amendmentNumber + 1})" : "New Prescription";
+    public string? AmendmentParentPrescriptionNumber => _amendmentParentPrescriptionNumber;
+    public string CorrectionBannerText => $"You are correcting {AmendmentParentPrescriptionNumber}. The original stays on record.";
+    public string ScreenTitle => IsAmending ? $"Correct Prescription ({AmendmentParentPrescriptionNumber})" : "Create New Prescription";
 
     public PatientDto? SelectedPatient
     {
@@ -632,8 +635,11 @@ public class NewPrescriptionViewModel : ViewModelBase
             {
                 // Amendment mode
                 _amendmentParentId = parentDetail.Id;
+                _amendmentParentPrescriptionNumber = parentDetail.PrescriptionNumber;
                 _amendmentNumber = parentDetail.AmendmentNumber;
                 OnPropertyChanged(nameof(IsAmending));
+                OnPropertyChanged(nameof(AmendmentParentPrescriptionNumber));
+                OnPropertyChanged(nameof(CorrectionBannerText));
                 OnPropertyChanged(nameof(ScreenTitle));
 
                 var patient = await _patientService.GetPatientByIdAsync(parentDetail.PatientId);

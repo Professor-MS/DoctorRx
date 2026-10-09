@@ -142,7 +142,9 @@ public class DialogService : IDialogService
         });
     }
 
-    public bool ShowConfirmation(string title, string message)
+    public bool ShowConfirmation(string title, string message) => ShowConfirmation(title, message, "Yes", "No");
+
+    public bool ShowConfirmation(string title, string message, string confirmText, string cancelText)
     {
         return RunOnUi(() =>
         {
@@ -150,7 +152,7 @@ public class DialogService : IDialogService
             {
                 return MessageBox.Show(message, title, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes;
             }
-            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.Confirmation);
+            var dialog = new Views.CustomDialogWindow(title, message, Views.CustomDialogWindow.DialogType.Confirmation, null, confirmText, cancelText);
             dialog.ShowDialog();
             return dialog.DialogBooleanResult == true;
         });

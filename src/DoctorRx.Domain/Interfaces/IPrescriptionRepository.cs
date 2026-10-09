@@ -13,4 +13,5 @@ public interface IPrescriptionRepository : IRepository<Prescription>
     Task<IReadOnlyList<Prescription>> GetByPatientIdAsync(int patientId, CancellationToken cancellationToken = default);
     Task<int> GetCountForDateAsync(DateOnly date, CancellationToken cancellationToken = default);
     Task<string> GenerateNextPrescriptionNumberAsync(DateOnly? date = null, CancellationToken cancellationToken = default);
+    Task<Prescription?> GetReplacementPrescriptionAsync(int parentPrescriptionId, CancellationToken cancellationToken = default);
 }

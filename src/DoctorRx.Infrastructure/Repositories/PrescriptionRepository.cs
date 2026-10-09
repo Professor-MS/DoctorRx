@@ -83,4 +83,11 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
 
         return $"{key}-{seq.CurrentValue:D4}";
     }
+
+    public async Task<Prescription?> GetReplacementPrescriptionAsync(int parentPrescriptionId, CancellationToken cancellationToken = default)
+    {
+        return await DbSet
+            .AsNoTracking()
+            .FirstOrDefaultAsync(p => p.ParentPrescriptionId == parentPrescriptionId, cancellationToken);
+    }
 }
