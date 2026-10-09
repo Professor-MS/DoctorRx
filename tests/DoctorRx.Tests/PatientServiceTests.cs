@@ -198,4 +198,31 @@ public class PatientServiceTests : IDisposable
         Assert.NotNull(result.Value);
         Assert.Equal("Healthy Patient", result.Value.Name);
     }
+
+    [Fact]
+    public async Task CreatePatient_ThenSearchByName_FindsNewlyCreatedPatient()
+    {
+        // Arrange: Seed demo data first so DB has initial search tokens
+        var seeder = new DemoDataSeeder(_factory, NullLogger<DemoDataSeeder>.Instance);
+        await seeder.SeedAsync();
+
+        // Create new patient "Khalil Ullah"
+        var createDto = new CreatePatientDto
+        {
+            Name = "Khalil Ullah",
+            Age = 23,
+            Gender = Gender.Male,
+            Phone = "0305678901234",
+            Address = "Pakistan"
+        };
+        var createResult = await _service.CreatePatientAsync(createDto);
+        Assert.True(createResult.IsSuccess);
+
+        // Act: Search for "Khalil Ullah"
+        var searchResults = await _service.SearchPatientsAsync("Khalil Ullah");
+
+        // Assert
+        Assert.NotEmpty(searchResults);
+        Assert.Contains(searchResults, p => p.Name == "Khalil Ullah");
+    }
 }

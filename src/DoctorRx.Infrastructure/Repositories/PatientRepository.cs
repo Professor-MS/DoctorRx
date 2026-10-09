@@ -151,14 +151,29 @@ public class PatientRepository : Repository<Patient>, IPatientRepository
             .Where(p => EF.Functions.Like(p.RecordNumber, $"{normalizedQuery}%"))
             .Select(p => p.Id);
 
+        var directNamePrefixIds = dbQuery
+            .Where(p => EF.Functions.Like(p.NormalizedName, $"{normalizedQuery}%"))
+            .Select(p => p.Id);
+
+        var directCandidates = directRecordIds.Union(directNamePrefixIds);
+
         var candidateIdsQuery = matchingPatientIdsQuery != null
-            ? matchingPatientIdsQuery.Union(directRecordIds)
-            : directRecordIds;
+            ? matchingPatientIdsQuery.Union(directCandidates)
+            : directCandidates;
 
         var candidateIds = await candidateIdsQuery
             .Distinct()
             .Take(maxResults * 3)
             .ToListAsync(cancellationToken);
+
+        // Always retain exact matches in candidate pool
+        foreach (var exact in exactMatches)
+        {
+            if (!candidateIds.Contains(exact.Id))
+            {
+                candidateIds.Add(exact.Id);
+            }
+        }
 
         if (candidateIds.Count == 0)
         {

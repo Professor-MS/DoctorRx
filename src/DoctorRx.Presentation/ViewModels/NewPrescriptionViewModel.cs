@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Data;
 using System.Windows.Input;
 using System.Windows.Threading;
 using CommunityToolkit.Mvvm.Input;
@@ -20,6 +21,9 @@ namespace DoctorRx.Presentation.ViewModels;
 public class NewPrescriptionViewModel : ViewModelBase
 {
     public override NavigationSection NavigationSection => NavigationSection.NewPrescription;
+
+    private readonly object _patientSearchLock = new();
+    private readonly object _medicineSearchLock = new();
 
     private readonly IPatientService _patientService;
     private readonly IMedicineService _medicineService;
@@ -585,6 +589,10 @@ public class NewPrescriptionViewModel : ViewModelBase
         _undoTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _undoTimer.Tick += OnUndoTimerTick;
 
+        // Thread-safe collection synchronization for background search queries
+        BindingOperations.EnableCollectionSynchronization(PatientSearchResults, _patientSearchLock);
+        BindingOperations.EnableCollectionSynchronization(MedicineSearchResults, _medicineSearchLock);
+
         // Command definitions
         SelectPatientCommand = new RelayCommand<PatientDto>(SelectPatient);
         ChangePatientCommand = new RelayCommand(ChangePatient);
@@ -742,6 +750,10 @@ public class NewPrescriptionViewModel : ViewModelBase
             {
                 // Debounce cancelled, ignore
             }
+            catch (Exception ex)
+            {
+                Serilog.Log.Error(ex, "Unexpected error in debounced patient search");
+            }
         }, token);
     }
 
@@ -768,6 +780,10 @@ public class NewPrescriptionViewModel : ViewModelBase
         {
             // Cancelled query must NEVER clear or overwrite the list
         }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Error searching patients in prescription composer");
+        }
         finally
         {
             if (requestId == _patientSearchRequestId)
@@ -780,10 +796,13 @@ public class NewPrescriptionViewModel : ViewModelBase
 
     private void UpdateSearchResults(IReadOnlyList<PatientDto> results)
     {
-        PatientSearchResults.Clear();
-        foreach (var p in results)
+        lock (_patientSearchLock)
         {
-            PatientSearchResults.Add(p);
+            PatientSearchResults.Clear();
+            foreach (var p in results)
+            {
+                PatientSearchResults.Add(p);
+            }
         }
         OnPropertyChanged(nameof(NoPatientFound));
         OnPropertyChanged(nameof(PatientSearchResultCount));
@@ -803,7 +822,10 @@ public class NewPrescriptionViewModel : ViewModelBase
         _patientSearchQuery = string.Empty;
         OnPropertyChanged(nameof(PatientSearchQuery));
         OnPropertyChanged(nameof(HasSearchQuery));
-        PatientSearchResults.Clear();
+        lock (_patientSearchLock)
+        {
+            PatientSearchResults.Clear();
+        }
     }
 
     private void ChangePatient()
@@ -860,7 +882,22 @@ public class NewPrescriptionViewModel : ViewModelBase
     {
         if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
         {
-            MedicineSearchResults.Clear();
+            void Clear()
+            {
+                lock (_medicineSearchLock)
+                {
+                    MedicineSearchResults.Clear();
+                }
+            }
+
+            if (System.Windows.Application.Current != null && !System.Windows.Application.Current.Dispatcher.CheckAccess())
+            {
+                System.Windows.Application.Current.Dispatcher.Invoke(Clear);
+            }
+            else
+            {
+                Clear();
+            }
             return;
         }
 
@@ -868,11 +905,18 @@ public class NewPrescriptionViewModel : ViewModelBase
         try
         {
             var results = await _medicineService.SearchMedicinesAsync(query);
-            MedicineSearchResults.Clear();
-            foreach (var m in results)
+            lock (_medicineSearchLock)
             {
-                MedicineSearchResults.Add(m);
+                MedicineSearchResults.Clear();
+                foreach (var m in results)
+                {
+                    MedicineSearchResults.Add(m);
+                }
             }
+        }
+        catch (Exception ex)
+        {
+            Serilog.Log.Error(ex, "Error searching medicines in prescription composer");
         }
         finally
         {
@@ -894,7 +938,10 @@ public class NewPrescriptionViewModel : ViewModelBase
         Strength = catalogMed.Strength;
 
         // Never auto-fill clinical directions: dose, frequency, duration, meal relation stay unselected
-        MedicineSearchResults.Clear();
+        lock (_medicineSearchLock)
+        {
+            MedicineSearchResults.Clear();
+        }
         EditorErrorMessage = null;
         ValidationErrorMessage = null;
         FocusRequested?.Invoke("Dose");
