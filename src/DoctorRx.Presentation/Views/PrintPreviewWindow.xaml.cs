@@ -1,4 +1,5 @@
 using System;
+using System.Printing;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,10 +10,24 @@ namespace DoctorRx.Presentation.Views;
 public partial class PrintPreviewWindow : Window
 {
     private double _currentZoom = 1.0;
+    private PrescriptionDetailDto? _prescription;
+
+    // Standard paper sizes at 96 DPI:
+    // A4: 210mm x 297mm = 8.27in x 11.69in = 793.7 x 1122.5 WPF units
+    // A5: 148mm x 210mm = 5.83in x 8.27in = 559.4 x 793.7 WPF units
+    public const double A4Width = 793.7;
+    public const double A4Height = 1122.5;
+    public const double A5Width = 559.4;
+    public const double A5Height = 793.7;
+
+    public bool IsA5Selected => PaperSizeSelector?.SelectedIndex == 1;
+    public Border PaperContainerElement => PaperContainer;
+    public ComboBox PaperSizeSelectorElement => PaperSizeSelector;
 
     public PrintPreviewWindow(PrescriptionDetailDto? prescription, Window? owner = null)
     {
         InitializeComponent();
+        _prescription = prescription;
 
         Window? potentialOwner = owner;
         if (potentialOwner == null && System.Windows.Application.Current != null && System.Windows.Application.Current.Dispatcher.CheckAccess())
@@ -37,7 +52,7 @@ public partial class PrintPreviewWindow : Window
 
         if (prescription != null)
         {
-            PopulatePrescription(prescription);
+            PaperView.Populate(prescription);
         }
 
         Loaded += (s, e) => FitWidth();
@@ -48,54 +63,6 @@ public partial class PrintPreviewWindow : Window
                 Close();
             }
         };
-    }
-
-    private void PopulatePrescription(PrescriptionDetailDto p)
-    {
-        if (p.DoctorSnapshot != null)
-        {
-            ClinicNameText.Text = !string.IsNullOrWhiteSpace(p.DoctorSnapshot.ClinicName) ? p.DoctorSnapshot.ClinicName : "DoctorRx Medical Clinic";
-            DoctorNameText.Text = !string.IsNullOrWhiteSpace(p.DoctorSnapshot.Name) ? $"Dr. {p.DoctorSnapshot.Name}" : "Attending Physician";
-            DoctorQualificationText.Text = p.DoctorSnapshot.Qualification;
-            DoctorSpecializationText.Text = p.DoctorSnapshot.Specialization;
-            DoctorRegText.Text = !string.IsNullOrWhiteSpace(p.DoctorSnapshot.RegistrationNumber) ? $"PMC/PMDC: {p.DoctorSnapshot.RegistrationNumber}" : string.Empty;
-        }
-
-        PrescriptionDateText.Text = $"Date: {p.PrescriptionDate:dd MMM yyyy}";
-        PrescriptionNumberText.Text = $"Rx # {p.PrescriptionNumber}";
-
-        if (p.PatientSnapshot != null)
-        {
-            PatientNameText.Text = p.PatientSnapshot.Name;
-            PatientAgeText.Text = p.PatientSnapshot.AgeText;
-            PatientGenderText.Text = p.PatientSnapshot.Gender.ToString();
-            PatientRecordText.Text = $"P-{p.PatientId:D4}";
-        }
-
-        if (!string.IsNullOrWhiteSpace(p.ChiefComplaints))
-        {
-            ChiefComplaintsText.Text = p.ChiefComplaints;
-            ObservationsBorder.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            ObservationsBorder.Visibility = Visibility.Collapsed;
-        }
-
-        MedicinesItemsControl.ItemsSource = p.Items;
-
-        if (!string.IsNullOrWhiteSpace(p.GeneralAdvice) || !string.IsNullOrWhiteSpace(p.FollowUpText))
-        {
-            AdviceText.Text = p.GeneralAdvice;
-            FollowUpText.Text = p.FollowUpText;
-            AdviceBorder.Visibility = Visibility.Visible;
-        }
-        else
-        {
-            AdviceBorder.Visibility = Visibility.Collapsed;
-        }
-
-        FooterMetadataText.Text = $"Issued: {p.FinalizedAtUtc:dd MMM yyyy hh:mm tt UTC} • Document Validated";
     }
 
     private void SetZoom(double zoom)
@@ -116,10 +83,10 @@ public partial class PrintPreviewWindow : Window
 
     private void ZoomToFit()
     {
-        if (DocumentScrollViewer.ActualWidth > 80 && DocumentScrollViewer.ActualHeight > 80)
+        if (DocumentScrollViewer.ActualWidth > 80 && DocumentScrollViewer.ActualHeight > 80 && PaperContainer.Height > 0)
         {
             var scaleX = (DocumentScrollViewer.ActualWidth - 64) / PaperContainer.Width;
-            var scaleY = (DocumentScrollViewer.ActualHeight - 64) / 900.0;
+            var scaleY = (DocumentScrollViewer.ActualHeight - 64) / PaperContainer.Height;
             SetZoom(Math.Min(scaleX, scaleY));
         }
     }
@@ -127,6 +94,24 @@ public partial class PrintPreviewWindow : Window
     public double CurrentZoom => _currentZoom;
     public void TriggerFitWidth() => FitWidth();
     public void TriggerZoomToFit() => ZoomToFit();
+
+    private void OnPaperSizeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (PaperContainer == null) return;
+
+        if (IsA5Selected)
+        {
+            PaperContainer.Width = A5Width;
+            PaperContainer.Height = A5Height;
+        }
+        else
+        {
+            PaperContainer.Width = A4Width;
+            PaperContainer.Height = A4Height;
+        }
+
+        FitWidth();
+    }
 
     private void OnFitWidthClicked(object sender, RoutedEventArgs e) => FitWidth();
     private void OnZoomToFitClicked(object sender, RoutedEventArgs e) => ZoomToFit();
@@ -139,9 +124,34 @@ public partial class PrintPreviewWindow : Window
         try
         {
             var printDialog = new PrintDialog();
+            
+            // Configure explicit PrintTicket with Portrait and appropriate PageMediaSize
+            var printTicket = printDialog.PrintTicket ?? new PrintTicket();
+            printTicket.PageOrientation = PageOrientation.Portrait;
+            printTicket.PageMediaSize = IsA5Selected 
+                ? new PageMediaSize(PageMediaSizeName.ISOA5) 
+                : new PageMediaSize(PageMediaSizeName.ISOA4);
+            printDialog.PrintTicket = printTicket;
+
             if (printDialog.ShowDialog() == true)
             {
-                printDialog.PrintVisual(PaperContainer, "Prescription Document");
+                // Print isolated PrescriptionPaperView to ensure zoom-independent output without container drop shadow
+                var printablePage = new PrescriptionPaperView();
+                if (_prescription != null)
+                {
+                    printablePage.Populate(_prescription);
+                }
+
+                double pageWidth = printDialog.PrintableAreaWidth > 0 ? printDialog.PrintableAreaWidth : (IsA5Selected ? A5Width : A4Width);
+                double pageHeight = printDialog.PrintableAreaHeight > 0 ? printDialog.PrintableAreaHeight : (IsA5Selected ? A5Height : A4Height);
+
+                printablePage.Width = pageWidth;
+                printablePage.Height = pageHeight;
+                printablePage.Measure(new Size(pageWidth, pageHeight));
+                printablePage.Arrange(new Rect(0, 0, pageWidth, pageHeight));
+                printablePage.UpdateLayout();
+
+                printDialog.PrintVisual(printablePage, $"Prescription - {_prescription?.PrescriptionNumber ?? "Document"}");
             }
         }
         catch (Exception ex)
