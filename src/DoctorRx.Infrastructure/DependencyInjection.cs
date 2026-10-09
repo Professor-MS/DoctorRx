@@ -45,6 +45,7 @@ public static class DependencyInjection
         services.AddTransient<IBackupService, BackupService>();
         services.AddSingleton<IAutoBackupService, AutoBackupService>();
         services.AddTransient<IRestoreService, RestoreService>();
+        services.AddTransient<IDatabaseHealthService, DatabaseHealthService>();
 
         // Register Database Migrator, Seeder, Initializer & Search Index Repair
         services.AddTransient<IDatabaseMigrator, DatabaseMigrator>();

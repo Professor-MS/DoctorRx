@@ -158,6 +158,19 @@ public partial class App : System.Windows.Application
             mainWindow.Focus();
             Serilog.Log.Information("Startup Step 6: OnStartup completed successfully.");
         }
+        catch (DoctorRx.Application.Common.DoctorRxStartupException stEx)
+        {
+            var errorRef = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
+            Serilog.Log.Fatal(stEx, "Startup precondition failed: {Reason} [Ref: {ErrorRef}]", stEx.Reason, errorRef);
+
+            MessageBox.Show(
+                $"{stEx.UserGuidance}\n\nTechnical details: {stEx.Message}\nReference ID: {errorRef}",
+                "DoctorRx Startup Error",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+
+            Shutdown(-1);
+        }
         catch (Exception ex)
         {
             var errorRef = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
@@ -173,6 +186,12 @@ public partial class App : System.Windows.Application
         }
     }
 
+    protected override async void OnSessionEnding(SessionEndingCancelEventArgs e)
+    {
+        base.OnSessionEnding(e);
+        await ExecuteSafeShutdownAsync();
+    }
+
     protected override async void OnExit(ExitEventArgs e)
     {
         _registeredWait?.Unregister(null);
@@ -183,6 +202,8 @@ public partial class App : System.Windows.Application
             _singleInstanceMutex.Dispose();
         }
 
+        await ExecuteSafeShutdownAsync();
+
         if (_host != null)
         {
             await _host.StopAsync();
@@ -191,6 +212,36 @@ public partial class App : System.Windows.Application
 
         Serilog.Log.CloseAndFlush();
         base.OnExit(e);
+    }
+
+    private async Task ExecuteSafeShutdownAsync()
+    {
+        if (_host != null)
+        {
+            try
+            {
+                using var scope = _host.Services.CreateScope();
+                var autoBackupService = scope.ServiceProvider.GetService<IAutoBackupService>();
+                if (autoBackupService != null && await autoBackupService.ShouldRunShutdownBackupAsync())
+                {
+                    await autoBackupService.RunAutoBackupAsync();
+                }
+
+                var healthService = scope.ServiceProvider.GetService<IDatabaseHealthService>();
+                if (healthService != null)
+                {
+                    await healthService.CheckpointWalAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                Serilog.Log.Warning(ex, "Exception during shutdown flush and checkpoint");
+            }
+            finally
+            {
+                Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+            }
+        }
     }
 
     private void SetupGlobalExceptionHandling()
