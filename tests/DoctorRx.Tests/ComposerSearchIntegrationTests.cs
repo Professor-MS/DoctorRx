@@ -268,6 +268,79 @@ public class ComposerSearchIntegrationTests : IDisposable
             Assert.NotEmpty(vm.PatientSearchResults);
             Assert.Equal("Khalil Ullah", vm.PatientSearchResults[0].Name);
             Assert.False(vm.NoPatientFound);
+            Assert.True(vm.HasPatientSearchResults);
+
+            var boolConverter = new System.Windows.Controls.BooleanToVisibilityConverter();
+            var visibility = boolConverter.Convert(vm.HasPatientSearchResults, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture);
+            Assert.Equal(System.Windows.Visibility.Visible, visibility);
+        });
+    }
+
+    [Fact]
+    public void Converters_HandleIntegersAndBooleansCorrectly()
+    {
+        var countConverter = new DoctorRx.Presentation.Converters.CountToVisibilityConverter();
+        var inverseConverter = new DoctorRx.Presentation.Converters.InverseBoolToVisibilityConverter();
+
+        Assert.Equal(System.Windows.Visibility.Collapsed, countConverter.Convert(0, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Visible, countConverter.Convert(1, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Visible, countConverter.Convert(5, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Visible, countConverter.Convert(true, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Collapsed, countConverter.Convert(false, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+
+        Assert.Equal(System.Windows.Visibility.Visible, inverseConverter.Convert(0, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Collapsed, inverseConverter.Convert(1, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Collapsed, inverseConverter.Convert(true, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.Equal(System.Windows.Visibility.Visible, inverseConverter.Convert(false, typeof(System.Windows.Visibility), null, System.Globalization.CultureInfo.InvariantCulture));
+    }
+
+    [Fact]
+    public void ComposerSearch_SingleTokenPrefixSearch_FindsPatientAndUpdatesProperties()
+    {
+        StaTestRunner.Run(() =>
+        {
+            var uowFactory = new UnitOfWorkFactory(_factory);
+            var clock = new SystemClock();
+            var draftService = new DraftService(uowFactory, clock, NullLogger<DraftService>.Instance);
+            var patientService = new PatientService(uowFactory, clock, NullLogger<PatientService>.Instance);
+            var medicineService = new MedicineService(uowFactory, clock, NullLogger<MedicineService>.Instance);
+            var prescriptionService = new PrescriptionService(uowFactory, clock, NullLogger<PrescriptionService>.Instance, draftService);
+            var dialogService = new TestDialogService();
+            var navService = new TestNavigationService();
+            var validator = new PrescriptionComposerValidator(clock);
+
+            patientService.CreatePatientAsync(new CreatePatientDto
+            {
+                Name = "Khalil Ullah",
+                Age = 23,
+                Gender = Gender.Male,
+                Phone = "0305678901234",
+                Address = "Pakistan"
+            }).GetAwaiter().GetResult();
+
+            var vm = new NewPrescriptionViewModel(
+                patientService,
+                medicineService,
+                prescriptionService,
+                draftService,
+                dialogService,
+                navService,
+                validator,
+                clock);
+
+            // Search by single token "Khalil"
+            vm.PatientSearchQuery = "Khalil";
+
+            for (int i = 0; i < 40 && (vm.PatientSearchResults.Count == 0 || vm.IsPatientSearching); i++)
+            {
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Background);
+                Thread.Sleep(50);
+            }
+
+            Assert.NotEmpty(vm.PatientSearchResults);
+            Assert.Equal("Khalil Ullah", vm.PatientSearchResults[0].Name);
+            Assert.False(vm.NoPatientFound);
+            Assert.True(vm.HasPatientSearchResults);
         });
     }
 

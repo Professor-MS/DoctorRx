@@ -110,9 +110,9 @@
 
                             <!-- Live Search Suggestions -->
                             <TextBlock Text="{Binding SearchResultCountText}" Style="{StaticResource BodyMuted}" Margin="0,0,0,6"
-                                       Visibility="{Binding PatientSearchResults.Count, Converter={StaticResource BoolToVisConverter}}" />
+                                       Visibility="{Binding HasPatientSearchResults, Converter={StaticResource BoolToVisConverter}}" />
                             <ListBox ItemsSource="{Binding PatientSearchResults}" MaxHeight="180" Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1"
-                                     Visibility="{Binding PatientSearchResults.Count, Converter={StaticResource BoolToVisConverter}}">
+                                     Visibility="{Binding HasPatientSearchResults, Converter={StaticResource BoolToVisConverter}}">
                                 <ListBox.ItemTemplate>
                                     <DataTemplate>
                                         <Border Padding="10,6" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1">
@@ -296,7 +296,7 @@
                                         <TextBox x:Name="MedicineSearchBox" Text="{Binding MedicineName, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Search Formulary / Enter Medicine Name *" AutomationProperties.Name="Medicine Name Input" TabIndex="10" />
                                         <!-- Autocomplete Results -->
                                         <ListBox ItemsSource="{Binding MedicineSearchResults}" MaxHeight="140" Margin="0,2,0,0"
-                                                 Visibility="{Binding MedicineSearchResults.Count, Converter={StaticResource BoolToVisConverter}}">
+                                                 Visibility="{Binding HasMedicineSearchResults, Converter={StaticResource BoolToVisConverter}}">
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate>
                                                     <Border Padding="6,4" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1">
@@ -476,7 +476,7 @@
 
                         <!-- Empty state when no medicines yet -->
                         <Border Background="{StaticResource SlateBackgroundBrush}" CornerRadius="8" Padding="24" Margin="0,4,0,0"
-                                Visibility="{Binding PrescribedMedicines.Count, Converter={StaticResource InverseBoolToVisConverter}}">
+                                Visibility="{Binding HasPrescribedMedicines, Converter={StaticResource InverseBoolToVisConverter}}">
                             <StackPanel HorizontalAlignment="Center">
                                 <TextBlock Text="No medicines prescribed yet." FontWeight="SemiBold" Foreground="{StaticResource SlateMutedBrush}" HorizontalAlignment="Center" />
                                 <TextBlock Text="Use the editor above to prescribe medicines from formulary catalog or custom entries." Style="{StaticResource BodyMuted}" HorizontalAlignment="Center" Margin="0,4,0,0" />

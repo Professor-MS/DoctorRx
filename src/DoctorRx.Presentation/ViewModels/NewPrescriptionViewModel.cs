@@ -155,6 +155,9 @@ public class NewPrescriptionViewModel : ViewModelBase
     public string SearchResultCountText => HasSearchQuery
         ? $"{PatientSearchResults.Count} result{(PatientSearchResults.Count == 1 ? "" : "s")} found"
         : "Recent patients";
+    public bool HasPatientSearchResults => PatientSearchResults.Count > 0;
+    public bool HasMedicineSearchResults => MedicineSearchResults.Count > 0;
+    public bool HasPrescribedMedicines => PrescribedMedicines.Count > 0;
 
     public bool IsPatientSearching
     {
@@ -593,6 +596,25 @@ public class NewPrescriptionViewModel : ViewModelBase
         BindingOperations.EnableCollectionSynchronization(PatientSearchResults, _patientSearchLock);
         BindingOperations.EnableCollectionSynchronization(MedicineSearchResults, _medicineSearchLock);
 
+        PatientSearchResults.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasPatientSearchResults));
+            OnPropertyChanged(nameof(PatientSearchResultCount));
+            OnPropertyChanged(nameof(SearchResultCountText));
+            OnPropertyChanged(nameof(NoPatientFound));
+        };
+
+        MedicineSearchResults.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasMedicineSearchResults));
+        };
+
+        PrescribedMedicines.CollectionChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(HasPrescribedMedicines));
+            OnPropertyChanged(nameof(HasUnsavedChanges));
+        };
+
         // Command definitions
         SelectPatientCommand = new RelayCommand<PatientDto>(SelectPatient);
         ChangePatientCommand = new RelayCommand(ChangePatient);
@@ -790,6 +812,7 @@ public class NewPrescriptionViewModel : ViewModelBase
             {
                 IsPatientSearching = false;
                 OnPropertyChanged(nameof(NoPatientFound));
+                OnPropertyChanged(nameof(HasPatientSearchResults));
             }
         }
     }

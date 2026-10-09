@@ -163,6 +163,7 @@ public class PatientRepository : Repository<Patient>, IPatientRepository
 
         var candidateIds = await candidateIdsQuery
             .Distinct()
+            .OrderBy(id => id)
             .Take(maxResults * 3)
             .ToListAsync(cancellationToken);
 
@@ -336,7 +337,9 @@ public class PatientRepository : Repository<Patient>, IPatientRepository
 
                     var normQuery = SearchNormalizer.Normalize(query);
                     var directRecordIds = Context.Patients.Where(p => EF.Functions.Like(p.RecordNumber, $"{normQuery}%")).Select(p => p.Id);
-                    var combinedIds = matchingPatientIdsQuery != null ? matchingPatientIdsQuery.Union(directRecordIds) : directRecordIds;
+                    var directNamePrefixIds = Context.Patients.Where(p => EF.Functions.Like(p.NormalizedName, $"{normQuery}%")).Select(p => p.Id);
+                    var directCandidates = directRecordIds.Union(directNamePrefixIds);
+                    var combinedIds = matchingPatientIdsQuery != null ? matchingPatientIdsQuery.Union(directCandidates) : directCandidates;
                     dbQuery = dbQuery.Where(p => combinedIds.Contains(p.Id));
                 }
                 else
