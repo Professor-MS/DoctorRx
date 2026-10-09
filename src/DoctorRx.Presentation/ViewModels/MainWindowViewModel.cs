@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using System.Windows.Input;
 using CommunityToolkit.Mvvm.Input;
+using DoctorRx.Application.Common;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Interfaces;
 using DoctorRx.Presentation.Services;
@@ -468,29 +469,54 @@ public class MainWindowViewModel : ViewModelBase
             return;
         }
 
-        var dto = new CreateDoctorDto
+        Result<DoctorDto> result;
+        if (ActiveDoctor != null)
         {
-            TitlePrefix = string.IsNullOrWhiteSpace(DoctorSetupTitlePrefix) ? "Dr." : DoctorSetupTitlePrefix.Trim(),
-            Name = DoctorSetupName.Trim(),
-            Qualification = DoctorSetupQualification.Trim(),
-            RegistrationLabel = string.IsNullOrWhiteSpace(DoctorSetupRegistrationLabel) ? "Reg. No." : DoctorSetupRegistrationLabel.Trim(),
-            RegistrationNumber = DoctorSetupRegistrationNumber.Trim(),
-            Specialization = DoctorSetupSpecialization.Trim(),
-            ClinicName = DoctorSetupClinicName.Trim(),
-            ClinicAddress = DoctorSetupClinicAddress?.Trim(),
-            Phone = DoctorSetupPhone?.Trim(),
-            Email = DoctorSetupEmail?.Trim(),
-            ClinicPhone = DoctorSetupClinicPhone?.Trim(),
-            HeaderText = DoctorSetupHeaderText?.Trim(),
-            FooterText = DoctorSetupFooterText?.Trim()
-        };
+            var updateDto = new UpdateDoctorDto
+            {
+                Id = ActiveDoctor.Id,
+                TitlePrefix = string.IsNullOrWhiteSpace(DoctorSetupTitlePrefix) ? "Dr." : DoctorSetupTitlePrefix.Trim(),
+                Name = DoctorSetupName.Trim(),
+                Qualification = DoctorSetupQualification.Trim(),
+                RegistrationLabel = string.IsNullOrWhiteSpace(DoctorSetupRegistrationLabel) ? "Reg. No." : DoctorSetupRegistrationLabel.Trim(),
+                RegistrationNumber = DoctorSetupRegistrationNumber.Trim(),
+                Specialization = DoctorSetupSpecialization.Trim(),
+                ClinicName = DoctorSetupClinicName.Trim(),
+                ClinicAddress = DoctorSetupClinicAddress?.Trim(),
+                Phone = DoctorSetupPhone?.Trim(),
+                Email = DoctorSetupEmail?.Trim(),
+                ClinicPhone = DoctorSetupClinicPhone?.Trim(),
+                HeaderText = DoctorSetupHeaderText?.Trim(),
+                FooterText = DoctorSetupFooterText?.Trim()
+            };
+            result = await _doctorService.UpdateDoctorAsync(updateDto);
+        }
+        else
+        {
+            var createDto = new CreateDoctorDto
+            {
+                TitlePrefix = string.IsNullOrWhiteSpace(DoctorSetupTitlePrefix) ? "Dr." : DoctorSetupTitlePrefix.Trim(),
+                Name = DoctorSetupName.Trim(),
+                Qualification = DoctorSetupQualification.Trim(),
+                RegistrationLabel = string.IsNullOrWhiteSpace(DoctorSetupRegistrationLabel) ? "Reg. No." : DoctorSetupRegistrationLabel.Trim(),
+                RegistrationNumber = DoctorSetupRegistrationNumber.Trim(),
+                Specialization = DoctorSetupSpecialization.Trim(),
+                ClinicName = DoctorSetupClinicName.Trim(),
+                ClinicAddress = DoctorSetupClinicAddress?.Trim(),
+                Phone = DoctorSetupPhone?.Trim(),
+                Email = DoctorSetupEmail?.Trim(),
+                ClinicPhone = DoctorSetupClinicPhone?.Trim(),
+                HeaderText = DoctorSetupHeaderText?.Trim(),
+                FooterText = DoctorSetupFooterText?.Trim()
+            };
+            result = await _doctorService.CreateDoctorAsync(createDto);
+        }
 
-        var result = await _doctorService.CreateDoctorAsync(dto);
         if (result.IsSuccess && result.Value != null)
         {
             ActiveDoctor = result.Value;
             IsDoctorSetupOpen = false;
-            _dialogService.ShowInformation("Profile Saved", $"Doctor profile for '{result.Value.Name}' has been successfully established.");
+            _dialogService.ShowInformation("Profile Saved", $"Doctor profile for '{result.Value.DisplayName}' has been successfully saved.\n\nChanges apply to new prescriptions.");
         }
         else
         {

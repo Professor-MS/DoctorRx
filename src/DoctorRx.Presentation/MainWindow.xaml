@@ -240,45 +240,63 @@
                     </StackPanel>
                 </ScrollViewer>
 
-                <!-- Active Doctor Profile Footer -->
-                <Border Grid.Row="2" Background="#0B1120" Padding="12,12" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
-                    <Grid>
-                        <!-- Expanded Doctor Info -->
-                        <Grid Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
+                <!-- Active Doctor Profile Footer (Clickable to Edit Profile) -->
+                <Border Grid.Row="2" Background="#0B1120" BorderBrush="#1E293B" BorderThickness="0,1,0,0">
+                    <Button Command="{Binding OpenDoctorSetupCommand}"
+                            ToolTip="Edit doctor profile"
+                            Cursor="Hand"
+                            Background="Transparent"
+                            BorderThickness="0"
+                            Padding="12,12"
+                            HorizontalContentAlignment="Stretch"
+                            AutomationProperties.Name="Edit doctor profile">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}">
+                                    <ContentPresenter />
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Background" Value="#1E293B" />
+                                    </Trigger>
+                                    <Trigger Property="IsFocused" Value="True">
+                                        <Setter Property="Background" Value="#1E293B" />
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                        <Grid>
+                            <!-- Expanded Doctor Info -->
+                            <Grid Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
 
-                            <!-- Doctor Avatar -->
-                            <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" 
-                                    Background="#1E293B" Margin="0,0,10,0">
+                                <!-- Doctor Avatar -->
+                                <Border Grid.Column="0" Width="36" Height="36" CornerRadius="18" 
+                                        Background="#1E293B" Margin="0,0,10,0">
+                                    <Path Data="{StaticResource IconDoctorAvatar}" Style="{StaticResource SidebarIcon}" Fill="{StaticResource PrimaryTealLightBrush}" />
+                                </Border>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" 
+                                               Foreground="White" FontSize="12.5" FontWeight="SemiBold" 
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding ActiveDoctor.Specialization, FallbackValue='Profile not configured'}" 
+                                               Foreground="{StaticResource SlateLightBrush}" FontSize="12" 
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+
+                            <!-- Collapsed Doctor Avatar Only -->
+                            <Border Width="36" Height="36" CornerRadius="18" 
+                                    Background="#1E293B" HorizontalAlignment="Center"
+                                    Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource BoolToVisConverter}}">
                                 <Path Data="{StaticResource IconDoctorAvatar}" Style="{StaticResource SidebarIcon}" Fill="{StaticResource PrimaryTealLightBrush}" />
                             </Border>
-
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" 
-                                           Foreground="White" FontSize="12.5" FontWeight="SemiBold" 
-                                           TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" />
-                                <TextBlock Text="{Binding ActiveDoctor.Specialization, FallbackValue='Profile not configured'}" 
-                                           Foreground="{StaticResource SlateLightBrush}" FontSize="12" 
-                                           TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding ActiveDoctor.Specialization, FallbackValue='Profile not configured'}" />
-                            </StackPanel>
                         </Grid>
-
-                        <!-- Collapsed Doctor Avatar Only -->
-                        <Border Width="36" Height="36" CornerRadius="18" 
-                                Background="#1E293B" HorizontalAlignment="Center"
-                                AutomationProperties.Name="Active Doctor Profile"
-                                Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource BoolToVisConverter}}">
-                            <Border.ToolTip>
-                                <ToolTip Content="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" />
-                            </Border.ToolTip>
-                            <Path Data="{StaticResource IconDoctorAvatar}" Style="{StaticResource SidebarIcon}" Fill="{StaticResource PrimaryTealLightBrush}" />
-                        </Border>
-                    </Grid>
+                    </Button>
                 </Border>
             </Grid>
         </Border>
@@ -376,7 +394,7 @@
                             Padding="28">
                         <ScrollViewer VerticalScrollBarVisibility="Auto">
                             <StackPanel>
-                                <Grid Margin="0,0,0,18">
+                                <Grid Margin="0,0,0,14">
                                     <TextBlock Text="Doctor &amp; Clinic Profile Setup" Style="{StaticResource HeadingSmall}" VerticalAlignment="Center" />
                                     <Button Style="{StaticResource SecondaryButton}"
                                             Command="{Binding CloseDoctorSetupCommand}"
@@ -385,6 +403,12 @@
                                         <Path Data="{StaticResource IconClose}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
                                     </Button>
                                 </Grid>
+
+                                <!-- Immutability Notice -->
+                                <Border Background="{StaticResource PrimaryTealUltraLightBrush}" BorderBrush="{StaticResource PrimaryTealLightBrush}" BorderThickness="1" CornerRadius="6" Padding="10,6" Margin="0,0,0,14">
+                                    <TextBlock Text="Changes apply to new prescriptions. Previously issued prescriptions are not changed."
+                                               Foreground="{StaticResource PrimaryTealDarkBrush}" FontSize="{StaticResource FontSizeBodyMuted}" FontWeight="Medium" TextWrapping="Wrap" />
+                                </Border>
 
                                 <!-- Error Alert Banner -->
                                 <Border Background="{StaticResource DangerRedLightBrush}"
