@@ -1268,6 +1268,11 @@ public class NewPrescriptionViewModel : ViewModelBase
             if (!proceed) return;
         }
 
+        var confirmFinalize = _dialogService.ShowConfirmation(
+            "Issue Prescription",
+            "Once issued, this prescription cannot be edited. Corrections are made as a new corrected copy.\n\nDo you want to finalize and issue this prescription?");
+        if (!confirmFinalize) return;
+
         // Zombie draft prevention (Amendment 1): stop timers, await in-flight save, mark composer finalized
         _debounceTimer.Stop();
         _safetyTimer.Stop();

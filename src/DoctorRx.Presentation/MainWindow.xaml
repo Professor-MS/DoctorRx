@@ -318,7 +318,7 @@
                                 CornerRadius="12" Padding="10,4" Margin="0,0,12,0">
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <Ellipse Width="7" Height="7" Fill="{StaticResource SuccessGreenBrush}" Margin="0,0,6,0" />
-                                <TextBlock Text="Offline-First • Local SQLite" Foreground="{StaticResource SuccessGreenBrush}" 
+                                <TextBlock Text="Works offline • data stays on this computer" Foreground="{StaticResource SuccessGreenBrush}" 
                                            FontSize="12" FontWeight="SemiBold" />
                             </StackPanel>
                         </Border>
