@@ -47,23 +47,3 @@ public class PrescriptionHistoryViewModel : ScaffoldedFeatureViewModel
     {
     }
 }
-
-public class MedicinesViewModel : ScaffoldedFeatureViewModel
-{
-    public override NavigationSection NavigationSection => NavigationSection.Medicines;
-
-    public MedicinesViewModel() : base(
-        "Medicine Catalog Management",
-        "Manage the clinic's local formulary, brands, generic equivalents, standard strengths, and default dosing instructions.",
-        "Phase 2 Formulary Management",
-        new[]
-        {
-            "Browse and search local medicine catalog",
-            "Add new brands and generic formulations",
-            "Set default forms, strengths, frequencies, and meal relations",
-            "Import and export medicine catalog to CSV/JSON",
-            "Disable discontinued formulations without affecting historical records"
-        })
-    {
-    }
-}

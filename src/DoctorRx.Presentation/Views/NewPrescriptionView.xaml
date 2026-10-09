@@ -111,25 +111,84 @@
                             <!-- Live Search Suggestions -->
                             <TextBlock Text="{Binding SearchResultCountText}" Style="{StaticResource BodyMuted}" Margin="0,0,0,6"
                                        Visibility="{Binding HasPatientSearchResults, Converter={StaticResource BoolToVisConverter}}" />
-                            <ListBox ItemsSource="{Binding PatientSearchResults}" MaxHeight="180" Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1"
-                                     Visibility="{Binding HasPatientSearchResults, Converter={StaticResource BoolToVisConverter}}">
-                                <ListBox.ItemTemplate>
-                                    <DataTemplate>
-                                        <Border Padding="10,6" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1">
+                            <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Background="White"
+                                    Visibility="{Binding HasPatientSearchResults, Converter={StaticResource BoolToVisConverter}}"
+                                    Margin="0,0,0,6">
+                                <ListBox ItemsSource="{Binding PatientSearchResults}" MaxHeight="220" 
+                                         Background="Transparent" BorderThickness="0"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ListBox.ItemContainerStyle>
+                                        <Style TargetType="ListBoxItem">
+                                            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                            <Setter Property="Padding" Value="0" />
+                                            <Setter Property="Margin" Value="0" />
+                                            <Setter Property="BorderThickness" Value="0,0,0,1" />
+                                            <Setter Property="BorderBrush" Value="{StaticResource SlateBorderBrush}" />
+                                            <Setter Property="Cursor" Value="Hand" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="ListBoxItem">
+                                                        <Border x:Name="ItemBorder"
+                                                                Background="Transparent"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                Padding="14,10"
+                                                                SnapsToDevicePixels="True">
+                                                            <ContentPresenter HorizontalAlignment="Stretch" VerticalAlignment="Center" />
+                                                        </Border>
+                                                        <ControlTemplate.Triggers>
+                                                            <Trigger Property="IsMouseOver" Value="True">
+                                                                <Setter TargetName="ItemBorder" Property="Background" Value="{StaticResource PrimaryTealUltraLightBrush}" />
+                                                            </Trigger>
+                                                            <Trigger Property="IsSelected" Value="True">
+                                                                <Setter TargetName="ItemBorder" Property="Background" Value="#CCFBF1" />
+                                                            </Trigger>
+                                                        </ControlTemplate.Triggers>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                        </Style>
+                                    </ListBox.ItemContainerStyle>
+                                    <ListBox.ItemTemplate>
+                                        <DataTemplate>
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <TextBlock Text="{Binding RecordNumber}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,12,0" />
-                                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkestBrush}" />
-                                                <Button Grid.Column="2" Content="Select" Command="{Binding DataContext.SelectPatientCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" CommandParameter="{Binding}" Style="{StaticResource PrimaryButton}" Padding="10,3" />
+
+                                                <!-- MRN Badge -->
+                                                <Border Grid.Column="0" Background="#F0FDFA" BorderBrush="{StaticResource PrimaryTealLightBrush}" 
+                                                        BorderThickness="1" CornerRadius="4" Padding="8,4" Margin="0,0,14,0" VerticalAlignment="Center">
+                                                    <TextBlock Text="{Binding RecordNumber}" FontWeight="Bold" FontSize="12" Foreground="{StaticResource PrimaryTealDarkBrush}" FontFamily="Consolas, Segoe UI" />
+                                                </Border>
+
+                                                <!-- Patient Identity & Details -->
+                                                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,16,0">
+                                                    <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource SlateDarkestBrush}" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                        <TextBlock Text="{Binding Gender}" FontSize="11.5" Foreground="{StaticResource SlateMutedBrush}" />
+                                                        <TextBlock Text=" • " FontSize="11.5" Foreground="{StaticResource SlateLightBrush}" />
+                                                        <TextBlock Text="{Binding Age, StringFormat='{}{0} yrs'}" FontSize="11.5" Foreground="{StaticResource SlateMutedBrush}" />
+                                                        <TextBlock Text="{Binding PhoneNumber, StringFormat=' • {0}'}" FontSize="11.5" Foreground="{StaticResource SlateMutedBrush}" />
+                                                    </StackPanel>
+                                                </StackPanel>
+
+                                                <!-- Prominent Right-Aligned Select Action -->
+                                                <Button Grid.Column="2" 
+                                                        Content="Select Patient →" 
+                                                        Command="{Binding DataContext.SelectPatientCommand, RelativeSource={RelativeSource AncestorType=ListBox}}" 
+                                                        CommandParameter="{Binding}" 
+                                                        Style="{StaticResource PrimaryButton}" 
+                                                        Padding="16,6" 
+                                                        VerticalAlignment="Center"
+                                                        AutomationProperties.Name="Select Patient Button" />
                                             </Grid>
-                                        </Border>
-                                    </DataTemplate>
-                                </ListBox.ItemTemplate>
-                            </ListBox>
+                                        </DataTemplate>
+                                    </ListBox.ItemTemplate>
+                                </ListBox>
+                            </Border>
 
                             <!-- Empty State: No Patient Found -->
                             <Border Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="14,10" Margin="0,4,0,0"

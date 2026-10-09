@@ -164,7 +164,7 @@ public class MedicineService : IMedicineService
     }
 
     private static MedicineDto MapToDto(Medicine m) =>
-        new(m.Id, m.Name, m.GenericName, m.Form, m.Strength, m.IsActive);
+        new(m.Id, m.Name, m.GenericName, m.Form, m.Strength, m.IsActive, m.UsageCount);
 }
 
 public class DoctorService : IDoctorService

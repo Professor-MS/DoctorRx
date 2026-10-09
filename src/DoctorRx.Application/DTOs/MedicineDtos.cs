@@ -6,7 +6,8 @@ public record MedicineDto(
     string? GenericName,
     string Form,
     string Strength,
-    bool IsActive
+    bool IsActive,
+    int UsageCount = 0
 )
 {
     public string DisplayText => string.IsNullOrWhiteSpace(Strength)

@@ -360,6 +360,35 @@ public class ScreenResponsiveTests
         });
     }
 
+    [Theory]
+    [InlineData(960, 520, LayoutMode.Compact)]
+    [InlineData(1024, 600, LayoutMode.Normal)]
+    [InlineData(1280, 720, LayoutMode.Normal)]
+    [InlineData(1920, 1080, LayoutMode.Wide)]
+    public void MedicinesView_AdaptsAcrossAllBreakpoints_NoHorizontalScroll(double width, double height, LayoutMode expectedMode)
+    {
+        StaTestRunner.Run(() =>
+        {
+            var stubMedicineService = new StubMedicineService();
+            var stubDialogService = new LocalStubDialogService();
+            var stubNavService = new LocalStubNavigationService();
+
+            var vm = new MedicinesViewModel(stubMedicineService, stubDialogService, stubNavService);
+            vm.UpdateLayoutMode(expectedMode);
+
+            var view = new MedicinesView { DataContext = vm, Width = width, Height = height };
+            view.Measure(new Size(width, height));
+            view.Arrange(new Rect(0, 0, width, height));
+            view.UpdateLayout();
+
+            Assert.Equal(expectedMode, vm.LayoutMode);
+
+            var scrollViewer = FindVisualChild<ScrollViewer>(view);
+            Assert.NotNull(scrollViewer);
+            Assert.Equal(ScrollBarVisibility.Disabled, scrollViewer.HorizontalScrollBarVisibility);
+        });
+    }
+
     [Fact]
     public void CustomDialogWindow_RelativeSizingAndKeyboardSupport()
     {
