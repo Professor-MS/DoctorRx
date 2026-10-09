@@ -11,6 +11,8 @@ namespace DoctorRx.Presentation.ViewModels;
 
 public class DashboardViewModel : ViewModelBase
 {
+    public override NavigationSection NavigationSection => NavigationSection.Dashboard;
+
     private readonly IDashboardService _dashboardService;
     private readonly INavigationService _navigationService;
     private readonly IDraftService _draftService;

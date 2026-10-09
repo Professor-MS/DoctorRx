@@ -15,6 +15,8 @@ namespace DoctorRx.Presentation.ViewModels;
 
 public class PatientsViewModel : ViewModelBase
 {
+    public override NavigationSection NavigationSection => NavigationSection.Patients;
+
     private readonly IPatientService _patientService;
     private readonly IDialogService _dialogService;
     private readonly INavigationService _navigationService;

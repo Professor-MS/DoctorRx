@@ -5,6 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:vm="clr-namespace:DoctorRx.Presentation.ViewModels"
         xmlns:views="clr-namespace:DoctorRx.Presentation.Views"
+        xmlns:behaviors="clr-namespace:DoctorRx.Presentation.Behaviors"
         mc:Ignorable="d"
         Title="DoctorRx - Clinical Prescription Management" 
         MinHeight="520" MinWidth="900"
@@ -132,6 +133,7 @@
 
                         <!-- Dashboard Button -->
                         <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsDashboardSection}"
                                 Command="{Binding NavigateToDashboardCommand}"
                                 ToolTip="Dashboard"
                                 AutomationProperties.Name="Dashboard">
@@ -148,6 +150,7 @@
 
                         <!-- New Prescription Button -->
                         <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsNewPrescriptionSection}"
                                 Command="{Binding NavigateToNewPrescriptionCommand}"
                                 ToolTip="New Prescription"
                                 AutomationProperties.Name="New Prescription">
@@ -164,6 +167,7 @@
 
                         <!-- Patients Button -->
                         <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsPatientsSection}"
                                 Command="{Binding NavigateToPatientsCommand}"
                                 ToolTip="Patients"
                                 AutomationProperties.Name="Patients">
@@ -180,6 +184,7 @@
 
                         <!-- Prescription History Button -->
                         <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsPrescriptionHistorySection}"
                                 Command="{Binding NavigateToHistoryCommand}"
                                 ToolTip="Prescription History"
                                 AutomationProperties.Name="Prescription History">
@@ -196,6 +201,7 @@
 
                         <!-- Medicines Button -->
                         <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsMedicinesSection}"
                                 Command="{Binding NavigateToMedicinesCommand}"
                                 ToolTip="Medicines"
                                 AutomationProperties.Name="Medicines">
@@ -217,6 +223,7 @@
 
                         <!-- Settings Button -->
                         <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsSettingsSection}"
                                 Command="{Binding NavigateToSettingsCommand}"
                                 ToolTip="Settings"
                                 AutomationProperties.Name="Settings">

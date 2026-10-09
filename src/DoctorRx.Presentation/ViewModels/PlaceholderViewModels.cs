@@ -30,6 +30,8 @@ public abstract class ScaffoldedFeatureViewModel : ViewModelBase
 
 public class PrescriptionHistoryViewModel : ScaffoldedFeatureViewModel
 {
+    public override NavigationSection NavigationSection => NavigationSection.PrescriptionHistory;
+
     public PrescriptionHistoryViewModel() : base(
         "Prescription Archive",
         "Search, filter, inspect, and reprint past prescriptions with immutable historical medicine records.",
@@ -48,6 +50,8 @@ public class PrescriptionHistoryViewModel : ScaffoldedFeatureViewModel
 
 public class MedicinesViewModel : ScaffoldedFeatureViewModel
 {
+    public override NavigationSection NavigationSection => NavigationSection.Medicines;
+
     public MedicinesViewModel() : base(
         "Medicine Catalog Management",
         "Manage the clinic's local formulary, brands, generic equivalents, standard strengths, and default dosing instructions.",
@@ -66,6 +70,8 @@ public class MedicinesViewModel : ScaffoldedFeatureViewModel
 
 public class SettingsViewModel : ScaffoldedFeatureViewModel
 {
+    public override NavigationSection NavigationSection => NavigationSection.Settings;
+
     public SettingsViewModel() : base(
         "Clinic & Application Settings",
         "Configure doctor credentials, clinic branding, prescription pad layout, printer presets, and database backup preferences.",

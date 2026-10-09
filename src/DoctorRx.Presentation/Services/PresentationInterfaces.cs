@@ -14,13 +14,25 @@ public enum NavigationDestination
     PrescriptionDetail
 }
 
+public enum NavigationSection
+{
+    Dashboard,
+    NewPrescription,
+    Patients,
+    PrescriptionHistory,
+    Medicines,
+    Settings
+}
+
 public interface INavigationService
 {
     ViewModelBase? CurrentViewModel { get; }
     NavigationDestination CurrentDestination { get; }
+    NavigationDestination? PreviousDestination => null;
     event Action<ViewModelBase>? CurrentViewModelChanged;
 
     void NavigateTo(NavigationDestination destination, object? parameter = null);
+    void GoBack() { }
 }
 
 public interface IDialogService

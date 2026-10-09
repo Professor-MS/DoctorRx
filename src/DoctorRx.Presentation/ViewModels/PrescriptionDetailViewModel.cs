@@ -10,10 +10,14 @@ namespace DoctorRx.Presentation.ViewModels;
 
 public class PrescriptionDetailViewModel : ViewModelBase
 {
+    public override NavigationSection NavigationSection => NavigationSection.PrescriptionHistory;
+
     private readonly IPrescriptionService _prescriptionService;
     private readonly INavigationService _navigationService;
     private readonly IDialogService _dialogService;
     private PrescriptionDetailDto? _prescription;
+
+    public NavigationDestination ReturnDestination { get; private set; } = NavigationDestination.PrescriptionHistory;
 
     public PrescriptionDetailDto? Prescription
     {
@@ -49,7 +53,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
         _navigationService = navigationService;
         _dialogService = dialogService;
 
-        BackCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Dashboard));
+        BackCommand = new RelayCommand(() => _navigationService.NavigateTo(ReturnDestination));
         PrintCommand = new RelayCommand(PrintPrescription);
         CancelCommand = new AsyncRelayCommand(CancelPrescriptionAsync);
         AmendCommand = new RelayCommand(AmendPrescription);
@@ -57,6 +61,19 @@ public class PrescriptionDetailViewModel : ViewModelBase
 
     public override async Task InitializeAsync(object? parameter = null)
     {
+        if (_navigationService.PreviousDestination == NavigationDestination.Patients)
+        {
+            ReturnDestination = NavigationDestination.Patients;
+        }
+        else if (_navigationService.PreviousDestination == NavigationDestination.Dashboard)
+        {
+            ReturnDestination = NavigationDestination.Dashboard;
+        }
+        else
+        {
+            ReturnDestination = NavigationDestination.PrescriptionHistory;
+        }
+
         if (parameter is int prescriptionId)
         {
             Prescription = await _prescriptionService.GetPrescriptionByIdAsync(prescriptionId);

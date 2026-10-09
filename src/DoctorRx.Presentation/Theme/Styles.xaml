@@ -1,6 +1,7 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib"
+                    xmlns:behaviors="clr-namespace:DoctorRx.Presentation.Behaviors">
 
     <ResourceDictionary.MergedDictionaries>
         <ResourceDictionary Source="/DoctorRx.Presentation;component/Theme/Colors.xaml" />
@@ -307,7 +308,8 @@
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}" />
         <Setter Property="Foreground" Value="{StaticResource SlateLightBrush}" />
         <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Height" Value="42" />
         <Setter Property="Cursor" Value="Hand" />
         <Setter Property="Margin" Value="8,2" />
@@ -320,12 +322,34 @@
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="border"
                             Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="7"
                             Padding="{TemplateBinding Padding}"
                             SnapsToDevicePixels="True">
-                        <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        <Grid>
+                            <Border x:Name="indicator"
+                                    Width="3.5"
+                                    HorizontalAlignment="Left"
+                                    VerticalAlignment="Stretch"
+                                    Margin="-10,4,0,4"
+                                    CornerRadius="2"
+                                    Background="{StaticResource PrimaryTealBrush}"
+                                    Visibility="Collapsed" />
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="behaviors:NavProperties.IsActive" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#1E293B" />
+                            <Setter TargetName="indicator" Property="Visibility" Value="Visible" />
+                            <Setter Property="Foreground" Value="#38BDF8" />
+                            <Setter Property="FontWeight" Value="SemiBold" />
+                            <Setter Property="AutomationProperties.ItemStatus" Value="Selected" />
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="border" Property="BorderBrush" Value="{StaticResource PrimaryTealBrush}" />
+                        </Trigger>
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter TargetName="border" Property="Background" Value="#1E293B" />
                             <Setter Property="Foreground" Value="White" />

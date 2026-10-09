@@ -10,6 +10,8 @@ public abstract class ViewModelBase : ObservableObject
     private string? _busyMessage;
     private LayoutMode _layoutMode = LayoutMode.Normal;
 
+    public virtual NavigationSection NavigationSection => NavigationSection.Dashboard;
+
     public bool IsBusy
     {
         get => _isBusy;

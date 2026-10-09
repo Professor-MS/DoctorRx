@@ -95,6 +95,15 @@ public class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _selectedDestination, value);
     }
 
+    public NavigationSection CurrentSection => CurrentView?.NavigationSection ?? NavigationSection.Dashboard;
+
+    public bool IsDashboardSection => CurrentSection == NavigationSection.Dashboard;
+    public bool IsNewPrescriptionSection => CurrentSection == NavigationSection.NewPrescription;
+    public bool IsPatientsSection => CurrentSection == NavigationSection.Patients;
+    public bool IsPrescriptionHistorySection => CurrentSection == NavigationSection.PrescriptionHistory;
+    public bool IsMedicinesSection => CurrentSection == NavigationSection.Medicines;
+    public bool IsSettingsSection => CurrentSection == NavigationSection.Settings;
+
     public string CurrentDateFormatted => DateTime.Today.ToString("dddd, dd MMMM yyyy");
 
     // Doctor Setup Form Properties
@@ -463,15 +472,49 @@ public class MainWindowViewModel : ViewModelBase
         viewModel.UpdateLayoutMode(LayoutMode);
         SelectedDestination = _navigationService.CurrentDestination;
 
-        CurrentViewTitle = _navigationService.CurrentDestination switch
+        OnPropertyChanged(nameof(CurrentSection));
+        OnPropertyChanged(nameof(IsDashboardSection));
+        OnPropertyChanged(nameof(IsNewPrescriptionSection));
+        OnPropertyChanged(nameof(IsPatientsSection));
+        OnPropertyChanged(nameof(IsPrescriptionHistorySection));
+        OnPropertyChanged(nameof(IsMedicinesSection));
+        OnPropertyChanged(nameof(IsSettingsSection));
+
+        if (viewModel is PrescriptionDetailViewModel detailVm)
         {
-            NavigationDestination.Dashboard => "Clinic Overview & Dashboard",
-            NavigationDestination.NewPrescription => "Create New Prescription",
-            NavigationDestination.Patients => "Patient Directory & Records",
-            NavigationDestination.PrescriptionHistory => "Prescription Archive & History",
-            NavigationDestination.Medicines => "Medicine Catalog & Formulations",
-            NavigationDestination.Settings => "Clinic & Application Settings",
-            _ => "DoctorRx"
-        };
+            UpdatePrescriptionDetailTitle(detailVm);
+            detailVm.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(PrescriptionDetailViewModel.Prescription))
+                {
+                    UpdatePrescriptionDetailTitle(detailVm);
+                }
+            };
+        }
+        else
+        {
+            CurrentViewTitle = _navigationService.CurrentDestination switch
+            {
+                NavigationDestination.Dashboard => "Clinic Overview & Dashboard",
+                NavigationDestination.NewPrescription => "Create New Prescription",
+                NavigationDestination.Patients => "Patient Directory & Records",
+                NavigationDestination.PrescriptionHistory => "Prescription Archive & History",
+                NavigationDestination.Medicines => "Medicine Catalog & Formulations",
+                NavigationDestination.Settings => "Clinic & Application Settings",
+                _ => "DoctorRx"
+            };
+        }
+    }
+
+    private void UpdatePrescriptionDetailTitle(PrescriptionDetailViewModel detailVm)
+    {
+        if (detailVm.Prescription != null && !string.IsNullOrWhiteSpace(detailVm.Prescription.PrescriptionNumber))
+        {
+            CurrentViewTitle = $"Prescription {detailVm.Prescription.PrescriptionNumber}";
+        }
+        else
+        {
+            CurrentViewTitle = "Prescription Details";
+        }
     }
 }

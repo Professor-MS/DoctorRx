@@ -19,6 +19,8 @@ namespace DoctorRx.Presentation.ViewModels;
 
 public class NewPrescriptionViewModel : ViewModelBase
 {
+    public override NavigationSection NavigationSection => NavigationSection.NewPrescription;
+
     private readonly IPatientService _patientService;
     private readonly IMedicineService _medicineService;
     private readonly IPrescriptionService _prescriptionService;
