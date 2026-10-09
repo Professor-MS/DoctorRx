@@ -40,6 +40,10 @@ public static class DependencyInjection
         // Register UnitOfWorkFactory
         services.AddSingleton<IUnitOfWorkFactory, UnitOfWorkFactory>();
 
+        // Register FileSystem & Backup services
+        services.AddSingleton<IFileSystem, PhysicalFileSystem>();
+        services.AddTransient<IBackupService, BackupService>();
+
         // Register Database Migrator, Seeder, Initializer & Search Index Repair
         services.AddTransient<IDatabaseMigrator, DatabaseMigrator>();
         services.AddTransient<IDemoDataSeeder, DemoDataSeeder>();
