@@ -261,6 +261,8 @@ public class ShellResponsiveTests
         public string DataDirectory => Path.Combine(BaseDirectory, "Data");
         public string DatabasePath => Path.Combine(DataDirectory, "doctorrx.db");
         public string BackupsDirectory => Path.Combine(BaseDirectory, "Backups");
+        public string AutoBackupsDirectory => Path.Combine(BackupsDirectory, "Auto");
+        public string SafetyBackupsDirectory => Path.Combine(BackupsDirectory, "Safety");
         public string DraftsDirectory => Path.Combine(BaseDirectory, "Drafts");
         public string LogsDirectory => Path.Combine(BaseDirectory, "Logs");
         public string AssetsDirectory => Path.Combine(BaseDirectory, "Assets");

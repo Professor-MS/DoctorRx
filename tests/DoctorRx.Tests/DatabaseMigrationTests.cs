@@ -25,6 +25,8 @@ public class TestAppPaths : IAppPaths
     public string DataDirectory { get; }
     public string DatabasePath { get; }
     public string BackupsDirectory { get; }
+    public string AutoBackupsDirectory { get; }
+    public string SafetyBackupsDirectory { get; }
     public string DraftsDirectory { get; }
     public string LogsDirectory { get; }
     public string AssetsDirectory { get; }
@@ -35,12 +37,16 @@ public class TestAppPaths : IAppPaths
         DataDirectory = Path.Combine(tempRoot, "Data");
         DatabasePath = Path.Combine(DataDirectory, "doctorrx_test.db");
         BackupsDirectory = Path.Combine(tempRoot, "Backups");
+        AutoBackupsDirectory = Path.Combine(BackupsDirectory, "Auto");
+        SafetyBackupsDirectory = Path.Combine(BackupsDirectory, "Safety");
         DraftsDirectory = Path.Combine(tempRoot, "Drafts");
         LogsDirectory = Path.Combine(tempRoot, "Logs");
         AssetsDirectory = Path.Combine(tempRoot, "Assets");
 
         Directory.CreateDirectory(DataDirectory);
         Directory.CreateDirectory(BackupsDirectory);
+        Directory.CreateDirectory(AutoBackupsDirectory);
+        Directory.CreateDirectory(SafetyBackupsDirectory);
     }
 }
 
