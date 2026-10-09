@@ -46,8 +46,10 @@ public class MainWindowViewModel : ViewModelBase
 
     // Doctor profile setup modal/drawer
     private bool _isDoctorSetupOpen;
+    private string _doctorSetupTitlePrefix = "Dr.";
     private string _doctorSetupName = string.Empty;
     private string _doctorSetupQualification = string.Empty;
+    private string _doctorSetupRegistrationLabel = "Reg. No.";
     private string _doctorSetupRegistrationNumber = string.Empty;
     private string _doctorSetupSpecialization = string.Empty;
     private string _doctorSetupClinicName = string.Empty;
@@ -113,6 +115,12 @@ public class MainWindowViewModel : ViewModelBase
         set => SetProperty(ref _isDoctorSetupOpen, value);
     }
 
+    public string DoctorSetupTitlePrefix
+    {
+        get => _doctorSetupTitlePrefix;
+        set => SetProperty(ref _doctorSetupTitlePrefix, value);
+    }
+
     public string DoctorSetupName
     {
         get => _doctorSetupName;
@@ -123,6 +131,12 @@ public class MainWindowViewModel : ViewModelBase
     {
         get => _doctorSetupQualification;
         set => SetProperty(ref _doctorSetupQualification, value);
+    }
+
+    public string DoctorSetupRegistrationLabel
+    {
+        get => _doctorSetupRegistrationLabel;
+        set => SetProperty(ref _doctorSetupRegistrationLabel, value);
     }
 
     public string DoctorSetupRegistrationNumber
@@ -377,8 +391,10 @@ public class MainWindowViewModel : ViewModelBase
     {
         if (ActiveDoctor != null)
         {
+            DoctorSetupTitlePrefix = string.IsNullOrWhiteSpace(ActiveDoctor.TitlePrefix) ? "Dr." : ActiveDoctor.TitlePrefix;
             DoctorSetupName = ActiveDoctor.Name;
             DoctorSetupQualification = ActiveDoctor.Qualification;
+            DoctorSetupRegistrationLabel = string.IsNullOrWhiteSpace(ActiveDoctor.RegistrationLabel) ? "Reg. No." : ActiveDoctor.RegistrationLabel;
             DoctorSetupRegistrationNumber = ActiveDoctor.RegistrationNumber;
             DoctorSetupSpecialization = ActiveDoctor.Specialization;
             DoctorSetupClinicName = ActiveDoctor.ClinicName;
@@ -391,8 +407,10 @@ public class MainWindowViewModel : ViewModelBase
         }
         else
         {
+            DoctorSetupTitlePrefix = "Dr.";
             DoctorSetupName = string.Empty;
             DoctorSetupQualification = string.Empty;
+            DoctorSetupRegistrationLabel = "Reg. No.";
             DoctorSetupRegistrationNumber = string.Empty;
             DoctorSetupSpecialization = string.Empty;
             DoctorSetupClinicName = string.Empty;
@@ -438,19 +456,33 @@ public class MainWindowViewModel : ViewModelBase
             return;
         }
 
+        if (!string.IsNullOrWhiteSpace(DoctorSetupRegistrationLabel) && DoctorSetupRegistrationLabel.Trim().Length > 30)
+        {
+            DoctorSetupErrorMessage = "Registration label cannot exceed 30 characters.";
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(DoctorSetupTitlePrefix) && DoctorSetupTitlePrefix.Trim().Length > 20)
+        {
+            DoctorSetupErrorMessage = "Title prefix cannot exceed 20 characters.";
+            return;
+        }
+
         var dto = new CreateDoctorDto
         {
-            Name = DoctorSetupName,
-            Qualification = DoctorSetupQualification,
-            RegistrationNumber = DoctorSetupRegistrationNumber,
-            Specialization = DoctorSetupSpecialization,
-            ClinicName = DoctorSetupClinicName,
-            ClinicAddress = DoctorSetupClinicAddress,
-            Phone = DoctorSetupPhone,
-            Email = DoctorSetupEmail,
-            ClinicPhone = DoctorSetupClinicPhone,
-            HeaderText = DoctorSetupHeaderText,
-            FooterText = DoctorSetupFooterText
+            TitlePrefix = string.IsNullOrWhiteSpace(DoctorSetupTitlePrefix) ? "Dr." : DoctorSetupTitlePrefix.Trim(),
+            Name = DoctorSetupName.Trim(),
+            Qualification = DoctorSetupQualification.Trim(),
+            RegistrationLabel = string.IsNullOrWhiteSpace(DoctorSetupRegistrationLabel) ? "Reg. No." : DoctorSetupRegistrationLabel.Trim(),
+            RegistrationNumber = DoctorSetupRegistrationNumber.Trim(),
+            Specialization = DoctorSetupSpecialization.Trim(),
+            ClinicName = DoctorSetupClinicName.Trim(),
+            ClinicAddress = DoctorSetupClinicAddress?.Trim(),
+            Phone = DoctorSetupPhone?.Trim(),
+            Email = DoctorSetupEmail?.Trim(),
+            ClinicPhone = DoctorSetupClinicPhone?.Trim(),
+            HeaderText = DoctorSetupHeaderText?.Trim(),
+            FooterText = DoctorSetupFooterText?.Trim()
         };
 
         var result = await _doctorService.CreateDoctorAsync(dto);

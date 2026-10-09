@@ -9,8 +9,10 @@ namespace DoctorRx.Domain.Entities;
 /// </summary>
 public class Doctor : AuditableEntity
 {
+    public string TitlePrefix { get; set; } = "Dr.";
     public string Name { get; set; } = string.Empty;
     public string Qualification { get; set; } = string.Empty;
+    public string RegistrationLabel { get; set; } = "Reg. No.";
     public string RegistrationNumber { get; set; } = string.Empty;
     public string Specialization { get; set; } = string.Empty;
     public string? Phone { get; set; }
@@ -39,7 +41,9 @@ public class Doctor : AuditableEntity
             ClinicAddress,
             ClinicPhone,
             HeaderText,
-            FooterText
+            FooterText,
+            TitlePrefix,
+            RegistrationLabel
         );
     }
 }

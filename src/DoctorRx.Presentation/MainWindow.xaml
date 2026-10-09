@@ -257,14 +257,14 @@
                             </Border>
 
                             <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" 
+                                <TextBlock Text="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" 
                                            Foreground="White" FontSize="12.5" FontWeight="SemiBold" 
                                            TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" />
-                                <TextBlock Text="{Binding ActiveDoctor.Specialization, FallbackValue='Consultant Physician'}" 
+                                           ToolTip="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" />
+                                <TextBlock Text="{Binding ActiveDoctor.Specialization, FallbackValue='Profile not configured'}" 
                                            Foreground="{StaticResource SlateLightBrush}" FontSize="12" 
                                            TextTrimming="CharacterEllipsis"
-                                           ToolTip="{Binding ActiveDoctor.Specialization, FallbackValue='Consultant Physician'}" />
+                                           ToolTip="{Binding ActiveDoctor.Specialization, FallbackValue='Profile not configured'}" />
                             </StackPanel>
                         </Grid>
 
@@ -274,7 +274,7 @@
                                 AutomationProperties.Name="Active Doctor Profile"
                                 Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource BoolToVisConverter}}">
                             <Border.ToolTip>
-                                <ToolTip Content="{Binding ActiveDoctor.Name, FallbackValue='Dr. Muhammad Tariq'}" />
+                                <ToolTip Content="{Binding ActiveDoctor.DisplayName, FallbackValue='Doctor profile not set'}" />
                             </Border.ToolTip>
                             <Path Data="{StaticResource IconDoctorAvatar}" Style="{StaticResource SidebarIcon}" Fill="{StaticResource PrimaryTealLightBrush}" />
                         </Border>
@@ -399,27 +399,48 @@
                                                FontSize="12" TextWrapping="Wrap" />
                                 </Border>
 
-                                <!-- Doctor Name -->
-                                <TextBlock Text="Doctor Full Name *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
-                                <TextBox Text="{Binding DoctorSetupName, UpdateSourceTrigger=PropertyChanged}" 
-                                         Style="{StaticResource ModernTextBox}" Margin="0,0,0,12" />
+                                <!-- Title Prefix and Doctor Name Row -->
+                                <Grid Margin="0,0,0,12">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="110" />
+                                        <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Text="Title Prefix" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupTitlePrefix, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" MaxLength="20" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Text="Doctor Full Name *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupName, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" MaxLength="150" />
+                                    </StackPanel>
+                                </Grid>
 
                                 <!-- Qualification and Registration Row -->
                                 <Grid Margin="0,0,0,12">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="14" />
+                                        <ColumnDefinition Width="120" />
+                                        <ColumnDefinition Width="14" />
                                         <ColumnDefinition Width="*" />
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Text="Qualification * (e.g., MBBS, FCPS)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBlock Text="Qualification * (e.g., MBBS)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding DoctorSetupQualification, UpdateSourceTrigger=PropertyChanged}" 
-                                                 Style="{StaticResource ModernTextBox}" />
+                                                 Style="{StaticResource ModernTextBox}" MaxLength="150" />
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
-                                        <TextBlock Text="Registration # * (e.g., PMDC)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBlock Text="Reg. Label" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                                        <TextBox Text="{Binding DoctorSetupRegistrationLabel, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Style="{StaticResource ModernTextBox}" MaxLength="30" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Text="Registration # *" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
                                         <TextBox Text="{Binding DoctorSetupRegistrationNumber, UpdateSourceTrigger=PropertyChanged}" 
-                                                 Style="{StaticResource ModernTextBox}" />
+                                                 Style="{StaticResource ModernTextBox}" MaxLength="50" />
                                     </StackPanel>
                                 </Grid>
 

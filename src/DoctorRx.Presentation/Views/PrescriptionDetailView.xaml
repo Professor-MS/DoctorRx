@@ -115,10 +115,17 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel>
                                 <TextBlock Text="{Binding Prescription.DoctorSnapshot.ClinicName}" FontSize="{StaticResource FontSizeH1}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealDarkBrush}" />
-                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.Name, StringFormat='Dr. {0}'}" FontSize="{StaticResource FontSizeH2}" FontWeight="SemiBold" Margin="0,3,0,0" />
+                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.DisplayName}" FontSize="{StaticResource FontSizeH2}" FontWeight="SemiBold" Margin="0,3,0,0" />
                                 <TextBlock Text="{Binding Prescription.DoctorSnapshot.Qualification}" Style="{StaticResource BodyMuted}" />
                                 <TextBlock Text="{Binding Prescription.DoctorSnapshot.Specialization}" Style="{StaticResource BodyMuted}" />
-                                <TextBlock Text="{Binding Prescription.DoctorSnapshot.RegistrationNumber, StringFormat='PMC/PMDC: {0}'}" Style="{StaticResource BodyMuted}" />
+                                <TextBlock Style="{StaticResource BodyMuted}">
+                                    <TextBlock.Text>
+                                        <MultiBinding StringFormat="{}{0}: {1}">
+                                            <Binding Path="Prescription.DoctorSnapshot.SafeRegistrationLabel" />
+                                            <Binding Path="Prescription.DoctorSnapshot.RegistrationNumber" />
+                                        </MultiBinding>
+                                    </TextBlock.Text>
+                                </TextBlock>
                             </StackPanel>
                             <StackPanel Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Top">
                                 <TextBlock Text="{Binding Prescription.PrescriptionDate, StringFormat='Date: {0:dd MMMM yyyy}'}" FontWeight="SemiBold" FontSize="{StaticResource FontSizeBody}" />

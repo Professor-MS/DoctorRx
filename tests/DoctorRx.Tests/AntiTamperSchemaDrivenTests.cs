@@ -142,6 +142,8 @@ public class AntiTamperSchemaDrivenTests : IDisposable
 
         Assert.NotEmpty(columns);
         Assert.Contains(columns, c => c.Name.Equals("FollowUpText", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(columns, c => c.Name.Equals("Doctor_TitlePrefix", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(columns, c => c.Name.Equals("Doctor_RegistrationLabel", StringComparison.OrdinalIgnoreCase));
 
         int testedColumnsCount = 0;
 

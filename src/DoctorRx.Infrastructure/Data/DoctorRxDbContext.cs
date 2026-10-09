@@ -60,8 +60,10 @@ public class DoctorRxDbContext : DbContext
         {
             entity.ToTable("Doctors");
             entity.HasKey(e => e.Id);
+            entity.Property(e => e.TitlePrefix).IsRequired().HasMaxLength(20).HasDefaultValue("Dr.");
             entity.Property(e => e.Name).IsRequired().HasMaxLength(150);
             entity.Property(e => e.Qualification).IsRequired().HasMaxLength(150);
+            entity.Property(e => e.RegistrationLabel).IsRequired().HasMaxLength(30).HasDefaultValue("Reg. No.");
             entity.Property(e => e.RegistrationNumber).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Specialization).IsRequired().HasMaxLength(150);
             entity.Property(e => e.ClinicName).IsRequired().HasMaxLength(200);
@@ -112,8 +114,10 @@ public class DoctorRxDbContext : DbContext
             // Owned Doctor Snapshot
             entity.OwnsOne(e => e.DoctorSnapshot, d =>
             {
+                d.Property(x => x.TitlePrefix).HasColumnName("Doctor_TitlePrefix").IsRequired().HasMaxLength(20).HasDefaultValue("Dr.");
                 d.Property(x => x.Name).HasColumnName("Doctor_Name").IsRequired().HasMaxLength(150);
                 d.Property(x => x.Qualification).HasColumnName("Doctor_Qualification").IsRequired().HasMaxLength(150);
+                d.Property(x => x.RegistrationLabel).HasColumnName("Doctor_RegistrationLabel").IsRequired().HasMaxLength(30).HasDefaultValue("Reg. No.");
                 d.Property(x => x.RegistrationNumber).HasColumnName("Doctor_RegistrationNumber").IsRequired().HasMaxLength(50);
                 d.Property(x => x.Specialization).HasColumnName("Doctor_Specialization").IsRequired().HasMaxLength(150);
                 d.Property(x => x.Phone).HasColumnName("Doctor_Phone").HasMaxLength(30);

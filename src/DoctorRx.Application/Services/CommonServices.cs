@@ -195,6 +195,12 @@ public class DoctorService : IDoctorService
         if (string.IsNullOrWhiteSpace(dto.Specialization)) return Result<DoctorDto>.Failure("Specialization is required.");
         if (string.IsNullOrWhiteSpace(dto.ClinicName)) return Result<DoctorDto>.Failure("Clinic name is required.");
 
+        var titlePrefix = string.IsNullOrWhiteSpace(dto.TitlePrefix) ? "Dr." : dto.TitlePrefix.Trim();
+        var registrationLabel = string.IsNullOrWhiteSpace(dto.RegistrationLabel) ? "Reg. No." : dto.RegistrationLabel.Trim();
+
+        if (titlePrefix.Length > 20) return Result<DoctorDto>.Failure("Title prefix cannot exceed 20 characters.");
+        if (registrationLabel.Length > 30) return Result<DoctorDto>.Failure("Registration label cannot exceed 30 characters.");
+
         if (dto.Name.Length > 150) return Result<DoctorDto>.Failure("Name cannot exceed 150 characters.");
         if (dto.Qualification.Length > 150) return Result<DoctorDto>.Failure("Qualification cannot exceed 150 characters.");
         if (dto.RegistrationNumber.Length > 50) return Result<DoctorDto>.Failure("Registration number cannot exceed 50 characters.");
@@ -206,8 +212,10 @@ public class DoctorService : IDoctorService
             await using var uow = _uowFactory.Create();
             var doc = new Doctor
             {
+                TitlePrefix = titlePrefix,
                 Name = dto.Name.Trim(),
                 Qualification = dto.Qualification.Trim(),
+                RegistrationLabel = registrationLabel,
                 RegistrationNumber = dto.RegistrationNumber.Trim(),
                 Specialization = dto.Specialization.Trim(),
                 Phone = dto.Phone?.Trim(),
@@ -243,6 +251,12 @@ public class DoctorService : IDoctorService
         if (string.IsNullOrWhiteSpace(dto.Specialization)) return Result<DoctorDto>.Failure("Specialization is required.");
         if (string.IsNullOrWhiteSpace(dto.ClinicName)) return Result<DoctorDto>.Failure("Clinic name is required.");
 
+        var titlePrefix = string.IsNullOrWhiteSpace(dto.TitlePrefix) ? "Dr." : dto.TitlePrefix.Trim();
+        var registrationLabel = string.IsNullOrWhiteSpace(dto.RegistrationLabel) ? "Reg. No." : dto.RegistrationLabel.Trim();
+
+        if (titlePrefix.Length > 20) return Result<DoctorDto>.Failure("Title prefix cannot exceed 20 characters.");
+        if (registrationLabel.Length > 30) return Result<DoctorDto>.Failure("Registration label cannot exceed 30 characters.");
+
         if (dto.Name.Length > 150) return Result<DoctorDto>.Failure("Name cannot exceed 150 characters.");
         if (dto.Qualification.Length > 150) return Result<DoctorDto>.Failure("Qualification cannot exceed 150 characters.");
         if (dto.RegistrationNumber.Length > 50) return Result<DoctorDto>.Failure("Registration number cannot exceed 50 characters.");
@@ -258,8 +272,10 @@ public class DoctorService : IDoctorService
                 return Result<DoctorDto>.Failure("Doctor profile not found.");
             }
 
+            doc.TitlePrefix = titlePrefix;
             doc.Name = dto.Name.Trim();
             doc.Qualification = dto.Qualification.Trim();
+            doc.RegistrationLabel = registrationLabel;
             doc.RegistrationNumber = dto.RegistrationNumber.Trim();
             doc.Specialization = dto.Specialization.Trim();
             doc.Phone = dto.Phone?.Trim();
@@ -285,7 +301,7 @@ public class DoctorService : IDoctorService
     }
 
     private static DoctorDto MapToDto(Doctor d) =>
-        new(d.Id, d.Name, d.Qualification, d.RegistrationNumber, d.Specialization, d.Phone, d.Email, d.ClinicName, d.ClinicAddress, d.ClinicPhone, d.HeaderText, d.FooterText);
+        new(d.Id, d.Name, d.Qualification, d.RegistrationNumber, d.Specialization, d.Phone, d.Email, d.ClinicName, d.ClinicAddress, d.ClinicPhone, d.HeaderText, d.FooterText, d.TitlePrefix, d.RegistrationLabel);
 }
 
 public class DashboardService : IDashboardService
