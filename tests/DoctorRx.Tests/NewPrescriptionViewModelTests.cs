@@ -279,6 +279,45 @@ public class NewPrescriptionViewModelTests : IDisposable
     }
 
     [Fact]
+    public void QuickChips_SupportInjectionsDripsAndDrops_SetsFieldsCorrectly()
+    {
+        // Arrange
+        var vm = CreateViewModel();
+
+        // Act - Prescribe an IV drip
+        vm.MedicineName = "Paracetamol Infusion";
+        vm.SelectFormChipCommand.Execute("Drip");
+        vm.Strength = "1000mg/100ml";
+        vm.SelectDoseChipCommand.Execute("100 ml");
+        vm.SelectFrequencyChipCommand.Execute("Stat (Immediately)");
+        vm.SelectDurationChipCommand.Execute("Single dose");
+        vm.SelectRouteChipCommand.Execute("IV Drip");
+        vm.SelectInstructionChipCommand.Execute("Slow IV push over 5 mins");
+
+        // Assert
+        Assert.Equal("Drip", vm.Form);
+        Assert.Equal("100 ml", vm.Dose);
+        Assert.Equal("Stat (Immediately)", vm.Frequency);
+        Assert.Equal("Single dose", vm.Duration);
+        Assert.Equal("IV Drip", vm.Route);
+        Assert.Contains("Slow IV push over 5 mins", vm.Instructions);
+
+        // Act 2 - Add to prescription
+        vm.AddOrUpdateMedicineCommand.Execute(null);
+
+        // Assert 2
+        Assert.Single(vm.PrescribedMedicines);
+        var item = vm.PrescribedMedicines[0];
+        Assert.Equal("Paracetamol Infusion", item.MedicineName);
+        Assert.Equal("Drip", item.Form);
+        Assert.Equal("100 ml", item.Dose);
+        Assert.Equal("Stat (Immediately)", item.Frequency);
+        Assert.Equal("IV Drip", item.Route);
+        Assert.Equal("Single dose", item.Duration);
+        Assert.Equal("Slow IV push over 5 mins", item.Instructions);
+    }
+
+    [Fact]
     public void AdvicePresets_AppendsCleanlyWithNewlines()
     {
         // Arrange

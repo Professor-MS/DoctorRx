@@ -545,10 +545,13 @@ public class NewPrescriptionViewModel : ViewModelBase
     public ICommand RegisterNewPatientFromSearchCommand { get; }
 
     public ICommand SelectCatalogMedicineCommand { get; }
+    public ICommand SelectFormChipCommand { get; }
     public ICommand SelectDoseChipCommand { get; }
     public ICommand SelectFrequencyChipCommand { get; }
     public ICommand SelectDurationChipCommand { get; }
+    public ICommand SelectRouteChipCommand { get; }
     public ICommand SelectMealRelationCommand { get; }
+    public ICommand SelectInstructionChipCommand { get; }
     public ICommand AddOrUpdateMedicineCommand { get; }
     public ICommand CancelEditMedicineCommand { get; }
     public ICommand EditMedicineRowCommand { get; }
@@ -624,10 +627,20 @@ public class NewPrescriptionViewModel : ViewModelBase
         RegisterNewPatientFromSearchCommand = new RelayCommand(RegisterNewPatientFromSearch);
 
         SelectCatalogMedicineCommand = new RelayCommand<MedicineDto>(SelectCatalogMedicine);
+        SelectFormChipCommand = new RelayCommand<string>(chip => Form = chip ?? string.Empty);
         SelectDoseChipCommand = new RelayCommand<string>(chip => Dose = chip ?? string.Empty);
         SelectFrequencyChipCommand = new RelayCommand<string>(chip => Frequency = chip ?? string.Empty);
         SelectDurationChipCommand = new RelayCommand<string>(chip => Duration = chip ?? string.Empty);
+        SelectRouteChipCommand = new RelayCommand<string>(chip => Route = chip ?? string.Empty);
         SelectMealRelationCommand = new RelayCommand<MealRelation>(mr => MealRelation = mr);
+        SelectInstructionChipCommand = new RelayCommand<string>(chip =>
+        {
+            if (string.IsNullOrWhiteSpace(chip)) return;
+            if (string.IsNullOrWhiteSpace(Instructions))
+                Instructions = chip;
+            else if (!Instructions.Contains(chip, StringComparison.OrdinalIgnoreCase))
+                Instructions = $"{Instructions}; {chip}";
+        });
 
         AddOrUpdateMedicineCommand = new RelayCommand(() => AddOrUpdateMedicine());
         CancelEditMedicineCommand = new RelayCommand(() => ClearMedicineEditor());
