@@ -63,6 +63,13 @@ DoctorRx
 10. **Single Instance & PerMonitorV2 DPI Awareness**:
     Enforced via named mutex `Local\DoctorRx_SingleInstance_Mutex` and named `EventWaitHandle`. Launching a secondary shortcut automatically activates and brings the running window to the foreground.
 
+11. **Disaster Recovery, GFS Retention & Safe Restore (Gate 5A)**:
+    - **Backup Engine**: Generates `.drxbackup` atomic ZIP containers bundling SQLite Online Backup snapshots, SHA-256 verification hash, row counts, schema version, and clinic settings (excluding window placement).
+    - **GFS Retention Policy**: Manages automatic daily, weekly (Sundays), and monthly (1st of month) backups with grandfather-father-son pruning.
+    - **Safe Restore Pipeline**: Validates archive checksums and schema forward compatibility, creates pre-restore safety snapshots, swaps files via atomic staging directory, excludes non-transportable UI placement, and automatically rolls back on any failure.
+    - **Database Health & Safe Shutdown**: Enforces `PRAGMA quick_check;` and `PRAGMA foreign_key_check;` on startup, blocks dangerous network/UNC database storage, checkpoints WAL safely (`PRAGMA wal_checkpoint(TRUNCATE);`) on shutdown, and isolates corrupt files with timestamped quarantine renames.
+    - **Quick Clinical Chips for Injections & Drops**: Interactive route chips (`IV`, `IM`, `SC`, `IV Drip`, `Eye`, `Ear`, `Nasal`, `Oral`, `Topical`) and common administration instructions for rapid, error-free clinical documentation.
+
 ---
 
 ## Testing & Verification

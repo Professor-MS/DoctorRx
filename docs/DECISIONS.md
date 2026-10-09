@@ -197,4 +197,33 @@ This document records architectural and technical decisions made during the Doct
 - **Reason**:
   - Frequently prescribed medicines naturally rise to the top of the autocomplete suggestions without requiring manual favorites management.
 
+---
+
+## ADR 018: Atomic Backup Containers (.drxbackup) & GFS Retention Policy
+- **Status**: Accepted
+- **Decision**: 
+  - DoctorRx backup files use `.drxbackup` extension containing a standard ZIP bundle: `snapshot.db`, `manifest.json`, and clinic JSON settings files.
+  - Snapshots are taken exclusively via the SQLite Online Backup API (`sourceConn.BackupDatabase(destConn)`) with `PRAGMA busy_timeout=5000` and exponential backoff retry to prevent `SQLITE_BUSY` or `SQLITE_LOCKED` during concurrent operations.
+  - Backups write to a temporary `.tmp` file and rename atomically upon successful verification.
+  - Retention implements Grandfather-Father-Son (GFS): 7 daily backups, 4 weekly backups (Sunday checkpoints), and 3 monthly backups (1st of month checkpoints). Safety backups (created before restore operations) are isolated in a separate folder with a dedicated retention limit of 5.
+  - The "Protect Only Backup" rule forbids deleting the only existing backup file even if it falls outside retention windows.
+- **Reason**:
+  - Medical records require atomic, non-corruptible point-in-time archives that can be safely verified and restored across workstation migrations.
+- **Alternatives Rejected**:
+  - Raw filesystem copy of `doctorrx.db`: Dangerous in WAL mode, captures incomplete transactions or corrupts state if WAL/SHM files are uncommitted.
+  - Proprietary binary backup format: Standard ZIP with JSON manifest allows manual recovery with standard tools if required.
+
+---
+
+## ADR 019: Safe Database Startup Integrity, Quarantine & Clean Shutdown
+- **Status**: Accepted
+- **Decision**:
+  - On application startup, DoctorRx validates database path safety: network/UNC paths are blocked to prevent SQLite network filesystem corruption.
+  - Executes `PRAGMA quick_check;` and `PRAGMA foreign_key_check;`. If severe corruption is detected, the corrupt database is safely quarantined by renaming to `doctorrx.corrupt-<timestamp>.db` rather than silently overwritten or ignored.
+  - On application shutdown (via `App.OnExit`, `OnSessionEnding`, or `MainWindow.OnClosing`), DoctorRx checkpoints and flattens the write-ahead log using `PRAGMA wal_checkpoint(TRUNCATE);` and runs auto-backup if enabled.
+  - Safe restore engine verifies SHA-256 and schema compatibility, creates a safety backup, stages extracted files in a temporary swap directory, and performs an atomic directory swap with full rollback capability.
+- **Reason**:
+  - Zero tolerance for clinical data loss, silent corruption, or dangling uncommitted WAL entries on shutdown.
+
+
 

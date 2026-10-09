@@ -101,3 +101,59 @@ DoctorRx is designed for efficient keyboard-driven clinical entry:
 ### Verifying Screen Reader Accessibility:
 - Every interactive element and input control specifies an `AutomationProperties.Name` attribute (e.g. `AutomationProperties.Name="Medicine Name Search"`).
 - Test with Windows Narrator (`Win + Ctrl + Enter`) to verify audible field labels.
+
+---
+
+## 4. Gate 5A Backup, Restore & Disaster Recovery Verification Protocols
+
+### Protocol A: Manual Backup Creation & Verification
+1. Launch DoctorRx:
+   ```bash
+   dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj
+   ```
+2. Navigate to **Settings** (`Clinic & Application Settings`) from the left sidebar or the gear icon.
+3. On the **Database & Backups** tab, click **"Back Up Now"**.
+4. Confirm progress indicator updates and notification appears: *"Backup Created Successfully"*.
+5. In the **Available Backup Archives** card, click **"Verify"** next to the newly created archive.
+6. Verify status updates to a green badge: *"Verified"* with integrity pragmas passed and zero errors.
+
+### Protocol B: Dashboard Status & One-Click Backup
+1. On the **Dashboard**, locate the **Database Backup & Health Status Bar**.
+2. Notice the live status:
+   - If no backup in 24 hours: Badge displays *"Backup Recommended"* (amber).
+   - Click the **"Back Up Now"** button directly on the dashboard status card.
+   - Verify that upon completion, the badge immediately updates to *"Protected"* (green) with the timestamp.
+
+### Protocol C: Safe Restore with Automatic Safety Snapshot
+1. In **Settings -> Database & Backups**, locate an archive and click **"Restore"** (or click **"Restore External..."**).
+2. A confirmation dialog warns: *"Restoring will replace the active database with data from the backup archive. A safety snapshot will be created before restoring."*
+3. Click **"Proceed with Restore"**.
+4. Observe the restore pipeline:
+   - Checksum and schema versions are validated.
+   - A pre-restore safety backup is automatically stored in `%LOCALAPPDATA%\DoctorRx\Backups\Safety\`.
+   - Files are staged and atomically swapped into `%LOCALAPPDATA%\DoctorRx\Data\`.
+   - Notification confirms successful restore.
+
+### Protocol D: Database Corruption Detection & Quarantine
+1. Terminate the app.
+2. In a test environment, simulate file header corruption on a test database:
+   ```powershell
+   [IO.File]::WriteAllBytes("$env:LOCALAPPDATA\DoctorRx\Data\doctorrx.db", (Get-Content "$env:LOCALAPPDATA\DoctorRx\Data\doctorrx.db" -Encoding Byte | Select-Object -Skip 100))
+   ```
+3. Launch the application.
+4. Verify that DoctorRx halts gracefully with a clear startup message indicating database corruption.
+5. Inspect the data directory: verify the corrupted database was moved to `doctorrx.corrupt-<timestamp>.db` to preserve forensic evidence rather than destroyed.
+
+### Protocol E: Network / UNC Path Storage Block
+1. Attempt to launch DoctorRx with a network UNC path:
+   ```powershell
+   $env:DOCTORRX_DATA_DIR = "\\192.168.1.100\SharedClinic\DoctorRx"
+   dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj
+   ```
+2. Observe startup halt with actionable message:
+   > *"Network or UNC shared folders are not supported for SQLite database storage because network file locks can cause silent corruption."*
+3. Clear the override:
+   ```powershell
+   $env:DOCTORRX_DATA_DIR = $null
+   ```
+

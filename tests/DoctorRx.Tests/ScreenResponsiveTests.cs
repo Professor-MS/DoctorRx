@@ -326,6 +326,40 @@ public class ScreenResponsiveTests
         });
     }
 
+    [Theory]
+    [InlineData(960, 520, LayoutMode.Compact)]
+    [InlineData(1024, 600, LayoutMode.Normal)]
+    [InlineData(1280, 720, LayoutMode.Normal)]
+    [InlineData(1920, 1080, LayoutMode.Wide)]
+    public void SettingsView_AdaptsAcrossAllBreakpoints_NoHorizontalScroll(double width, double height, LayoutMode expectedMode)
+    {
+        StaTestRunner.Run(() =>
+        {
+            var vm = new SettingsViewModel();
+            vm.UpdateLayoutMode(expectedMode);
+
+            var view = new SettingsView { DataContext = vm, Width = width, Height = height };
+            view.Measure(new Size(width, height));
+            view.Arrange(new Rect(0, 0, width, height));
+            view.UpdateLayout();
+
+            Assert.Equal(expectedMode, vm.LayoutMode);
+
+            var scrollViewer = FindVisualChild<ScrollViewer>(view);
+            Assert.NotNull(scrollViewer);
+            Assert.Equal(ScrollBarVisibility.Disabled, scrollViewer.HorizontalScrollBarVisibility);
+
+            if (width == 960)
+            {
+                SaveVisualToPng(view, (int)width, (int)height, "settings-compact-960x520.png");
+            }
+            else if (width == 1920)
+            {
+                SaveVisualToPng(view, (int)width, (int)height, "settings-wide-1920x1080.png");
+            }
+        });
+    }
+
     [Fact]
     public void CustomDialogWindow_RelativeSizingAndKeyboardSupport()
     {

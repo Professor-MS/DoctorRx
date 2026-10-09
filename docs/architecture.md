@@ -166,3 +166,41 @@ Immutability and transition state integrity are enforced at the SQLite engine le
 5. **Non-Blocking Window Closing**:
    - `Window.Closing` cancels the synchronous OS close event, displays an asynchronous confirmation dialog, awaits any pending draft serialization asynchronously, and then programmatically closes the window without blocking the UI dispatcher thread (`.Result`/`.Wait()` are prohibited).
 
+---
+
+## 6. Disaster Recovery, GFS Retention & Database Integrity Architecture (Gate 5A)
+
+1. **Online SQLite Backup Engine**:
+   - Employs SQLite Online Backup API (`sourceConn.BackupDatabase(destConn)`) on an open, live connection with `PRAGMA busy_timeout=5000` and exponential backoff retry.
+   - Non-blocking online snapshot allows active reads and writes during backup execution without database locks.
+   - Computes SHA-256 hash and table counts directly from snapshot database.
+   - Bundles database snapshot, `manifest.json`, and clinic JSON settings files into an atomic `.drxbackup` container (ZIP compression).
+   - Writes to a `.tmp` file and performs atomic rename upon successful verification.
+   - Never logs or writes any Patient PII into backup filenames, manifest payloads, or log streams.
+
+2. **GFS Retention Policy Engine**:
+   - Automatically tracks Grandfather-Father-Son retention tiers:
+     - **Daily**: Keeps the last 7 daily backups.
+     - **Weekly**: Keeps the last 4 weekly backups (anchored to Sunday snapshots).
+     - **Monthly**: Keeps the last 3 monthly backups (anchored to 1st of month snapshots).
+   - Enforces the **Protect Only Backup Rule**: will never delete the last remaining backup even if it falls outside retention windows.
+   - Isolates pre-restore Safety backups in a separate directory (`%LOCALAPPDATA%\DoctorRx\Backups\Safety\`) with dedicated retention (default 5).
+
+3. **Safe Restore Pipeline & Atomic Swap**:
+   - Validates `.drxbackup` archive integrity, checksum, and database schema forward compatibility.
+   - Rejects backups created by newer versions of DoctorRx to avoid silent data loss. Automatically runs forward EF Core migrations if restoring an older backup.
+   - Creates an automated pre-restore safety snapshot before touching live data.
+   - Staging directory swap: extracts and validates in a temporary staging folder, checkpoints the active WAL, atomically swaps database files, and restores clinic settings (strictly excluding non-transportable `window-placement.json`).
+   - Reverts automatically to previous database state if any stage fails.
+
+4. **Startup Integrity Checks & Forensics Quarantine**:
+   - Checks that database path is on a local filesystem; blocks dangerous network/UNC paths (`\\` or `DriveType.Network`) to prevent SQLite network filesystem corruption.
+   - Runs `PRAGMA quick_check;` and `PRAGMA foreign_key_check;` during startup.
+   - If fatal database corruption is detected, the corrupted database is safely renamed to `doctorrx.corrupt-<timestamp>.db` to preserve forensics evidence and halts with actionable guidance rather than crashing or destroying user data.
+
+5. **Clean Shutdown WAL Checkpointing**:
+   - Intercepts `App.OnExit`, `App.OnSessionEnding`, and `MainWindow.OnClosing`.
+   - Executes `PRAGMA wal_checkpoint(TRUNCATE);` to flush all write-ahead log frames into the main database file, ensuring a clean zero-byte or deleted WAL upon application exit.
+   - Executes automatic shutdown backups when configured.
+
+
