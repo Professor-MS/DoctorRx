@@ -266,7 +266,26 @@ public class BackupService : IBackupService
             await using var destConn = new SqliteConnection(destConnStr);
             await destConn.OpenAsync(cancellationToken);
 
-            sourceConn.BackupDatabase(destConn);
+            using (var busyCmd = sourceConn.CreateCommand())
+            {
+                busyCmd.CommandText = "PRAGMA busy_timeout = 5000;";
+                await busyCmd.ExecuteNonQueryAsync(cancellationToken);
+            }
+
+            const int maxRetries = 5;
+            for (int attempt = 1; attempt <= maxRetries; attempt++)
+            {
+                try
+                {
+                    sourceConn.BackupDatabase(destConn);
+                    break;
+                }
+                catch (SqliteException ex) when (attempt < maxRetries && (ex.SqliteErrorCode == 5 || ex.SqliteErrorCode == 261 || ex.SqliteExtendedErrorCode == 261))
+                {
+                    await Task.Delay(50 * attempt, cancellationToken);
+                }
+            }
+
             await destConn.CloseAsync();
         }
         else

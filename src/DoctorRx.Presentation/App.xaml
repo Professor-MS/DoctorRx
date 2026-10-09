@@ -14,6 +14,9 @@
             <converters:InverseBoolToVisibilityConverter x:Key="InverseBoolToVisConverter" />
             <converters:CountToVisibilityConverter x:Key="CountToVisConverter" />
             <converters:FollowUpModeDisplayConverter x:Key="FollowUpModeDisplayConverter" />
+            <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
+            <converters:FileSizeConverter x:Key="FileSizeConverter" />
+            <converters:InverseBoolToVisibilityConverter x:Key="CountToZeroVisConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

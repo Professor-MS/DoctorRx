@@ -67,25 +67,3 @@ public class MedicinesViewModel : ScaffoldedFeatureViewModel
     {
     }
 }
-
-public class SettingsViewModel : ScaffoldedFeatureViewModel
-{
-    public override NavigationSection NavigationSection => NavigationSection.Settings;
-
-    public SettingsViewModel() : base(
-        "Clinic & Application Settings",
-        "Configure doctor credentials, clinic branding, prescription pad layout, printer presets, and database backup preferences.",
-        "Phase 2 Configuration",
-        new[]
-        {
-            "Doctor profile (name, qualifications, PMDC/license number, specialization)",
-            "Clinic details (header text, address, contact numbers, footer disclaimer)",
-            "Logo upload & digital signature integration",
-            "Paper size configuration (A4, A5, custom dimensions, margins)",
-            "Printer preferences & Microsoft Print to PDF defaults",
-            "Automated SQLite backup schedule and restore utility",
-            "Application security PIN and auto-lock"
-        })
-    {
-    }
-}

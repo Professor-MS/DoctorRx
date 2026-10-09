@@ -16,12 +16,53 @@ public class DashboardViewModel : ViewModelBase
     private readonly IDashboardService _dashboardService;
     private readonly INavigationService _navigationService;
     private readonly IDraftService _draftService;
+    private readonly IAutoBackupService? _autoBackupService;
+    private readonly IBackupService? _backupService;
+    private readonly IAppPaths? _appPaths;
 
     private int _totalPatients;
     private int _prescriptionsToday;
     private int _totalPrescriptions;
     private int _totalMedicinesInCatalog;
     private int _activeDraftsCount;
+    private string _lastBackupText = "Checking backup status...";
+    private string _backupBadgeText = "Checking...";
+    private string _backupBadgeBrush = "#64748B";
+    private bool _isBackupHealthy = true;
+    private bool _isBackingUp;
+
+    public string LastBackupText
+    {
+        get => _lastBackupText;
+        set => SetProperty(ref _lastBackupText, value);
+    }
+
+    public string BackupBadgeText
+    {
+        get => _backupBadgeText;
+        set => SetProperty(ref _backupBadgeText, value);
+    }
+
+    public string BackupBadgeBrush
+    {
+        get => _backupBadgeBrush;
+        set => SetProperty(ref _backupBadgeBrush, value);
+    }
+
+    public bool IsBackupHealthy
+    {
+        get => _isBackupHealthy;
+        set => SetProperty(ref _isBackupHealthy, value);
+    }
+
+    public bool IsBackingUp
+    {
+        get => _isBackingUp;
+        set => SetProperty(ref _isBackingUp, value);
+    }
+
+    public ICommand BackupNowDashboardCommand { get; }
+    public ICommand NavigateToDataSettingsCommand { get; }
 
     public int TotalPatients
     {
@@ -102,16 +143,57 @@ public class DashboardViewModel : ViewModelBase
     public ICommand ResumeDraftCommand { get; }
     public ICommand DiscardDraftCommand { get; }
 
-    public DashboardViewModel(IDashboardService dashboardService, INavigationService navigationService, IDraftService draftService)
+    public DashboardViewModel(
+        IDashboardService dashboardService,
+        INavigationService navigationService,
+        IDraftService draftService,
+        IAutoBackupService? autoBackupService = null,
+        IBackupService? backupService = null,
+        IAppPaths? appPaths = null)
     {
         _dashboardService = dashboardService;
         _navigationService = navigationService;
         _draftService = draftService;
+        _autoBackupService = autoBackupService;
+        _backupService = backupService;
+        _appPaths = appPaths;
 
         NewPrescriptionCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.NewPrescription));
         ViewAllPatientsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Patients));
         ViewAllPrescriptionsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.PrescriptionHistory));
         RefreshCommand = new AsyncRelayCommand(LoadStatsAsync);
+
+        NavigateToDataSettingsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Settings));
+
+        BackupNowDashboardCommand = new AsyncRelayCommand(async () =>
+        {
+            if (_autoBackupService != null)
+            {
+                try
+                {
+                    IsBackingUp = true;
+                    await _autoBackupService.RunAutoBackupAsync();
+                    await LoadStatsAsync();
+                }
+                finally
+                {
+                    IsBackingUp = false;
+                }
+            }
+            else if (_backupService != null && _appPaths != null)
+            {
+                try
+                {
+                    IsBackingUp = true;
+                    await _backupService.CreateBackupAsync(_appPaths.BackupsDirectory);
+                    await LoadStatsAsync();
+                }
+                finally
+                {
+                    IsBackingUp = false;
+                }
+            }
+        });
 
         ResumeDraftCommand = new RelayCommand<DraftSummaryDto>(draft =>
         {
@@ -169,6 +251,44 @@ public class DashboardViewModel : ViewModelBase
                 ActiveDrafts.Add(d);
             }
             ActiveDraftsCount = drafts.Count;
+
+            // Load backup status
+            if (_autoBackupService != null)
+            {
+                var status = _autoBackupService.GetStatus();
+                if (status.LastSuccessfulBackupUtc == null)
+                {
+                    LastBackupText = "No backups recorded yet";
+                    BackupBadgeText = "Backup Recommended";
+                    BackupBadgeBrush = "#D97706";
+                    IsBackupHealthy = false;
+                }
+                else
+                {
+                    var hours = (DateTime.UtcNow - status.LastSuccessfulBackupUtc.Value).TotalHours;
+                    if (hours <= 24 && status.LastAttemptSuccess)
+                    {
+                        LastBackupText = $"Last backup: {status.LastSuccessfulBackupUtc.Value.ToLocalTime():g} • Database Protected";
+                        BackupBadgeText = "Protected";
+                        BackupBadgeBrush = "#059669";
+                        IsBackupHealthy = true;
+                    }
+                    else
+                    {
+                        LastBackupText = $"Last backup: {status.LastSuccessfulBackupUtc.Value.ToLocalTime():g} • Backup Overdue";
+                        BackupBadgeText = "Attention";
+                        BackupBadgeBrush = "#D97706";
+                        IsBackupHealthy = false;
+                    }
+                }
+            }
+            else
+            {
+                LastBackupText = "Backup system active";
+                BackupBadgeText = "Active";
+                BackupBadgeBrush = "#059669";
+                IsBackupHealthy = true;
+            }
         }
         catch (Exception)
         {
