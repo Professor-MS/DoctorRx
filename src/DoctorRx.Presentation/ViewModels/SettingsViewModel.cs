@@ -289,7 +289,9 @@ public class SettingsViewModel : ViewModelBase
             }
 
             var freeBytes = _healthService.GetAvailableFreeSpaceBytes();
-            FreeSpaceText = $"{freeBytes / (1024.0 * 1024.0 * 1024.0):F1} GB free";
+            FreeSpaceText = freeBytes.HasValue
+                ? $"{freeBytes.Value / (1024.0 * 1024.0 * 1024.0):F1} GB free"
+                : "Unknown free space";
 
             var report = await _healthService.RunQuickCheckAsync();
             if (report.IsHealthy)

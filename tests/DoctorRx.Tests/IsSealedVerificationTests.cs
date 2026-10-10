@@ -260,8 +260,8 @@ public class IsSealedVerificationTests : IDisposable
     public async Task DemoDataSeeder_SealsPrescriptions_AndHealthCheckReportsZeroUnsealed()
     {
         var tempFolder = Path.Combine(Path.GetTempPath(), $"DoctorRx_SeederTest_{Guid.NewGuid():N}");
-        Directory.CreateDirectory(tempFolder);
-        var dbPath = Path.Combine(tempFolder, "doctorrx.db");
+        var appPaths = new TestAppPaths(tempFolder);
+        var dbPath = appPaths.DatabasePath;
         var connStr = $"Data Source={dbPath}";
 
         try
@@ -302,13 +302,100 @@ public class IsSealedVerificationTests : IDisposable
             }
 
             // Run database health check and assert QuickCheck passes
-            var appPaths = new TestAppPaths(tempFolder);
             var repair = new SearchIndexRepairService(dbFactory, NullLogger<SearchIndexRepairService>.Instance);
             var healthService = new DatabaseHealthService(dbFactory, appPaths, new PhysicalFileSystem(), new SystemClock(), repair, NullLogger<DatabaseHealthService>.Instance);
             var report = await healthService.RunQuickCheckAsync();
 
             Assert.True(report.IsHealthy);
             Assert.True(report.QuickCheckPassed);
+            Assert.Equal(0, report.UnsealedFinalizedCount);
+        }
+        finally
+        {
+            try
+            {
+                SqliteConnection.ClearAllPools();
+                if (Directory.Exists(tempFolder))
+                {
+                    Directory.Delete(tempFolder, recursive: true);
+                }
+            }
+            catch { }
+        }
+    }
+
+    [Fact]
+    public async Task RawSqlFinalizedPrescription_WithIsSealedZero_MakesHealthReportUnhealthy()
+    {
+        var tempFolder = Path.Combine(Path.GetTempPath(), $"DoctorRx_UnsealedHealth_{Guid.NewGuid():N}");
+        var appPaths = new TestAppPaths(tempFolder);
+        var dbPath = appPaths.DatabasePath;
+        var connStr = $"Data Source={dbPath}";
+
+        try
+        {
+            var options = new DbContextOptionsBuilder<DoctorRxDbContext>()
+                .UseSqlite(connStr)
+                .AddInterceptors(new SqlitePragmaInterceptor())
+                .Options;
+            var dbFactory = new TestDbContextFactory(options);
+
+            await using (var ctx = await dbFactory.CreateDbContextAsync())
+            {
+                await ctx.Database.MigrateAsync();
+
+                var doc = new Doctor
+                {
+                    Name = "Dr. Unsealed Test",
+                    Qualification = "MBBS",
+                    RegistrationNumber = "REG-999",
+                    Specialization = "Physician",
+                    ClinicName = "Test Clinic",
+                    IsActive = true
+                };
+                var pat = new Patient
+                {
+                    Name = "Patient Unsealed",
+                    NormalizedName = "patient unsealed",
+                    RecordNumber = "MR-TEST-999",
+                    Gender = Gender.Male,
+                    Age = 30,
+                    Phone = "03001234567"
+                };
+                ctx.Doctors.Add(doc);
+                ctx.Patients.Add(pat);
+                await ctx.SaveChangesAsync();
+            }
+
+            // Raw SQL insert of a finalized prescription (Status = 1) with IsSealed = 0
+            await using (var conn = new SqliteConnection(connStr))
+            {
+                await conn.OpenAsync();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = @"
+                    INSERT INTO Prescriptions (
+                        PrescriptionNumber, PatientId, DoctorId, PrescriptionDate, Status, IsSealed,
+                        Doctor_TitlePrefix, Doctor_Name, Doctor_Qualification, Doctor_RegistrationLabel, Doctor_RegistrationNumber, Doctor_Specialization, Doctor_ClinicName,
+                        Patient_Name, Patient_AgeText, Patient_Gender,
+                        FollowUpText, AmendmentNumber, FinalizedAtUtc, CreatedAtUtc, Version
+                    ) VALUES (
+                        'RX-UNSEALED-001', 1, 1, '2026-10-10', 1, 0,
+                        'Dr.', 'Dr. Unsealed Test', 'MBBS', 'Reg. No.', 'REG-999', 'Physician', 'Test Clinic',
+                        'Patient Unsealed', '30 yrs', 1,
+                        '7 days', 0, '2026-10-10 12:00:00', '2026-10-10 12:00:00', 'v1'
+                    );";
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            var repair = new SearchIndexRepairService(dbFactory, NullLogger<SearchIndexRepairService>.Instance);
+            var healthService = new DatabaseHealthService(dbFactory, appPaths, new PhysicalFileSystem(), new SystemClock(), repair, NullLogger<DatabaseHealthService>.Instance);
+
+            var report = await healthService.RunQuickCheckAsync();
+
+            Assert.False(report.IsHealthy);
+            Assert.True(report.QuickCheckPassed);
+            Assert.Equal(1, report.UnsealedFinalizedCount);
+            Assert.Contains("Database integrity compromised: 1 finalized prescription(s) remain unsealed.", report.ErrorDetails);
         }
         finally
         {

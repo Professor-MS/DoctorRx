@@ -35,7 +35,7 @@ public class PhysicalFileSystem : IFileSystem
 
     public long GetFileSize(string path) => new FileInfo(path).Length;
 
-    public long GetAvailableFreeSpace(string path)
+    public long? GetAvailableFreeSpace(string path)
     {
         try
         {
@@ -52,10 +52,10 @@ public class PhysicalFileSystem : IFileSystem
         }
         catch
         {
-            // If drive cannot be resolved (e.g. non-standard path), return a large value or fallback
+            // If drive cannot be resolved (e.g. non-standard path, offline drive), return null (unknown)
         }
 
-        return long.MaxValue;
+        return null;
     }
 
     public Stream OpenRead(string path) =>

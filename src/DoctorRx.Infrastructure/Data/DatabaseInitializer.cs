@@ -58,13 +58,20 @@ public class DatabaseInitializer : IDatabaseInitializer
 
         // 2. Guard against Low Disk Space (< 50MB)
         var freeSpace = _databaseHealthService.GetAvailableFreeSpaceBytes();
-        if (freeSpace < 50L * 1024 * 1024)
+        if (freeSpace.HasValue)
         {
-            var freeMb = freeSpace / (1024 * 1024);
-            var msg = $"Low disk space detected: {freeMb} MB free on database drive.";
-            var guidance = "DoctorRx requires at least 50 MB of free disk space to operate safely and prevent record corruption. Please free up space on your disk and restart the application.";
-            _logger.LogCritical("Startup aborted: {Message}", msg);
-            throw new DoctorRxStartupException(StartupFailureReason.InsufficientDiskSpace, msg, guidance);
+            if (freeSpace.Value < 50L * 1024 * 1024)
+            {
+                var freeMb = freeSpace.Value / (1024 * 1024);
+                var msg = $"Low disk space detected: {freeMb} MB free on database drive.";
+                var guidance = "DoctorRx requires at least 50 MB of free disk space to operate safely and prevent record corruption. Please free up space on your disk and restart the application.";
+                _logger.LogCritical("Startup aborted: {Message}", msg);
+                throw new DoctorRxStartupException(StartupFailureReason.InsufficientDiskSpace, msg, guidance);
+            }
+        }
+        else
+        {
+            _logger.LogWarning("Available disk space could not be verified for database drive.");
         }
 
         // 3. Pre-migration Database Health Quick Check

@@ -71,7 +71,7 @@ public class DatabaseHealthService : IDatabaseHealthService
         return false;
     }
 
-    public long GetAvailableFreeSpaceBytes()
+    public long? GetAvailableFreeSpaceBytes()
     {
         return _fileSystem.GetAvailableFreeSpace(_appPaths.DataDirectory);
     }
@@ -124,33 +124,41 @@ public class DatabaseHealthService : IDatabaseHealthService
             {
                 _logger.LogError("Database PRAGMA quick_check reported failure: {Result}", result);
             }
-            else
+            int unsealedCount = 0;
+            if (passed)
             {
                 try
                 {
                     await using var checkCmd = conn.CreateCommand();
                     checkCmd.CommandText = "SELECT COUNT(1) FROM Prescriptions WHERE Status = 1 AND IsSealed = 0;";
-                    var unsealedCount = Convert.ToInt64(await checkCmd.ExecuteScalarAsync(cancellationToken) ?? 0);
+                    unsealedCount = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken) ?? 0);
                     if (unsealedCount > 0)
                     {
-                        _logger.LogWarning("Database health check: Found {Count} finalized prescriptions with IsSealed = 0", unsealedCount);
+                        _logger.LogError("Database health check: Found {Count} finalized prescriptions with IsSealed = 0", unsealedCount);
                     }
                 }
-                catch
+                catch (Exception ex)
                 {
-                    // Ignore if IsSealed column is not yet present
+                    _logger.LogError(ex, "Failed to query unsealed finalized prescriptions during health check");
+                    throw;
                 }
             }
             await conn.CloseAsync();
 
+            bool isHealthy = passed && unsealedCount == 0;
+            string? errorDetails = !passed
+                ? result
+                : (unsealedCount > 0 ? $"Database integrity compromised: {unsealedCount} finalized prescription(s) remain unsealed." : null);
+
             return new DatabaseHealthReport(
-                IsHealthy: passed,
+                IsHealthy: isHealthy,
                 QuickCheckPassed: passed,
                 IntegrityCheckPassed: passed,
-                ErrorDetails: passed ? null : result,
+                ErrorDetails: errorDetails,
                 CorruptQuarantinePath: null,
                 SearchIndexHealthy: true,
-                DatabaseSizeBytes: sizeBytes);
+                DatabaseSizeBytes: sizeBytes,
+                UnsealedFinalizedCount: unsealedCount);
         }
         catch (Exception ex)
         {
@@ -196,9 +204,28 @@ public class DatabaseHealthService : IDatabaseHealthService
             cmd.CommandText = "PRAGMA integrity_check;";
 
             var result = (await cmd.ExecuteScalarAsync(cancellationToken))?.ToString();
-            await conn.CloseAsync();
-
             bool passed = string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase);
+
+            int unsealedCount = 0;
+            if (passed)
+            {
+                try
+                {
+                    await using var checkCmd = conn.CreateCommand();
+                    checkCmd.CommandText = "SELECT COUNT(1) FROM Prescriptions WHERE Status = 1 AND IsSealed = 0;";
+                    unsealedCount = Convert.ToInt32(await checkCmd.ExecuteScalarAsync(cancellationToken) ?? 0);
+                    if (unsealedCount > 0)
+                    {
+                        _logger.LogError("Database integrity check: Found {Count} finalized prescriptions with IsSealed = 0", unsealedCount);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Failed to query unsealed finalized prescriptions during full integrity check");
+                    throw;
+                }
+            }
+            await conn.CloseAsync();
 
             // Also verify search index tokens
             bool searchIndexHealthy = true;
@@ -212,14 +239,22 @@ public class DatabaseHealthService : IDatabaseHealthService
                 searchIndexHealthy = false;
             }
 
+            bool isHealthy = passed && searchIndexHealthy && unsealedCount == 0;
+            string? errorDetails = !passed
+                ? result
+                : (!searchIndexHealthy
+                    ? "Search index repair check failed."
+                    : (unsealedCount > 0 ? $"Database integrity compromised: {unsealedCount} finalized prescription(s) remain unsealed." : null));
+
             return new DatabaseHealthReport(
-                IsHealthy: passed && searchIndexHealthy,
+                IsHealthy: isHealthy,
                 QuickCheckPassed: passed,
                 IntegrityCheckPassed: passed,
-                ErrorDetails: passed ? null : result,
+                ErrorDetails: errorDetails,
                 CorruptQuarantinePath: null,
                 SearchIndexHealthy: searchIndexHealthy,
-                DatabaseSizeBytes: sizeBytes);
+                DatabaseSizeBytes: sizeBytes,
+                UnsealedFinalizedCount: unsealedCount);
         }
         catch (Exception ex)
         {

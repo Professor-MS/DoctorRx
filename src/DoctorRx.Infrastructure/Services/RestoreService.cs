@@ -143,6 +143,24 @@ public class RestoreService : IRestoreService
         _logger.LogInformation("Pre-restore safety backup safely created at {SafetyBackupPath}", safetyBackupPath);
         progress?.Report(0.35);
 
+        // Check available free disk space on data directory
+        long? freeSpace = _fileSystem.GetAvailableFreeSpace(_appPaths.DataDirectory);
+        if (!freeSpace.HasValue)
+        {
+            _logger.LogWarning("Available disk space on {DataDirectory} could not be determined. Proceeding with restore without verified free space.", _appPaths.DataDirectory);
+        }
+        else
+        {
+            long backupSize = _fileSystem.GetFileSize(backupFilePath);
+            long requiredSpace = Math.Max(backupSize * 2, 2 * 1024 * 1024);
+            if (freeSpace.Value < requiredSpace)
+            {
+                var msg = $"Not enough free disk space to restore backup safely. Available: {freeSpace.Value / (1024 * 1024)} MB, Required: {requiredSpace / (1024 * 1024)} MB.";
+                _logger.LogWarning("Restore rejected: {Message}", msg);
+                return new RestoreResult(false, msg, null, false);
+            }
+        }
+
         string stagingRestoredDb = Path.Combine(_appPaths.DataDirectory, $"doctorrx.db.restore.{Guid.NewGuid():N}.tmp");
         string originalDbBackup = Path.Combine(_appPaths.DataDirectory, "doctorrx.db.swap.bak");
 

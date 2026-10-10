@@ -11,7 +11,8 @@ public record DatabaseHealthReport(
     string? ErrorDetails,
     string? CorruptQuarantinePath,
     bool SearchIndexHealthy,
-    long DatabaseSizeBytes
+    long DatabaseSizeBytes,
+    int UnsealedFinalizedCount = 0
 );
 
 public interface IDatabaseHealthService
@@ -21,5 +22,5 @@ public interface IDatabaseHealthService
     Task<string?> QuarantineCorruptDatabaseAsync(CancellationToken cancellationToken = default);
     Task CheckpointWalAsync(CancellationToken cancellationToken = default);
     bool IsNetworkOrUncPath(string path);
-    long GetAvailableFreeSpaceBytes();
+    long? GetAvailableFreeSpaceBytes();
 }

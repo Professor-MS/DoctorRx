@@ -16,7 +16,7 @@ public interface IFileSystem
     void CopyFile(string source, string destination, bool overwrite);
     void MoveFile(string source, string destination, bool overwrite);
     long GetFileSize(string path);
-    long GetAvailableFreeSpace(string path);
+    long? GetAvailableFreeSpace(string path);
     Stream OpenRead(string path);
     Stream OpenWrite(string path);
     Stream CreateFile(string path);

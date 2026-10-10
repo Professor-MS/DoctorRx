@@ -281,12 +281,62 @@ public class BackupEngineTests : IDisposable
         Assert.DoesNotContain("Chest tightness", manifestJson);
     }
 
+    [Fact]
+    public async Task CreateBackupAsync_WhenFreeSpaceIsNull_ProceedsWithoutClaimingVerified()
+    {
+        // Arrange
+        await SeedDatabaseAsync();
+        var fakeFs = new LowSpaceFakeFileSystem(_fileSystem, simulatedFreeBytes: null); // Unknown free space
+        var service = new BackupService(_factory, _appPaths, fakeFs, _clock, NullLogger<BackupService>.Instance);
+        var backupDir = Path.Combine(_testDir, "UnknownSpaceBackups");
+
+        // Act
+        var result = await service.CreateBackupAsync(backupDir);
+
+        // Assert: Backup succeeds despite unknown free space
+        Assert.True(result.Success);
+        Assert.NotNull(result.BackupFilePath);
+        Assert.True(fakeFs.FileExists(result.BackupFilePath!));
+    }
+
+    [Fact]
+    public async Task CreateBackupAsync_WhenTableCountQueryFails_FailsBackupWithClearError()
+    {
+        // Arrange
+        await SeedDatabaseAsync();
+        var backupDir = Path.Combine(_testDir, "FailedTableCountBackups");
+
+        // Drop a table so table counting fails during snapshot metadata inspection
+        await using (var ctx = await _factory.CreateDbContextAsync())
+        {
+            await ctx.Database.ExecuteSqlRawAsync("DROP TABLE Drafts;");
+        }
+
+        var service = new BackupService(_factory, _appPaths, _fileSystem, _clock, NullLogger<BackupService>.Instance);
+
+        // Act
+        var result = await service.CreateBackupAsync(backupDir);
+
+        // Assert
+        Assert.False(result.Success);
+        Assert.Null(result.BackupFilePath);
+        Assert.False(result.IsVerified);
+        Assert.Contains("Failed to query row count for table 'Drafts'", result.ErrorMessage);
+
+        // Ensure no stray files remain in the target directory
+        if (Directory.Exists(backupDir))
+        {
+            Assert.Empty(_fileSystem.GetFiles(backupDir, "*.drxbackup"));
+            Assert.Empty(_fileSystem.GetFiles(backupDir, "*.tmp"));
+        }
+    }
+
     private class LowSpaceFakeFileSystem : IFileSystem
     {
         private readonly IFileSystem _inner;
-        private readonly long _simulatedFreeBytes;
+        private readonly long? _simulatedFreeBytes;
 
-        public LowSpaceFakeFileSystem(IFileSystem inner, long simulatedFreeBytes)
+        public LowSpaceFakeFileSystem(IFileSystem inner, long? simulatedFreeBytes)
         {
             _inner = inner;
             _simulatedFreeBytes = simulatedFreeBytes;
@@ -299,7 +349,7 @@ public class BackupEngineTests : IDisposable
         public void CopyFile(string source, string destination, bool overwrite) => _inner.CopyFile(source, destination, overwrite);
         public void MoveFile(string source, string destination, bool overwrite) => _inner.MoveFile(source, destination, overwrite);
         public long GetFileSize(string path) => _inner.GetFileSize(path);
-        public long GetAvailableFreeSpace(string path) => _simulatedFreeBytes;
+        public long? GetAvailableFreeSpace(string path) => _simulatedFreeBytes;
         public Stream OpenRead(string path) => _inner.OpenRead(path);
         public Stream OpenWrite(string path) => _inner.OpenWrite(path);
         public Stream CreateFile(string path) => _inner.CreateFile(path);

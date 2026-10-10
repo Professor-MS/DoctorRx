@@ -62,12 +62,16 @@ public class BackupService : IBackupService
         long requiredSpace = Math.Max(dbFileSize * 2, 1024 * 1024 * 2); // At least 2x db size or 2MB minimum
 
         _fileSystem.CreateDirectory(targetDirectory);
-        long freeSpace = _fileSystem.GetAvailableFreeSpace(targetDirectory);
+        long? freeSpace = _fileSystem.GetAvailableFreeSpace(targetDirectory);
 
-        if (freeSpace < requiredSpace)
+        if (!freeSpace.HasValue)
+        {
+            _logger.LogWarning("Available disk space on {TargetDirectory} could not be determined. Proceeding with backup without verified free space.", targetDirectory);
+        }
+        else if (freeSpace.Value < requiredSpace)
         {
             long reqMb = requiredSpace / (1024 * 1024);
-            long freeMb = freeSpace / (1024 * 1024);
+            long freeMb = freeSpace.Value / (1024 * 1024);
             var msg = $"Not enough free disk space for backup. Available: {freeMb} MB, Required: {reqMb} MB.";
             _logger.LogWarning("Backup rejected: {Message}", msg);
             return new BackupResult(false, null, msg, null, false);
@@ -335,9 +339,10 @@ public class BackupService : IBackupService
                 var count = Convert.ToInt32(await cmd.ExecuteScalarAsync(cancellationToken) ?? 0);
                 counts[table] = count;
             }
-            catch
+            catch (Exception ex)
             {
-                counts[table] = 0;
+                _logger.LogError(ex, "Failed to query row count for table {Table} in backup snapshot", table);
+                throw new InvalidOperationException($"Failed to query row count for table '{table}': {ex.Message}", ex);
             }
         }
 
