@@ -277,7 +277,8 @@ public class FakeMedicineService : IMedicineService
             if (dup != null)
             {
                 return Task.FromResult(Result<MedicineDto>.Failure(
-                    $"DUPLICATE_WARNING: A medicine with this formulation already exists in the catalog ('{dup.DisplayText}')."));
+                    $"A medicine with this formulation already exists in the catalog ('{dup.DisplayText}').",
+                    ResultErrorCode.DuplicateWarning));
             }
         }
 
@@ -302,7 +303,8 @@ public class FakeMedicineService : IMedicineService
             if (dup != null)
             {
                 return Task.FromResult(Result<MedicineDto>.Failure(
-                    $"DUPLICATE_WARNING: Another medicine with this formulation already exists in the catalog ('{dup.DisplayText}')."));
+                    $"Another medicine with this formulation already exists in the catalog ('{dup.DisplayText}').",
+                    ResultErrorCode.DuplicateWarning));
             }
         }
 

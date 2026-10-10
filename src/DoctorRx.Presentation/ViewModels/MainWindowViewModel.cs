@@ -470,11 +470,13 @@ public class MainWindowViewModel : ViewModelBase
         }
 
         Result<DoctorDto> result;
-        if (ActiveDoctor != null)
+        var existingDoctor = ActiveDoctor ?? (await _doctorService.GetActiveDoctorAsync());
+        if (existingDoctor != null)
         {
+            ActiveDoctor = existingDoctor;
             var updateDto = new UpdateDoctorDto
             {
-                Id = ActiveDoctor.Id,
+                Id = existingDoctor.Id,
                 TitlePrefix = string.IsNullOrWhiteSpace(DoctorSetupTitlePrefix) ? "Dr." : DoctorSetupTitlePrefix.Trim(),
                 Name = DoctorSetupName.Trim(),
                 Qualification = DoctorSetupQualification.Trim(),

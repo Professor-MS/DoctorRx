@@ -19,7 +19,17 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
     public override async Task<Medicine> AddAsync(Medicine medicine, CancellationToken cancellationToken = default)
     {
         medicine.RefreshSearchFields();
-        return await base.AddAsync(medicine, cancellationToken);
+        var added = await base.AddAsync(medicine, cancellationToken);
+        if (medicine.IsActive)
+        {
+            foreach (var token in medicine.SearchTokens)
+            {
+                token.MedicineId = added.Id;
+                token.Medicine = added;
+                await Context.MedicineSearchTokens.AddAsync(token, cancellationToken);
+            }
+        }
+        return added;
     }
 
     public override async Task UpdateAsync(Medicine medicine, CancellationToken cancellationToken = default)
@@ -30,12 +40,25 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
         Context.MedicineSearchTokens.RemoveRange(existingTokens);
 
         medicine.RefreshSearchFields();
-        foreach (var token in medicine.SearchTokens)
+        if (medicine.IsActive)
         {
-            await Context.MedicineSearchTokens.AddAsync(token, cancellationToken);
+            foreach (var token in medicine.SearchTokens)
+            {
+                token.MedicineId = medicine.Id;
+                await Context.MedicineSearchTokens.AddAsync(token, cancellationToken);
+            }
         }
 
         await base.UpdateAsync(medicine, cancellationToken);
+    }
+
+    public override async Task DeleteAsync(Medicine medicine, CancellationToken cancellationToken = default)
+    {
+        var existingTokens = await Context.MedicineSearchTokens
+            .Where(t => t.MedicineId == medicine.Id)
+            .ToListAsync(cancellationToken);
+        Context.MedicineSearchTokens.RemoveRange(existingTokens);
+        await base.DeleteAsync(medicine, cancellationToken);
     }
 
     public Task<IReadOnlyList<Medicine>> SearchAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
@@ -161,6 +184,38 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
     {
         return await Context.PrescriptionMedicines
             .CountAsync(pm => pm.MedicineId == medicineId, cancellationToken);
+    }
+
+    public async Task<int> GetDraftReferenceCountAsync(int medicineId, CancellationToken cancellationToken = default)
+    {
+        var drafts = await Context.Drafts
+            .AsNoTracking()
+            .Select(d => d.PayloadJson)
+            .ToListAsync(cancellationToken);
+
+        var jsonOptions = new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+        int count = 0;
+        foreach (var payload in drafts)
+        {
+            if (string.IsNullOrWhiteSpace(payload)) continue;
+            try
+            {
+                var state = System.Text.Json.JsonSerializer.Deserialize<DoctorRx.Application.DTOs.PrescriptionComposerState>(payload, jsonOptions);
+                if (state?.Items != null && state.Items.Any(i => i.MedicineId == medicineId))
+                {
+                    count++;
+                }
+            }
+            catch
+            {
+                if (payload.Contains($"\"MedicineId\":{medicineId}", StringComparison.OrdinalIgnoreCase) ||
+                    payload.Contains($"\"MedicineId\": {medicineId}", StringComparison.OrdinalIgnoreCase))
+                {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     private static bool IsStrengthMatch(string? dbStrength, string inputStrength)

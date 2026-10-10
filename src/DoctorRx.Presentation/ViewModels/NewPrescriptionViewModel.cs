@@ -271,6 +271,14 @@ public class NewPrescriptionViewModel : ViewModelBase
         set => SetProperty(ref _isMedicineSearching, value);
     }
 
+    private int _medicineSearchLimit = 20;
+    private bool _canLoadMoreMedicineResults;
+    public bool CanLoadMoreMedicineResults
+    {
+        get => _canLoadMoreMedicineResults;
+        private set => SetProperty(ref _canLoadMoreMedicineResults, value);
+    }
+
     public string MedicineName
     {
         get => _medicineName;
@@ -278,6 +286,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         {
             if (SetProperty(ref _medicineName, value))
             {
+                _medicineSearchLimit = 20;
                 _medicineSearchQuery = value;
                 OnPropertyChanged(nameof(MedicineSearchQuery));
                 if (EditorErrorMessage != null)
@@ -547,6 +556,7 @@ public class NewPrescriptionViewModel : ViewModelBase
     public ICommand RegisterNewPatientFromSearchCommand { get; }
 
     public ICommand SelectCatalogMedicineCommand { get; }
+    public ICommand LoadMoreMedicineResultsCommand { get; }
     public ICommand SelectFormChipCommand { get; }
     public ICommand SelectDoseChipCommand { get; }
     public ICommand SelectFrequencyChipCommand { get; }
@@ -636,6 +646,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         RegisterNewPatientFromSearchCommand = new RelayCommand(RegisterNewPatientFromSearch);
 
         SelectCatalogMedicineCommand = new RelayCommand<MedicineDto>(SelectCatalogMedicine);
+        LoadMoreMedicineResultsCommand = new RelayCommand(LoadMoreMedicineResults);
         SelectFormChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Form, val => Form = val, chip, "Form"));
         SelectDoseChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Dose, val => Dose = val, chip, "Dose"));
         SelectFrequencyChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Frequency, val => Frequency = val, chip, "Frequency"));
@@ -931,10 +942,18 @@ public class NewPrescriptionViewModel : ViewModelBase
         }
     }
 
+    private void LoadMoreMedicineResults()
+    {
+        if (!CanLoadMoreMedicineResults) return;
+        _medicineSearchLimit += 20;
+        _ = SearchMedicinesAsync(MedicineName);
+    }
+
     private async Task SearchMedicinesAsync(string query)
     {
         if (string.IsNullOrWhiteSpace(query) || query.Trim().Length < 2)
         {
+            CanLoadMoreMedicineResults = false;
             void Clear()
             {
                 lock (_medicineSearchLock)
@@ -957,11 +976,14 @@ public class NewPrescriptionViewModel : ViewModelBase
         IsMedicineSearching = true;
         try
         {
-            var results = await _medicineService.SearchMedicinesAsync(query);
+            var results = await _medicineService.SearchMedicinesAsync(query, _medicineSearchLimit + 1);
+            var itemsToShow = results.Take(_medicineSearchLimit).ToList();
+            CanLoadMoreMedicineResults = results.Count > _medicineSearchLimit;
+
             lock (_medicineSearchLock)
             {
                 MedicineSearchResults.Clear();
-                foreach (var m in results)
+                foreach (var m in itemsToShow)
                 {
                     MedicineSearchResults.Add(m);
                 }
@@ -991,7 +1013,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         Strength = catalogMed.Strength;
 
         // Prescribe Now Purity: Zero clinical defaults!
-        // Dose, frequency, duration, route, timing, meal relation stay unselected
+        // Dose, frequency, duration, route, timing, meal relation stay unselected/empty
         Dose = string.Empty;
         Frequency = string.Empty;
         Timing = null;
@@ -1007,6 +1029,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         {
             MedicineSearchResults.Clear();
         }
+        CanLoadMoreMedicineResults = false;
         EditorErrorMessage = null;
         ValidationErrorMessage = null;
         FocusRequested?.Invoke("Dose");

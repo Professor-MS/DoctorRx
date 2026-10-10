@@ -645,4 +645,53 @@ public class DatabaseMigrationTests : IDisposable
             Assert.Contains("Cannot add medicine items", ex.Message);
         }
     }
+
+    [Fact]
+    public async Task AllTriggers_ExistOnce_WithLatestDefinition_OnFreshlyMigratedDatabase()
+    {
+        var factory = CreateFactory(_appPaths.DatabasePath);
+        await using (var ctx = factory.CreateDbContext())
+        {
+            await ctx.Database.MigrateAsync();
+        }
+
+        var triggers = new List<(string Name, string Sql)>();
+        await using (var conn = new SqliteConnection($"Data Source={_appPaths.DatabasePath}"))
+        {
+            await conn.OpenAsync();
+            await using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT name, sql FROM sqlite_master WHERE type='trigger' ORDER BY name;";
+            await using var reader = await cmd.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+            {
+                triggers.Add((reader.GetString(0), reader.GetString(1)));
+            }
+        }
+
+        // Verify each expected trigger exists exactly once
+        var triggerNames = triggers.Select(t => t.Name).ToList();
+        Assert.Equal(triggerNames.Count, triggerNames.Distinct().Count()); // Unique: exactly once
+
+        var expectedTriggers = new[]
+        {
+            "trg_prevent_prescription_delete",
+            "trg_prevent_prescription_medicine_delete",
+            "trg_prevent_prescription_medicine_insert_after_terminal",
+            "trg_prevent_prescription_medicine_update",
+            "trg_prevent_prescription_tamper"
+        };
+
+        foreach (var expected in expectedTriggers)
+        {
+            Assert.Contains(expected, triggerNames);
+        }
+
+        // Verify latest trigger definitions include IsSealed checks
+        var tamperTrigger = triggers.First(t => t.Name == "trg_prevent_prescription_tamper").Sql;
+        Assert.Contains("IsSealed", tamperTrigger);
+
+        var insertAfterTerminalTrigger = triggers.First(t => t.Name == "trg_prevent_prescription_medicine_insert_after_terminal").Sql;
+        Assert.Contains("IsSealed", insertAfterTerminalTrigger);
+    }
 }
+

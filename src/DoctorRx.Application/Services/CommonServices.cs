@@ -112,12 +112,14 @@ public class MedicineService : IMedicineService
                     if (dup.IsActive)
                     {
                         return Result<MedicineDto>.Failure(
-                            $"DUPLICATE_WARNING: A medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}').");
+                            $"A medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}').",
+                            ResultErrorCode.DuplicateWarning);
                     }
                     else
                     {
                         return Result<MedicineDto>.Failure(
-                            $"DUPLICATE_WARNING: An inactive medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}'). You can reactivate it instead.");
+                            $"An inactive medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}'). You can reactivate it instead.",
+                            ResultErrorCode.DuplicateWarning);
                     }
                 }
             }
@@ -202,7 +204,8 @@ public class MedicineService : IMedicineService
                 {
                     var dup = duplicates[0];
                     return Result<MedicineDto>.Failure(
-                        $"DUPLICATE_WARNING: Another medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}').");
+                        $"Another medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}').",
+                        ResultErrorCode.DuplicateWarning);
                 }
             }
 
@@ -272,7 +275,16 @@ public class MedicineService : IMedicineService
             if (refCount > 0)
             {
                 return Result.Failure(
-                    $"Cannot delete medicine '{medicine.DisplayTitle}': It is referenced by {refCount} historical prescription(s). You may deactivate it instead to remove it from future prescribing without altering medical history.");
+                    $"Cannot delete medicine '{medicine.DisplayTitle}': It is referenced by {refCount} historical prescription(s). You may deactivate it instead to remove it from future prescribing without altering medical history.",
+                    ResultErrorCode.ReferenceRestriction);
+            }
+
+            var draftRefCount = await uow.Medicines.GetDraftReferenceCountAsync(id, cancellationToken);
+            if (draftRefCount > 0)
+            {
+                return Result.Failure(
+                    $"Cannot delete medicine '{medicine.DisplayTitle}': It is referenced by {draftRefCount} saved prescription draft(s). Please remove it from active drafts before deleting.",
+                    ResultErrorCode.ReferenceRestriction);
             }
 
             await uow.Medicines.DeleteAsync(medicine, cancellationToken);
@@ -298,12 +310,14 @@ public class MedicineService : IMedicineService
         }
 
         var refCount = await uow.Medicines.GetPrescriptionReferenceCountAsync(id, cancellationToken);
+        var draftRefCount = await uow.Medicines.GetDraftReferenceCountAsync(id, cancellationToken);
         return new MedicineUsageSummaryDto(
             MedicineId: medicine.Id,
             MedicineName: medicine.DisplayTitle,
             IsReferencedInPrescriptions: refCount > 0,
             PrescriptionReferenceCount: refCount,
-            CanHardDelete: refCount == 0
+            CanHardDelete: refCount == 0 && draftRefCount == 0,
+            DraftReferenceCount: draftRefCount
         );
     }
 

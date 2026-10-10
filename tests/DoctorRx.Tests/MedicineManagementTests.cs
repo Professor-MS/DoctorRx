@@ -218,7 +218,8 @@ public class MedicineManagementTests : IDisposable
 
         // Assert
         Assert.False(dup.IsSuccess);
-        Assert.Contains("DUPLICATE_WARNING", dup.ErrorMessage);
+        Assert.Equal(ResultErrorCode.DuplicateWarning, dup.ErrorCode);
+        Assert.DoesNotContain("DUPLICATE_WARNING", dup.ErrorMessage ?? string.Empty);
         Assert.Contains("already exists in the catalog", dup.ErrorMessage);
     }
 
@@ -244,7 +245,8 @@ public class MedicineManagementTests : IDisposable
 
         // Assert
         Assert.False(dup.IsSuccess);
-        Assert.Contains("DUPLICATE_WARNING", dup.ErrorMessage);
+        Assert.Equal(ResultErrorCode.DuplicateWarning, dup.ErrorCode);
+        Assert.DoesNotContain("DUPLICATE_WARNING", dup.ErrorMessage ?? string.Empty);
     }
 
     [Fact]
@@ -272,7 +274,8 @@ public class MedicineManagementTests : IDisposable
 
         // Assert
         Assert.False(dup.IsSuccess);
-        Assert.Contains("DUPLICATE_WARNING", dup.ErrorMessage);
+        Assert.Equal(ResultErrorCode.DuplicateWarning, dup.ErrorCode);
+        Assert.DoesNotContain("DUPLICATE_WARNING", dup.ErrorMessage ?? string.Empty);
         Assert.Contains("inactive medicine", dup.ErrorMessage, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("reactivate", dup.ErrorMessage, StringComparison.OrdinalIgnoreCase);
     }
@@ -355,7 +358,8 @@ public class MedicineManagementTests : IDisposable
 
         // Assert
         Assert.False(update.IsSuccess);
-        Assert.Contains("DUPLICATE_WARNING", update.ErrorMessage);
+        Assert.Equal(ResultErrorCode.DuplicateWarning, update.ErrorCode);
+        Assert.DoesNotContain("DUPLICATE_WARNING", update.ErrorMessage ?? string.Empty);
     }
 
     [Fact]

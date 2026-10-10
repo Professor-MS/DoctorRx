@@ -34,8 +34,12 @@ public record MedicineUsageSummaryDto(
     string MedicineName,
     bool IsReferencedInPrescriptions,
     int PrescriptionReferenceCount,
-    bool CanHardDelete
-);
+    bool CanHardDelete,
+    int DraftReferenceCount = 0
+)
+{
+    public bool IsReferencedInDrafts => DraftReferenceCount > 0;
+};
 
 public class MedicineSearchCriteria
 {

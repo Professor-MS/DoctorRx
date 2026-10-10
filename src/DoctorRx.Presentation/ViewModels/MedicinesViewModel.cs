@@ -226,6 +226,12 @@ public class MedicinesViewModel : ViewModelBase
 
     public double DrawerWidth => IsCompact ? 320 : 420;
 
+    private const int PageSize = 50;
+    private int _currentLimit = PageSize;
+    private List<MedicineDto> _filteredSortedMedicines = new();
+
+    public bool CanLoadMore => Medicines.Count < _filteredSortedMedicines.Count;
+
     #endregion
 
     #region Commands
@@ -240,6 +246,7 @@ public class MedicinesViewModel : ViewModelBase
     public ICommand PrescribeNowCommand { get; }
     public ICommand SelectFormChipCommand { get; }
     public ICommand SelectStrengthChipCommand { get; }
+    public ICommand LoadMoreCommand { get; }
 
     #endregion
 
@@ -260,6 +267,7 @@ public class MedicinesViewModel : ViewModelBase
         PrescribeNowCommand = new RelayCommand<MedicineDto>(_ => { });
         SelectFormChipCommand = new RelayCommand<string>(_ => { });
         SelectStrengthChipCommand = new RelayCommand<string>(_ => { });
+        LoadMoreCommand = new RelayCommand(() => { });
     }
 
     public MedicinesViewModel(
@@ -299,6 +307,8 @@ public class MedicinesViewModel : ViewModelBase
                 FormStrength = chip;
             }
         });
+
+        LoadMoreCommand = new RelayCommand(LoadMore);
     }
 
     public override async Task InitializeAsync(object? parameter = null)
@@ -400,17 +410,30 @@ public class MedicinesViewModel : ViewModelBase
         }
 
         // Sort by UsageCount desc, then Name asc
-        var sorted = filtered.OrderByDescending(m => m.UsageCount)
-                             .ThenBy(m => m.Name)
-                             .ToList();
+        _filteredSortedMedicines = filtered.OrderByDescending(m => m.UsageCount)
+                                          .ThenBy(m => m.Name)
+                                          .ToList();
 
+        _currentLimit = PageSize;
         Medicines.Clear();
-        foreach (var item in sorted)
+        foreach (var item in _filteredSortedMedicines.Take(_currentLimit))
         {
             Medicines.Add(item);
         }
 
-        FilteredMedicinesCount = Medicines.Count;
+        FilteredMedicinesCount = _filteredSortedMedicines.Count;
+        OnPropertyChanged(nameof(CanLoadMore));
+    }
+
+    public void LoadMore()
+    {
+        if (!CanLoadMore) return;
+        var nextBatch = _filteredSortedMedicines.Skip(Medicines.Count).Take(PageSize).ToList();
+        foreach (var item in nextBatch)
+        {
+            Medicines.Add(item);
+        }
+        OnPropertyChanged(nameof(CanLoadMore));
     }
 
     private void OpenAddDrawer()
@@ -493,9 +516,9 @@ public class MedicinesViewModel : ViewModelBase
                     CloseDrawer();
                     await LoadMedicinesAsync();
                 }
-                else if (result.ErrorMessage != null && result.ErrorMessage.Contains("DUPLICATE_WARNING", StringComparison.OrdinalIgnoreCase))
+                else if (result.ErrorCode == DoctorRx.Application.Common.ResultErrorCode.DuplicateWarning)
                 {
-                    var warningMessage = result.ErrorMessage.Replace("DUPLICATE_WARNING:", "").Trim();
+                    var warningMessage = result.ErrorMessage ?? "A medicine with this formulation already exists.";
                     var proceed = _dialogService?.ShowConfirmation(
                         "Potential Duplicate Medicine",
                         $"{warningMessage}\n\nDo you want to proceed and save this formulation anyway?") ?? false;
@@ -537,9 +560,9 @@ public class MedicinesViewModel : ViewModelBase
                     CloseDrawer();
                     await LoadMedicinesAsync();
                 }
-                else if (result.ErrorMessage != null && result.ErrorMessage.Contains("DUPLICATE_WARNING", StringComparison.OrdinalIgnoreCase))
+                else if (result.ErrorCode == DoctorRx.Application.Common.ResultErrorCode.DuplicateWarning)
                 {
-                    var warningMessage = result.ErrorMessage.Replace("DUPLICATE_WARNING:", "").Trim();
+                    var warningMessage = result.ErrorMessage ?? "A medicine with this formulation already exists.";
                     var proceed = _dialogService?.ShowConfirmation(
                         "Potential Duplicate Medicine",
                         $"{warningMessage}\n\nDo you want to proceed and add this formulation anyway?") ?? false;
@@ -613,28 +636,32 @@ public class MedicinesViewModel : ViewModelBase
         if (dto == null || _medicineService == null) return;
 
         var summary = await _medicineService.GetMedicineUsageSummaryAsync(dto.Id);
-        string message = summary.IsReferencedInPrescriptions
-            ? $"'{dto.DisplayText}' is referenced in {summary.PrescriptionReferenceCount} historical prescription(s).\n\nIt will be safely deactivated from the catalog and hidden from future prescribing. Historical prescriptions will remain completely intact.\n\nProceed with deactivation?"
-            : $"Are you sure you want to remove '{dto.DisplayText}' from the catalog?\n\nProceed?";
+        bool isReferenced = summary.IsReferencedInPrescriptions || summary.IsReferencedInDrafts;
+        string message = isReferenced
+            ? $"'{dto.DisplayText}' is referenced in {summary.PrescriptionReferenceCount} historical prescription(s) or saved drafts.\n\nIt will be safely deactivated from the catalog and hidden from future prescribing. Historical prescriptions will remain completely intact.\n\nProceed with deactivation?"
+            : $"Are you sure you want to permanently remove '{dto.DisplayText}' from the catalog?\n\nThis medicine has never been prescribed or drafted.\n\nProceed with permanent deletion?";
 
-        var confirmed = _dialogService?.ShowConfirmation("Delete Medicine", message) ?? false;
+        var confirmed = _dialogService?.ShowConfirmation(isReferenced ? "Deactivate Medicine" : "Delete Medicine", message) ?? false;
         if (!confirmed) return;
 
         try
         {
-            var result = await _medicineService.DeleteMedicineAsync(dto.Id);
+            var result = isReferenced
+                ? await _medicineService.DeleteMedicineAsync(dto.Id)
+                : await _medicineService.PurgeMedicineAsync(dto.Id);
+
             if (result.IsSuccess)
             {
                 await LoadMedicinesAsync();
             }
             else
             {
-                _dialogService?.ShowError("Delete Failed", result.ErrorMessage ?? "Could not delete medicine.");
+                _dialogService?.ShowError(isReferenced ? "Deactivation Failed" : "Delete Failed", result.ErrorMessage ?? "Could not remove medicine.");
             }
         }
         catch (Exception ex)
         {
-            _logger?.LogError(ex, "Failed to delete medicine #{Id}", dto.Id);
+            _logger?.LogError(ex, "Failed to remove medicine #{Id}", dto.Id);
         }
     }
 

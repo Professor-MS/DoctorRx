@@ -192,6 +192,9 @@ public class DemoDataSeeder : IDemoDataSeeder
             samplePatient.LastVisitDate = rx.PrescriptionDate;
             await context.Prescriptions.AddAsync(rx, cancellationToken);
             await context.SaveChangesAsync(cancellationToken);
+
+            rx.Seal();
+            await context.SaveChangesAsync(cancellationToken);
             _logger.LogInformation("Seeded demo initial prescription.");
         }
     }
