@@ -234,7 +234,9 @@ public class FakeNavigationService : INavigationService
     public ViewModelBase? CurrentViewModel { get; set; }
     public NavigationDestination? LastDestination { get; private set; }
     public NavigationDestination CurrentDestination => LastDestination ?? NavigationDestination.Dashboard;
+#pragma warning disable CS0067
     public event System.Action<ViewModelBase>? CurrentViewModelChanged;
+#pragma warning restore CS0067
 
     public void NavigateTo(NavigationDestination destination, object? parameter = null)
     {

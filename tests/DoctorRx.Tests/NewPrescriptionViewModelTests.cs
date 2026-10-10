@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Interfaces;
@@ -35,6 +36,7 @@ public class NewPrescriptionViewModelTests : IDisposable
     private readonly IPrescriptionComposerValidator _validator;
     private readonly TestDialogService _dialogService;
     private readonly TestNavigationService _navigationService;
+    private readonly TestQuickPhrasesService _quickPhrasesService;
 
     public NewPrescriptionViewModelTests()
     {
@@ -80,6 +82,7 @@ public class NewPrescriptionViewModelTests : IDisposable
         _validator = new PrescriptionComposerValidator(_clock);
         _dialogService = new TestDialogService();
         _navigationService = new TestNavigationService();
+        _quickPhrasesService = new TestQuickPhrasesService();
     }
 
     public void Dispose()
@@ -95,7 +98,7 @@ public class NewPrescriptionViewModelTests : IDisposable
         catch { }
     }
 
-    private NewPrescriptionViewModel CreateViewModel()
+    private NewPrescriptionViewModel CreateViewModel(IQuickPhrasesService? quickPhrasesService = null)
     {
         return new NewPrescriptionViewModel(
             _patientService,
@@ -105,7 +108,8 @@ public class NewPrescriptionViewModelTests : IDisposable
             _dialogService,
             _navigationService,
             _validator,
-            _clock);
+            _clock,
+            quickPhrasesService ?? _quickPhrasesService);
     }
 
     [Fact]
@@ -278,43 +282,150 @@ public class NewPrescriptionViewModelTests : IDisposable
         Assert.Equal("Med 2", vm.PrescribedMedicines[1].MedicineName);
     }
 
+    private static List<string> GetBuiltInChipParametersFromXaml()
+    {
+        var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+        while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "DoctorRx.sln")))
+        {
+            currentDir = currentDir.Parent;
+        }
+        var projectRoot = currentDir?.FullName ?? AppContext.BaseDirectory;
+        var xamlPath = Path.Combine(projectRoot, "src", "DoctorRx.Presentation", "Views", "NewPrescriptionView.xaml");
+        var doc = System.Xml.Linq.XDocument.Parse(File.ReadAllText(xamlPath));
+        return doc.Descendants()
+            .Where(e => e.Name.LocalName == "Button" &&
+                        e.Attribute("Command")?.Value.Contains("ChipCommand") == true &&
+                        e.Attribute("CommandParameter") != null)
+            .Select(e => e.Attribute("CommandParameter")!.Value)
+            .Distinct()
+            .ToList();
+    }
+
     [Fact]
-    public void QuickChips_SupportInjectionsDripsAndDrops_SetsFieldsCorrectly()
+    public void QuickChips_Blocklist_NeverInsertsForbiddenAbbreviations()
+    {
+        // Whole-word case-insensitive matching on forbidden abbreviations:
+        // OD, OS, OU, BD, TDS, QID, SOS, PRN, SC, IM, IV, Stat, tab, cap, syp, syrp, inj
+        var forbiddenWords = new[]
+        {
+            "OD", "OS", "OU", "BD", "TDS", "QID", "SOS", "PRN", "SC", "IM", "IV", "Stat",
+            "tab", "cap", "syp", "syrp", "inj"
+        };
+
+        var chips = GetBuiltInChipParametersFromXaml();
+        Assert.NotEmpty(chips);
+
+        foreach (var word in forbiddenWords)
+        {
+            var pattern = $@"\b{Regex.Escape(word)}\b";
+            foreach (var chip in chips)
+            {
+                var match = Regex.IsMatch(chip, pattern, RegexOptions.IgnoreCase);
+                Assert.False(match, $"Built-in chip '{chip}' contains forbidden abbreviation '{word}'");
+            }
+        }
+    }
+
+    [Fact]
+    public void QuickChips_PatternTest_RejectsNumberWithAdministrationUnit_ExceptAllowedQuantities()
+    {
+        // Pattern rejecting a number followed by a volume, rate, drop or spray unit:
+        // (mL, ml, mins, drops/min, drop, drops, spray)
+        // Allowed unit quantities: 1 tablet, 2 tablets, 5 mL, 1 vial, 1 ampoule
+        var allowedUnitQuantities = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "1 tablet", "2 tablets", "5 mL", "1 vial", "1 ampoule"
+        };
+
+        var unitPattern = @"\d+\s*(mL|ml|mins|drops/min|drop|drops|spray)";
+        var chips = GetBuiltInChipParametersFromXaml();
+        Assert.NotEmpty(chips);
+
+        foreach (var chip in chips)
+        {
+            if (Regex.IsMatch(chip, unitPattern, RegexOptions.IgnoreCase))
+            {
+                Assert.True(
+                    allowedUnitQuantities.Contains(chip),
+                    $"Built-in chip '{chip}' violates clinical safety rule: administration units/volumes/rates/counts are forbidden unless strictly in allowed unit quantities.");
+            }
+        }
+    }
+
+    [Fact]
+    public void QuickChips_ClickingChip_ChangesOnlyTargetField_AndNeverOverwritesWithoutConfirmation()
     {
         // Arrange
         var vm = CreateViewModel();
 
-        // Act - Prescribe an IV drip
-        vm.MedicineName = "Paracetamol Infusion";
-        vm.SelectFormChipCommand.Execute("Drip");
-        vm.Strength = "1000mg/100ml";
-        vm.SelectDoseChipCommand.Execute("100 ml");
-        vm.SelectFrequencyChipCommand.Execute("Stat (Immediately)");
-        vm.SelectDurationChipCommand.Execute("Single dose");
-        vm.SelectRouteChipCommand.Execute("IV Drip");
-        vm.SelectInstructionChipCommand.Execute("Slow IV push over 5 mins");
+        // 1. Initial click on empty field sets field directly without prompt
+        vm.SelectFormChipCommand.Execute("Tablet");
+        Assert.Equal("Tablet", vm.Form);
+        Assert.Empty(vm.Dose);
+        Assert.Empty(vm.Frequency);
+        Assert.Empty(vm.Route);
+        Assert.Empty(vm.Duration);
 
-        // Assert
-        Assert.Equal("Drip", vm.Form);
-        Assert.Equal("100 ml", vm.Dose);
-        Assert.Equal("Stat (Immediately)", vm.Frequency);
-        Assert.Equal("Single dose", vm.Duration);
-        Assert.Equal("IV Drip", vm.Route);
-        Assert.Contains("Slow IV push over 5 mins", vm.Instructions);
+        // 2. Click with different value when field already contains text and user declines confirmation
+        _dialogService.ConfirmationResult = false;
+        vm.SelectFormChipCommand.Execute("Capsule");
+        Assert.Equal("Tablet", vm.Form); // Preserved!
 
-        // Act 2 - Add to prescription
-        vm.AddOrUpdateMedicineCommand.Execute(null);
+        // 3. Click when user accepts confirmation
+        _dialogService.ConfirmationResult = true;
+        vm.SelectFormChipCommand.Execute("Capsule");
+        Assert.Equal("Capsule", vm.Form); // Updated after confirmation!
 
-        // Assert 2
-        Assert.Single(vm.PrescribedMedicines);
-        var item = vm.PrescribedMedicines[0];
-        Assert.Equal("Paracetamol Infusion", item.MedicineName);
-        Assert.Equal("Drip", item.Form);
-        Assert.Equal("100 ml", item.Dose);
-        Assert.Equal("Stat (Immediately)", item.Frequency);
-        Assert.Equal("IV Drip", item.Route);
-        Assert.Equal("Single dose", item.Duration);
-        Assert.Equal("Slow IV push over 5 mins", item.Instructions);
+        // 4. Dose chip changes only Dose
+        vm.SelectDoseChipCommand.Execute("1 tablet");
+        Assert.Equal("1 tablet", vm.Dose);
+        Assert.Equal("Capsule", vm.Form); // Other fields untouched
+
+        // 5. Frequency chip changes only Frequency
+        vm.SelectFrequencyChipCommand.Execute("Once daily");
+        Assert.Equal("Once daily", vm.Frequency);
+
+        // 6. Route chip changes only Route
+        vm.SelectRouteChipCommand.Execute("Oral");
+        Assert.Equal("Oral", vm.Route);
+
+        // 7. Duration chip changes only Duration
+        vm.SelectDurationChipCommand.Execute("5 days");
+        Assert.Equal("5 days", vm.Duration);
+    }
+
+    [Fact]
+    public async Task QuickPhrases_DoctorCustom_CrudAndPersistence()
+    {
+        // Arrange
+        var testService = new TestQuickPhrasesService();
+        var vm = CreateViewModel(testService);
+
+        // Act 1: Add custom phrase (exempt from blocklist, doctor-owned)
+        await vm.AddQuickPhraseAsync("Take 2 drops in left eye with warm water");
+        await vm.AddQuickPhraseAsync("Dissolve in 200 ml juice");
+
+        // Assert 1: Quick phrases populated and saved
+        Assert.Equal(2, vm.QuickPhrases.Count);
+        Assert.Equal("Take 2 drops in left eye with warm water", vm.QuickPhrases[0]);
+        Assert.Equal("Dissolve in 200 ml juice", vm.QuickPhrases[1]);
+        Assert.Equal(2, testService.Phrases.Count);
+
+        // Act 2: Reorder phrases
+        await vm.MoveDownQuickPhraseAsync("Take 2 drops in left eye with warm water");
+        Assert.Equal("Dissolve in 200 ml juice", vm.QuickPhrases[0]);
+        Assert.Equal("Take 2 drops in left eye with warm water", vm.QuickPhrases[1]);
+        Assert.Equal("Dissolve in 200 ml juice", testService.Phrases[0]);
+
+        // Act 3: Click phrase to insert into Special Instructions
+        vm.SelectQuickPhraseCommand.Execute("Dissolve in 200 ml juice");
+        Assert.Equal("Dissolve in 200 ml juice", vm.Instructions);
+
+        // Act 4: Delete phrase
+        await vm.DeleteQuickPhraseAsync("Dissolve in 200 ml juice");
+        Assert.Single(vm.QuickPhrases);
+        Assert.Equal("Take 2 drops in left eye with warm water", vm.QuickPhrases[0]);
+        Assert.Single(testService.Phrases);
     }
 
     [Fact]
@@ -766,6 +877,22 @@ public class NewPrescriptionViewModelTests : IDisposable
             LastNavigatedDestination = destination;
             LastNavigatedParameter = parameter;
             CurrentDestination = destination;
+        }
+    }
+
+    private class TestQuickPhrasesService : IQuickPhrasesService
+    {
+        public List<string> Phrases { get; set; } = new();
+
+        public Task<IReadOnlyList<string>> GetQuickPhrasesAsync()
+        {
+            return Task.FromResult<IReadOnlyList<string>>(Phrases.ToList());
+        }
+
+        public Task SaveQuickPhrasesAsync(IEnumerable<string> phrases)
+        {
+            Phrases = phrases.ToList();
+            return Task.CompletedTask;
         }
     }
 }

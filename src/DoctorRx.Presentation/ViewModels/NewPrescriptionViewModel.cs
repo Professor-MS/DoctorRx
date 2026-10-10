@@ -33,6 +33,7 @@ public class NewPrescriptionViewModel : ViewModelBase
     private readonly INavigationService _navigationService;
     private readonly IPrescriptionComposerValidator _validator;
     private readonly IClock _clock;
+    private readonly IQuickPhrasesService? _quickPhrasesService;
 
     // Autosave timers and synchronization
     private readonly DispatcherTimer _debounceTimer;
@@ -110,6 +111,7 @@ public class NewPrescriptionViewModel : ViewModelBase
     public ObservableCollection<PatientDto> PatientSearchResults { get; } = new();
     public ObservableCollection<MedicineDto> MedicineSearchResults { get; } = new();
     public ObservableCollection<PrescriptionMedicineRowState> PrescribedMedicines { get; } = new();
+    public ObservableCollection<string> QuickPhrases { get; } = new();
 
     public Guid DraftKey => _draftKey;
     public bool IsAmending => _amendmentParentId.HasValue;
@@ -552,6 +554,11 @@ public class NewPrescriptionViewModel : ViewModelBase
     public ICommand SelectRouteChipCommand { get; }
     public ICommand SelectMealRelationCommand { get; }
     public ICommand SelectInstructionChipCommand { get; }
+    public ICommand SelectQuickPhraseCommand { get; }
+    public ICommand AddQuickPhraseCommand { get; }
+    public ICommand DeleteQuickPhraseCommand { get; }
+    public ICommand MoveUpQuickPhraseCommand { get; }
+    public ICommand MoveDownQuickPhraseCommand { get; }
     public ICommand AddOrUpdateMedicineCommand { get; }
     public ICommand CancelEditMedicineCommand { get; }
     public ICommand EditMedicineRowCommand { get; }
@@ -573,7 +580,8 @@ public class NewPrescriptionViewModel : ViewModelBase
         IDialogService dialogService,
         INavigationService navigationService,
         IPrescriptionComposerValidator validator,
-        IClock clock)
+        IClock clock,
+        IQuickPhrasesService? quickPhrasesService = null)
     {
         _patientService = patientService;
         _medicineService = medicineService;
@@ -583,6 +591,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         _navigationService = navigationService;
         _validator = validator;
         _clock = clock;
+        _quickPhrasesService = quickPhrasesService;
 
         // Timers
         _debounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
@@ -627,20 +636,23 @@ public class NewPrescriptionViewModel : ViewModelBase
         RegisterNewPatientFromSearchCommand = new RelayCommand(RegisterNewPatientFromSearch);
 
         SelectCatalogMedicineCommand = new RelayCommand<MedicineDto>(SelectCatalogMedicine);
-        SelectFormChipCommand = new RelayCommand<string>(chip => Form = chip ?? string.Empty);
-        SelectDoseChipCommand = new RelayCommand<string>(chip => Dose = chip ?? string.Empty);
-        SelectFrequencyChipCommand = new RelayCommand<string>(chip => Frequency = chip ?? string.Empty);
-        SelectDurationChipCommand = new RelayCommand<string>(chip => Duration = chip ?? string.Empty);
-        SelectRouteChipCommand = new RelayCommand<string>(chip => Route = chip ?? string.Empty);
+        SelectFormChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Form, val => Form = val, chip, "Form"));
+        SelectDoseChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Dose, val => Dose = val, chip, "Dose"));
+        SelectFrequencyChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Frequency, val => Frequency = val, chip, "Frequency"));
+        SelectDurationChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Duration, val => Duration = val, chip, "Duration"));
+        SelectRouteChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Route, val => Route = val, chip, "Route"));
         SelectMealRelationCommand = new RelayCommand<MealRelation>(mr => MealRelation = mr);
-        SelectInstructionChipCommand = new RelayCommand<string>(chip =>
+        SelectInstructionChipCommand = new RelayCommand<string>(chip => ApplyChipValue(Instructions ?? string.Empty, val => Instructions = val, chip, "Special instructions"));
+        SelectQuickPhraseCommand = new RelayCommand<string>(phrase => ApplyChipValue(Instructions ?? string.Empty, val => Instructions = val, phrase, "Special instructions"));
+        AddQuickPhraseCommand = new AsyncRelayCommand<string>(AddQuickPhraseAsync);
+        DeleteQuickPhraseCommand = new AsyncRelayCommand<string>(DeleteQuickPhraseAsync);
+        MoveUpQuickPhraseCommand = new AsyncRelayCommand<string>(MoveUpQuickPhraseAsync);
+        MoveDownQuickPhraseCommand = new AsyncRelayCommand<string>(MoveDownQuickPhraseAsync);
+
+        if (_quickPhrasesService != null)
         {
-            if (string.IsNullOrWhiteSpace(chip)) return;
-            if (string.IsNullOrWhiteSpace(Instructions))
-                Instructions = chip;
-            else if (!Instructions.Contains(chip, StringComparison.OrdinalIgnoreCase))
-                Instructions = $"{Instructions}; {chip}";
-        });
+            _ = LoadQuickPhrasesAsync();
+        }
 
         AddOrUpdateMedicineCommand = new RelayCommand(() => AddOrUpdateMedicine());
         CancelEditMedicineCommand = new RelayCommand(() => ClearMedicineEditor());
@@ -666,6 +678,7 @@ public class NewPrescriptionViewModel : ViewModelBase
         _isInitializing = true;
         try
         {
+            await LoadQuickPhrasesAsync();
             if (parameter is PatientDto patientDto)
             {
                 SelectedPatient = patientDto;
@@ -1445,5 +1458,96 @@ public class NewPrescriptionViewModel : ViewModelBase
 
         await _draftService.DiscardAsync(_draftKey);
         _navigationService.NavigateTo(NavigationDestination.Dashboard);
+    }
+
+    private void ApplyChipValue(string current, Action<string> setter, string? chipValue, string fieldName)
+    {
+        if (string.IsNullOrWhiteSpace(chipValue)) return;
+        if (string.IsNullOrWhiteSpace(current) || current.Equals(chipValue, StringComparison.OrdinalIgnoreCase))
+        {
+            setter(chipValue);
+            return;
+        }
+
+        if (_dialogService != null)
+        {
+            bool confirmed = _dialogService.ShowConfirmation(
+                $"Replace {fieldName}?",
+                $"The {fieldName} field already contains \"{current}\". Do you want to replace it with \"{chipValue}\"?");
+            if (confirmed)
+            {
+                setter(chipValue);
+            }
+        }
+        else
+        {
+            setter(chipValue);
+        }
+    }
+
+    public async Task LoadQuickPhrasesAsync()
+    {
+        if (_quickPhrasesService == null) return;
+        try
+        {
+            var phrases = await _quickPhrasesService.GetQuickPhrasesAsync();
+            QuickPhrases.Clear();
+            foreach (var p in phrases)
+            {
+                QuickPhrases.Add(p);
+            }
+        }
+        catch { }
+    }
+
+    public async Task AddQuickPhraseAsync(string? phrase)
+    {
+        if (string.IsNullOrWhiteSpace(phrase)) return;
+        var trimmed = phrase.Trim();
+        if (!QuickPhrases.Contains(trimmed, StringComparer.OrdinalIgnoreCase))
+        {
+            QuickPhrases.Add(trimmed);
+            if (_quickPhrasesService != null)
+            {
+                await _quickPhrasesService.SaveQuickPhrasesAsync(QuickPhrases);
+            }
+        }
+    }
+
+    public async Task DeleteQuickPhraseAsync(string? phrase)
+    {
+        if (string.IsNullOrWhiteSpace(phrase)) return;
+        if (QuickPhrases.Remove(phrase) && _quickPhrasesService != null)
+        {
+            await _quickPhrasesService.SaveQuickPhrasesAsync(QuickPhrases);
+        }
+    }
+
+    public async Task MoveUpQuickPhraseAsync(string? phrase)
+    {
+        if (string.IsNullOrWhiteSpace(phrase)) return;
+        int idx = QuickPhrases.IndexOf(phrase);
+        if (idx > 0)
+        {
+            QuickPhrases.Move(idx, idx - 1);
+            if (_quickPhrasesService != null)
+            {
+                await _quickPhrasesService.SaveQuickPhrasesAsync(QuickPhrases);
+            }
+        }
+    }
+
+    public async Task MoveDownQuickPhraseAsync(string? phrase)
+    {
+        if (string.IsNullOrWhiteSpace(phrase)) return;
+        int idx = QuickPhrases.IndexOf(phrase);
+        if (idx >= 0 && idx < QuickPhrases.Count - 1)
+        {
+            QuickPhrases.Move(idx, idx + 1);
+            if (_quickPhrasesService != null)
+            {
+                await _quickPhrasesService.SaveQuickPhrasesAsync(QuickPhrases);
+            }
+        }
     }
 }

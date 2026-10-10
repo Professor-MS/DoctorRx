@@ -377,16 +377,19 @@
                                     </StackPanel>
                                     <StackPanel Grid.Column="1" Margin="0,0,8,0">
                                         <TextBlock Text="Form" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox Text="{Binding Form, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Form (e.g. Tab, Inj, Drip)" AutomationProperties.Name="Medicine Form" />
+                                        <TextBox Text="{Binding Form, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Form (e.g. Tablet, Syrup, Injection)" AutomationProperties.Name="Medicine Form" />
                                         <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="Tab" Command="{Binding SelectFormChipCommand}" CommandParameter="Tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Tab" />
-                                            <Button Content="Cap" Command="{Binding SelectFormChipCommand}" CommandParameter="Cap" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Cap" />
-                                            <Button Content="Syp" Command="{Binding SelectFormChipCommand}" CommandParameter="Syp" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Syp" />
-                                            <Button Content="Inj" Command="{Binding SelectFormChipCommand}" CommandParameter="Inj" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Inj" />
-                                            <Button Content="Drip" Command="{Binding SelectFormChipCommand}" CommandParameter="Drip" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Drip" />
+                                            <Button Content="Tab" Command="{Binding SelectFormChipCommand}" CommandParameter="Tablet" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Tablet" />
+                                            <Button Content="Cap" Command="{Binding SelectFormChipCommand}" CommandParameter="Capsule" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Capsule" />
+                                            <Button Content="Syp" Command="{Binding SelectFormChipCommand}" CommandParameter="Syrup" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Syrup" />
+                                            <Button Content="Susp" Command="{Binding SelectFormChipCommand}" CommandParameter="Suspension" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Suspension" />
+                                            <Button Content="Inj" Command="{Binding SelectFormChipCommand}" CommandParameter="Injection" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Injection" />
+                                            <Button Content="Infusion" Command="{Binding SelectFormChipCommand}" CommandParameter="Infusion" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Infusion" />
                                             <Button Content="Drops" Command="{Binding SelectFormChipCommand}" CommandParameter="Drops" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Drops" />
                                             <Button Content="Cream" Command="{Binding SelectFormChipCommand}" CommandParameter="Cream" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Cream" />
+                                            <Button Content="Oint" Command="{Binding SelectFormChipCommand}" CommandParameter="Ointment" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Ointment" />
                                             <Button Content="Sachet" Command="{Binding SelectFormChipCommand}" CommandParameter="Sachet" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Sachet" />
+                                            <Button Content="Inhaler" Command="{Binding SelectFormChipCommand}" CommandParameter="Inhaler" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Select Form Inhaler" />
                                         </WrapPanel>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2" Margin="0,0,8,0">
@@ -407,41 +410,33 @@
                                         <ColumnDefinition Width="*" MinWidth="110" />
                                         <ColumnDefinition Width="*" MinWidth="110" />
                                     </Grid.ColumnDefinitions>
-                                    <!-- Dose with Chips -->
+                                    <!-- Dose with Allowed Unit Quantity Chips -->
                                     <StackPanel Grid.Column="0" Margin="0,0,8,0">
                                         <TextBlock Text="Dose *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox x:Name="DoseTextBox" Text="{Binding Dose, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Dose * (e.g. 1 tab, 1 amp, 500ml)" AutomationProperties.Name="Dose Input" />
+                                        <TextBox x:Name="DoseTextBox" Text="{Binding Dose, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Dose * (e.g. 1 tablet, 5 mL)" AutomationProperties.Name="Dose Input" />
                                         <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="1 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="2 tabs" Command="{Binding SelectDoseChipCommand}" CommandParameter="2 tabs" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="1/2 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1/2 tab" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="5 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="5 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="10 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="10 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="1 amp" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 ampoule" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 1 Ampoule" />
+                                            <Button Content="1 tab" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 tablet" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 1 Tablet" />
+                                            <Button Content="2 tabs" Command="{Binding SelectDoseChipCommand}" CommandParameter="2 tablets" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 2 Tablets" />
+                                            <Button Content="5 mL" Command="{Binding SelectDoseChipCommand}" CommandParameter="5 mL" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 5 mL" />
                                             <Button Content="1 vial" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 vial" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 1 Vial" />
-                                            <Button Content="1 drip" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 drip (500ml)" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 1 Drip" />
-                                            <Button Content="100 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="100 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 100 ml" />
-                                            <Button Content="500 ml" Command="{Binding SelectDoseChipCommand}" CommandParameter="500 ml" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 500 ml" />
-                                            <Button Content="1 drop" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 drop" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="2 drops" Command="{Binding SelectDoseChipCommand}" CommandParameter="2 drops" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 2 Drops" />
+                                            <Button Content="1 amp" Command="{Binding SelectDoseChipCommand}" CommandParameter="1 ampoule" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Dose 1 Ampoule" />
                                         </WrapPanel>
                                     </StackPanel>
 
                                     <!-- Frequency with Plain-Language Chips -->
                                     <StackPanel Grid.Column="1" Margin="0,0,8,0">
                                          <TextBlock Text="Frequency *" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox x:Name="FrequencyTextBox" Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Frequency * (e.g. Twice daily, Stat)" AutomationProperties.Name="Frequency Input" />
+                                        <TextBox x:Name="FrequencyTextBox" Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Frequency * (e.g. Twice daily, As needed)" AutomationProperties.Name="Frequency Input" />
                                         <WrapPanel Margin="0,4,0,0">
                                             <Button Content="Once daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Once daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                             <Button Content="Twice daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Twice daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                             <Button Content="Three times daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Three times daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                             <Button Content="Four times daily" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Four times daily" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="Stat (Immediate)" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Stat (Immediately)" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Frequency Stat Immediately" />
-                                            <Button Content="SOS (As needed)" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="SOS (As needed)" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Frequency SOS" />
+                                            <Button Content="As needed" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="As needed" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Frequency As Needed" />
+                                            <Button Content="Immediately" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Immediately (once)" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Frequency Immediately" />
                                             <Button Content="Every 8 hours" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Every 8 hours" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                             <Button Content="Every 12 hours" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Every 12 hours" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
                                             <Button Content="At bedtime" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="At bedtime" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" />
-                                            <Button Content="Over 1 hour" Command="{Binding SelectFrequencyChipCommand}" CommandParameter="Over 1 hour" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Frequency Over 1 Hour" />
                                         </WrapPanel>
                                     </StackPanel>
 
@@ -459,18 +454,18 @@
                                         </WrapPanel>
                                     </StackPanel>
 
-                                    <!-- Route & Meal Relation with Route Chips -->
+                                    <!-- Route & Meal Relation with Plain Route Chips -->
                                     <StackPanel Grid.Column="3">
                                         <TextBlock Text="Route" Style="{StaticResource BodyMuted}" FontWeight="Medium" Margin="0,0,0,4" />
-                                        <TextBox Text="{Binding Route, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Route (e.g. Oral, IV, IM, Drip)" Margin="0,0,0,4" AutomationProperties.Name="Route Input" />
+                                        <TextBox Text="{Binding Route, UpdateSourceTrigger=PropertyChanged}" Style="{StaticResource SearchBox}" Tag="Route (e.g. Oral, Intravenous)" Margin="0,0,0,4" AutomationProperties.Name="Route Input" />
                                         <WrapPanel Margin="0,0,0,6">
                                             <Button Content="Oral" Command="{Binding SelectRouteChipCommand}" CommandParameter="Oral" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Oral" />
-                                            <Button Content="IV" Command="{Binding SelectRouteChipCommand}" CommandParameter="IV" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route IV" />
-                                            <Button Content="IM" Command="{Binding SelectRouteChipCommand}" CommandParameter="IM" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route IM" />
-                                            <Button Content="SC" Command="{Binding SelectRouteChipCommand}" CommandParameter="SC" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route SC" />
-                                            <Button Content="IV Drip" Command="{Binding SelectRouteChipCommand}" CommandParameter="IV Drip" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route IV Drip" />
-                                            <Button Content="Eye" Command="{Binding SelectRouteChipCommand}" CommandParameter="Eye drops" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Eye" />
-                                            <Button Content="Ear" Command="{Binding SelectRouteChipCommand}" CommandParameter="Ear drops" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Ear" />
+                                            <Button Content="IV" Command="{Binding SelectRouteChipCommand}" CommandParameter="Intravenous" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Intravenous" />
+                                            <Button Content="IM" Command="{Binding SelectRouteChipCommand}" CommandParameter="Intramuscular" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Intramuscular" />
+                                            <Button Content="SC" Command="{Binding SelectRouteChipCommand}" CommandParameter="Subcutaneous" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Subcutaneous" />
+                                            <Button Content="Eye" Command="{Binding SelectRouteChipCommand}" CommandParameter="Eye" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Eye" />
+                                            <Button Content="Ear" Command="{Binding SelectRouteChipCommand}" CommandParameter="Ear" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Ear" />
+                                            <Button Content="Nasal" Command="{Binding SelectRouteChipCommand}" CommandParameter="Nasal" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Nasal" />
                                             <Button Content="Topical" Command="{Binding SelectRouteChipCommand}" CommandParameter="Topical" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Topical" />
                                             <Button Content="Inhalation" Command="{Binding SelectRouteChipCommand}" CommandParameter="Inhalation" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Route Inhalation" />
                                         </WrapPanel>
@@ -487,7 +482,7 @@
                                     </StackPanel>
                                 </Grid>
 
-                                <!-- Row 3: Special Instructions (Urdu/English Auto-Direction) & Add to Catalog checkbox -->
+                                <!-- Row 3: Special Instructions & Doctor-Owned Quick Phrases -->
                                 <Grid Margin="0,0,0,10">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*" />
@@ -500,13 +495,25 @@
                                                  Tag="Special Instructions / ہدایات (Auto RTL for Urdu / LTR for English)" 
                                                  behaviors:AutoFlowDirection.IsEnabled="True"
                                                  AutomationProperties.Name="Special Instructions Input" />
-                                        <WrapPanel Margin="0,4,0,0">
-                                            <Button Content="In 100ml NS" Command="{Binding SelectInstructionChipCommand}" CommandParameter="In 100ml Normal Saline" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Instruction in 100ml NS" />
-                                            <Button Content="In 500ml D5W" Command="{Binding SelectInstructionChipCommand}" CommandParameter="In 500ml Dextrose 5% Water" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Instruction in 500ml D5W" />
-                                            <Button Content="Slow IV push" Command="{Binding SelectInstructionChipCommand}" CommandParameter="Slow IV push over 5 mins" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Instruction slow IV push" />
-                                            <Button Content="Deep IM" Command="{Binding SelectInstructionChipCommand}" CommandParameter="Deep IM injection" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Instruction deep IM" />
-                                            <Button Content="Before food" Command="{Binding SelectInstructionChipCommand}" CommandParameter="Take before food" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Instruction before food" />
-                                            <Button Content="After food" Command="{Binding SelectInstructionChipCommand}" CommandParameter="Take after food" Style="{StaticResource SecondaryButton}" Padding="4,1" Margin="0,0,4,4" FontSize="{StaticResource FontSizeCaption}" AutomationProperties.Name="Instruction after food" />
+                                        <WrapPanel Margin="0,6,0,0" VerticalAlignment="Center">
+                                            <TextBlock Text="My quick phrases:" Style="{StaticResource BodyMuted}" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" Margin="0,0,6,4" />
+                                            <ItemsControl ItemsSource="{Binding QuickPhrases}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate>
+                                                        <Button Content="{Binding}" 
+                                                                Command="{Binding DataContext.SelectQuickPhraseCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}" 
+                                                                CommandParameter="{Binding}" 
+                                                                Style="{StaticResource SecondaryButton}" 
+                                                                Padding="6,1" Margin="0,0,4,4" 
+                                                                FontSize="{StaticResource FontSizeCaption}" />
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
                                         </WrapPanel>
                                     </StackPanel>
                                     <CheckBox Grid.Column="1" Content="Add to formulary catalog" IsChecked="{Binding AddToCatalog}" VerticalAlignment="Center" Margin="0,16,0,0" />

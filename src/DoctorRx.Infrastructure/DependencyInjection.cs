@@ -47,11 +47,12 @@ public static class DependencyInjection
         services.AddTransient<IRestoreService, RestoreService>();
         services.AddTransient<IDatabaseHealthService, DatabaseHealthService>();
 
-        // Register Database Migrator, Seeder, Initializer & Search Index Repair
+        // Register Database Migrator, Seeder, Initializer, Search Index Repair & Quick Phrases
         services.AddTransient<IDatabaseMigrator, DatabaseMigrator>();
         services.AddTransient<IDemoDataSeeder, DemoDataSeeder>();
         services.AddTransient<ISearchIndexRepairService, SearchIndexRepairService>();
         services.AddTransient<IDatabaseInitializer, DatabaseInitializer>();
+        services.AddSingleton<IQuickPhrasesService, QuickPhrasesService>();
 
         return services;
     }
