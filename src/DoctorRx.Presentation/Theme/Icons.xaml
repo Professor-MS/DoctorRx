@@ -99,4 +99,10 @@
     <!-- Pill / Capsule Medication Icon -->
     <Geometry x:Key="IconPill">M6,3A3,3 0 0,0 3,6V18A3,3 0 0,0 6,21H8V3H6M10,3V21H12A3,3 0 0,0 15,18V6A3,3 0 0,0 12,3H10M4.5,10.5H6.5V13.5H4.5V10.5M17.8,2.2L12.5,7.5L16.5,11.5L21.8,6.2C22.6,5.4 22.6,4.1 21.8,3.3L20.7,2.2C19.9,1.4 18.6,1.4 17.8,2.2Z</Geometry>
 
+    <!-- Trash / Delete Bin Icon -->
+    <Geometry x:Key="IconTrash">M19,4H15.5L14.5,3H9.5L8.5,4H5V6H19M6,19A2,2 0 0,0 8,21H16A2,2 0 0,0 18,19V7H6V19Z</Geometry>
+
+    <!-- Prescription Pad Icon (Alias for IconNewPrescription) -->
+    <Geometry x:Key="IconPrescription">M14,2H6A2,2 0 0,0 4,4V20A2,2 0 0,0 6,22H18A2,2 0 0,0 20,20V8L14,2M13,3.5L18.5,9H13V3.5M11,11H13V14H16V16H13V19H11V16H8V14H11V11Z</Geometry>
+
 </ResourceDictionary>

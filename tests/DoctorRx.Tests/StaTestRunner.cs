@@ -63,6 +63,7 @@ public static class StaTestRunner
 
                 app.Resources.Add("BoolToVisConverter", new BooleanToVisibilityConverter());
                 app.Resources.Add("InverseBoolToVisConverter", new InverseBoolToVisibilityConverter());
+                app.Resources.Add("CountToVisConverter", new CountToVisibilityConverter());
                 app.Resources.Add("FollowUpModeDisplayConverter", new FollowUpModeDisplayConverter());
                 app.Resources.Add("InverseBoolConverter", new InverseBoolConverter());
                 app.Resources.Add("FileSizeConverter", new FileSizeConverter());
