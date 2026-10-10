@@ -38,14 +38,36 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
         await base.UpdateAsync(medicine, cancellationToken);
     }
 
-    public async Task<IReadOnlyList<Medicine>> SearchAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<Medicine>> SearchAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
+    {
+        return SearchAsync(query, dosageForm: null, includeInactive: false, maxResults, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<Medicine>> SearchAsync(string query, string? dosageForm, bool includeInactive = false, int maxResults = 50, CancellationToken cancellationToken = default)
     {
         var cleanQuery = SearchNormalizer.Normalize(query);
+        var formFilter = string.IsNullOrWhiteSpace(dosageForm) || dosageForm.Equals("All Forms", StringComparison.OrdinalIgnoreCase)
+            ? null
+            : dosageForm.Trim();
+
+        IQueryable<Medicine> baseQuery = DbSet.AsNoTracking();
+        if (!includeInactive)
+        {
+            baseQuery = baseQuery.Where(m => m.IsActive);
+        }
+        if (formFilter != null)
+        {
+            if (formFilter.Equals("Drops", StringComparison.OrdinalIgnoreCase))
+                baseQuery = baseQuery.Where(m => EF.Functions.Like(m.Form, "%Drop%"));
+            else if (formFilter.Equals("Cream / Ointment", StringComparison.OrdinalIgnoreCase))
+                baseQuery = baseQuery.Where(m => EF.Functions.Like(m.Form, "%Cream%") || EF.Functions.Like(m.Form, "%Ointment%"));
+            else
+                baseQuery = baseQuery.Where(m => m.Form.ToLower() == formFilter.ToLower());
+        }
+
         if (string.IsNullOrWhiteSpace(cleanQuery))
         {
-            return await DbSet
-                .AsNoTracking()
-                .Where(m => m.IsActive)
+            return await baseQuery
                 .OrderByDescending(m => m.UsageCount)
                 .ThenBy(m => m.NormalizedName)
                 .Take(maxResults)
@@ -58,11 +80,9 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
         if (!hasTokens || parsedTokens.Count == 0)
         {
             var prefixPattern = $"{cleanQuery}%";
-            return await DbSet
-                .AsNoTracking()
-                .Where(m => m.IsActive &&
-                           (EF.Functions.Like(m.NormalizedName, prefixPattern) ||
-                           (m.GenericName != null && EF.Functions.Like(m.GenericName, prefixPattern))))
+            return await baseQuery
+                .Where(m => (EF.Functions.Like(m.NormalizedName, prefixPattern) ||
+                            (m.GenericName != null && EF.Functions.Like(m.GenericName, prefixPattern))))
                 .OrderByDescending(m => m.UsageCount)
                 .ThenBy(m => m.NormalizedName)
                 .Take(maxResults)
@@ -84,10 +104,9 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
         }
 
         var cleanPrefixPattern = $"{cleanQuery}%";
-        var directPrefixIds = DbSet
-            .Where(m => m.IsActive &&
-                       (EF.Functions.Like(m.NormalizedName, cleanPrefixPattern) ||
-                       (m.GenericName != null && EF.Functions.Like(m.GenericName, cleanPrefixPattern))))
+        var directPrefixIds = baseQuery
+            .Where(m => (EF.Functions.Like(m.NormalizedName, cleanPrefixPattern) ||
+                        (m.GenericName != null && EF.Functions.Like(m.GenericName, cleanPrefixPattern))))
             .Select(m => m.Id);
 
         var candidateIdsQuery = matchingIdsQuery != null
@@ -104,9 +123,8 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
             return Array.Empty<Medicine>();
         }
 
-        var matched = await DbSet
-            .AsNoTracking()
-            .Where(m => m.IsActive && candidateIds.Contains(m.Id))
+        var matched = await baseQuery
+            .Where(m => candidateIds.Contains(m.Id))
             .ToListAsync(cancellationToken);
 
         var firstToken = parsedTokens[0].NormalizedToken;
@@ -117,6 +135,39 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
             .ThenBy(m => m.NormalizedName)
             .Take(maxResults)
             .ToList();
+    }
+
+    public async Task<IReadOnlyList<Medicine>> FindPotentialDuplicatesAsync(string name, string form, string? strength, int? excludeId = null, CancellationToken cancellationToken = default)
+    {
+        var cleanName = SearchNormalizer.Normalize(name);
+        if (string.IsNullOrWhiteSpace(cleanName)) return Array.Empty<Medicine>();
+
+        var cleanForm = (form ?? string.Empty).Trim();
+        var cleanStrength = (strength ?? string.Empty).Trim();
+
+        var candidates = await DbSet
+            .AsNoTracking()
+            .Where(m => (excludeId == null || m.Id != excludeId.Value) &&
+                        (m.NormalizedName == cleanName || EF.Functions.Like(m.Name, name.Trim())))
+            .ToListAsync(cancellationToken);
+
+        return candidates
+            .Where(m => string.Equals(m.Form.Trim(), cleanForm, StringComparison.OrdinalIgnoreCase) &&
+                        IsStrengthMatch(m.Strength, cleanStrength))
+            .ToList();
+    }
+
+    public async Task<int> GetPrescriptionReferenceCountAsync(int medicineId, CancellationToken cancellationToken = default)
+    {
+        return await Context.PrescriptionMedicines
+            .CountAsync(pm => pm.MedicineId == medicineId, cancellationToken);
+    }
+
+    private static bool IsStrengthMatch(string? dbStrength, string inputStrength)
+    {
+        var s1 = System.Text.RegularExpressions.Regex.Replace((dbStrength ?? string.Empty).Trim(), @"\s+", "").ToLowerInvariant();
+        var s2 = System.Text.RegularExpressions.Regex.Replace((inputStrength ?? string.Empty).Trim(), @"\s+", "").ToLowerInvariant();
+        return string.Equals(s1, s2, StringComparison.OrdinalIgnoreCase);
     }
 }
 

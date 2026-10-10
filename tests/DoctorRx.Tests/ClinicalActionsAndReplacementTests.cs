@@ -336,14 +336,23 @@ public class ClinicalActionsAndReplacementTests
         public Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default) =>
             Task.FromResult<MedicineDto?>(null);
 
-        public Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, CancellationToken cancellationToken = default) =>
+        public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(MedicineSearchCriteria criteria, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<MedicineDto>>(Array.Empty<MedicineDto>());
+
+        public Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result<MedicineDto>.Failure("Stub"));
 
-        public Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, CancellationToken cancellationToken = default) =>
+        public Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result<MedicineDto>.Failure("Stub"));
 
         public Task<Result> DeleteMedicineAsync(int id, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Success());
+
+        public Task<Result> PurgeMedicineAsync(int id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result.Success());
+
+        public Task<MedicineUsageSummaryDto> GetMedicineUsageSummaryAsync(int id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MedicineUsageSummaryDto(id, string.Empty, false, 0, true));
     }
 
     private class StubDraftService : IDraftService

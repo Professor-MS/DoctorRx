@@ -18,6 +18,7 @@ public class MedicinesViewModel : ViewModelBase
     public override NavigationSection NavigationSection => NavigationSection.Medicines;
 
     private readonly IMedicineService _medicineService;
+    private readonly IMedicineSearchService? _medicineSearchService;
     private readonly IDialogService _dialogService;
     private readonly INavigationService _navigationService;
     private readonly ILogger<MedicinesViewModel>? _logger;
@@ -265,12 +266,14 @@ public class MedicinesViewModel : ViewModelBase
         IMedicineService medicineService,
         IDialogService dialogService,
         INavigationService navigationService,
-        ILogger<MedicinesViewModel>? logger = null)
+        ILogger<MedicinesViewModel>? logger = null,
+        IMedicineSearchService? medicineSearchService = null)
     {
         _medicineService = medicineService;
         _dialogService = dialogService;
         _navigationService = navigationService;
         _logger = logger;
+        _medicineSearchService = medicineSearchService;
 
         RefreshCommand = new AsyncRelayCommand(() => LoadMedicinesAsync());
         OpenAddDrawerCommand = new RelayCommand(OpenAddDrawer);
@@ -490,6 +493,28 @@ public class MedicinesViewModel : ViewModelBase
                     CloseDrawer();
                     await LoadMedicinesAsync();
                 }
+                else if (result.ErrorMessage != null && result.ErrorMessage.Contains("DUPLICATE_WARNING", StringComparison.OrdinalIgnoreCase))
+                {
+                    var warningMessage = result.ErrorMessage.Replace("DUPLICATE_WARNING:", "").Trim();
+                    var proceed = _dialogService?.ShowConfirmation(
+                        "Potential Duplicate Medicine",
+                        $"{warningMessage}\n\nDo you want to proceed and save this formulation anyway?") ?? false;
+
+                    if (proceed)
+                    {
+                        var dupResult = await _medicineService.UpdateMedicineAsync(updateDto, allowDuplicate: true);
+                        if (dupResult.IsSuccess)
+                        {
+                            _dialogService?.ShowInformation("Medicine Updated", $"'{FormName}' has been updated in the catalog.");
+                            CloseDrawer();
+                            await LoadMedicinesAsync();
+                        }
+                        else
+                        {
+                            FormErrorMessage = dupResult.ErrorMessage ?? "Failed to update medicine.";
+                        }
+                    }
+                }
                 else
                 {
                     FormErrorMessage = result.ErrorMessage ?? "Failed to update medicine.";
@@ -511,6 +536,28 @@ public class MedicinesViewModel : ViewModelBase
                     _dialogService?.ShowInformation("Medicine Added", $"'{FormName}' is now available for prescribing.");
                     CloseDrawer();
                     await LoadMedicinesAsync();
+                }
+                else if (result.ErrorMessage != null && result.ErrorMessage.Contains("DUPLICATE_WARNING", StringComparison.OrdinalIgnoreCase))
+                {
+                    var warningMessage = result.ErrorMessage.Replace("DUPLICATE_WARNING:", "").Trim();
+                    var proceed = _dialogService?.ShowConfirmation(
+                        "Potential Duplicate Medicine",
+                        $"{warningMessage}\n\nDo you want to proceed and add this formulation anyway?") ?? false;
+
+                    if (proceed)
+                    {
+                        var dupResult = await _medicineService.CreateMedicineAsync(createDto, allowDuplicate: true);
+                        if (dupResult.IsSuccess)
+                        {
+                            _dialogService?.ShowInformation("Medicine Added", $"'{FormName}' is now available for prescribing.");
+                            CloseDrawer();
+                            await LoadMedicinesAsync();
+                        }
+                        else
+                        {
+                            FormErrorMessage = dupResult.ErrorMessage ?? "Failed to save medicine.";
+                        }
+                    }
                 }
                 else
                 {
@@ -545,7 +592,7 @@ public class MedicinesViewModel : ViewModelBase
                 IsActive = !dto.IsActive
             };
 
-            var result = await _medicineService.UpdateMedicineAsync(updateDto);
+            var result = await _medicineService.UpdateMedicineAsync(updateDto, allowDuplicate: true);
             if (result.IsSuccess)
             {
                 await LoadMedicinesAsync();
@@ -565,10 +612,12 @@ public class MedicinesViewModel : ViewModelBase
     {
         if (dto == null || _medicineService == null) return;
 
-        var confirmed = _dialogService?.ShowConfirmation(
-            "Delete Medicine",
-            $"Are you sure you want to deactivate '{dto.DisplayText}' from the catalog?\n\nPast finalized prescriptions that used this medicine will remain intact.") ?? false;
+        var summary = await _medicineService.GetMedicineUsageSummaryAsync(dto.Id);
+        string message = summary.IsReferencedInPrescriptions
+            ? $"'{dto.DisplayText}' is referenced in {summary.PrescriptionReferenceCount} historical prescription(s).\n\nIt will be safely deactivated from the catalog and hidden from future prescribing. Historical prescriptions will remain completely intact.\n\nProceed with deactivation?"
+            : $"Are you sure you want to remove '{dto.DisplayText}' from the catalog?\n\nProceed?";
 
+        var confirmed = _dialogService?.ShowConfirmation("Delete Medicine", message) ?? false;
         if (!confirmed) return;
 
         try
@@ -593,7 +642,7 @@ public class MedicinesViewModel : ViewModelBase
     {
         if (dto == null || _navigationService == null) return;
 
-        // Navigate to New Prescription
-        _navigationService.NavigateTo(NavigationDestination.NewPrescription);
+        // Navigate to New Prescription pre-loaded with the selected catalog medicine
+        _navigationService.NavigateTo(NavigationDestination.NewPrescription, dto);
     }
 }

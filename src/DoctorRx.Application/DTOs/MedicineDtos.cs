@@ -28,3 +28,19 @@ public class UpdateMedicineDto : CreateMedicineDto
     public int Id { get; set; }
     public bool IsActive { get; set; } = true;
 }
+
+public record MedicineUsageSummaryDto(
+    int MedicineId,
+    string MedicineName,
+    bool IsReferencedInPrescriptions,
+    int PrescriptionReferenceCount,
+    bool CanHardDelete
+);
+
+public class MedicineSearchCriteria
+{
+    public string Query { get; set; } = string.Empty;
+    public string? DosageForm { get; set; }
+    public bool IncludeInactive { get; set; } = false;
+    public int MaxResults { get; set; } = 50;
+}

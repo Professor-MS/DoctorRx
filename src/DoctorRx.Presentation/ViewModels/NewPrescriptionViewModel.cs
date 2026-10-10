@@ -683,6 +683,10 @@ public class NewPrescriptionViewModel : ViewModelBase
             {
                 SelectedPatient = patientDto;
             }
+            else if (parameter is MedicineDto catalogMed)
+            {
+                SelectCatalogMedicine(catalogMed);
+            }
             else if (parameter is Guid draftKey)
             {
                 await LoadDraftAsync(draftKey);
@@ -986,7 +990,19 @@ public class NewPrescriptionViewModel : ViewModelBase
         Form = catalogMed.Form;
         Strength = catalogMed.Strength;
 
-        // Never auto-fill clinical directions: dose, frequency, duration, meal relation stay unselected
+        // Prescribe Now Purity: Zero clinical defaults!
+        // Dose, frequency, duration, route, timing, meal relation stay unselected
+        Dose = string.Empty;
+        Frequency = string.Empty;
+        Timing = null;
+        Route = string.Empty;
+        Duration = string.Empty;
+        Instructions = null;
+        MealRelation = MealRelation.AsDirected;
+        CustomMealRelationText = null;
+        WithWhat = null;
+        AddToCatalog = false;
+
         lock (_medicineSearchLock)
         {
             MedicineSearchResults.Clear();

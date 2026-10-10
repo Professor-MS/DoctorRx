@@ -11,6 +11,7 @@ public static class DependencyInjection
         // Application services are stateless and use IUnitOfWorkFactory for short-lived DbContext lifetimes
         services.AddSingleton<IPatientService, PatientService>();
         services.AddSingleton<IPrescriptionService, PrescriptionService>();
+        services.AddSingleton<IMedicineSearchService, MedicineSearchService>();
         services.AddSingleton<IMedicineService, MedicineService>();
         services.AddSingleton<IDoctorService, DoctorService>();
         services.AddSingleton<IDashboardService, DashboardService>();

@@ -649,10 +649,16 @@ public class ScreenResponsiveTests
             return Task.FromResult<IReadOnlyList<MedicineDto>>(new List<MedicineDto>());
         }
 
+        public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(MedicineSearchCriteria criteria, CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<MedicineDto>>(new List<MedicineDto>());
+
         public Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default) => Task.FromResult<MedicineDto?>(null);
-        public Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
-        public Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Result> DeleteMedicineAsync(int id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<Result> PurgeMedicineAsync(int id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
+        public Task<MedicineUsageSummaryDto> GetMedicineUsageSummaryAsync(int id, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new MedicineUsageSummaryDto(id, string.Empty, false, 0, true));
     }
 
     #endregion

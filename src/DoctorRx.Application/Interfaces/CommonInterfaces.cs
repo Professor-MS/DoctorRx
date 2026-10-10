@@ -6,14 +6,23 @@ using DoctorRx.Application.DTOs;
 
 namespace DoctorRx.Application.Interfaces;
 
+public interface IMedicineSearchService
+{
+    Task<IReadOnlyList<MedicineDto>> SearchAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicineDto>> SearchAsync(MedicineSearchCriteria criteria, CancellationToken cancellationToken = default);
+}
+
 public interface IMedicineService
 {
     Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(MedicineSearchCriteria criteria, CancellationToken cancellationToken = default);
     Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default);
-    Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, CancellationToken cancellationToken = default);
-    Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, CancellationToken cancellationToken = default);
+    Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default);
+    Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default);
     Task<Result> DeleteMedicineAsync(int id, CancellationToken cancellationToken = default);
+    Task<Result> PurgeMedicineAsync(int id, CancellationToken cancellationToken = default);
+    Task<MedicineUsageSummaryDto> GetMedicineUsageSummaryAsync(int id, CancellationToken cancellationToken = default);
 }
 
 public interface IDoctorService

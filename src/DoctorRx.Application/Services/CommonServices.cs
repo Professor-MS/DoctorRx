@@ -17,12 +17,18 @@ public class MedicineService : IMedicineService
     private readonly IUnitOfWorkFactory _uowFactory;
     private readonly IClock _clock;
     private readonly ILogger<MedicineService> _logger;
+    private readonly IMedicineSearchService _searchService;
 
-    public MedicineService(IUnitOfWorkFactory uowFactory, IClock clock, ILogger<MedicineService> logger)
+    public MedicineService(
+        IUnitOfWorkFactory uowFactory,
+        IClock clock,
+        ILogger<MedicineService> logger,
+        IMedicineSearchService? searchService = null)
     {
         _uowFactory = uowFactory;
         _clock = clock;
         _logger = logger;
+        _searchService = searchService ?? new MedicineSearchService(uowFactory, Microsoft.Extensions.Logging.Abstractions.NullLogger<MedicineSearchService>.Instance);
     }
 
     public async Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default)
@@ -39,16 +45,14 @@ public class MedicineService : IMedicineService
                    .ToList();
     }
 
-    public async Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
     {
-        if (string.IsNullOrWhiteSpace(query))
-        {
-            return await GetMedicinesPagedAsync(1, maxResults, cancellationToken);
-        }
+        return _searchService.SearchAsync(query, maxResults, cancellationToken);
+    }
 
-        await using var uow = _uowFactory.Create();
-        var list = await uow.Medicines.SearchAsync(query, maxResults, cancellationToken);
-        return list.Select(MapToDto).ToList();
+    public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(MedicineSearchCriteria criteria, CancellationToken cancellationToken = default)
+    {
+        return _searchService.SearchAsync(criteria, cancellationToken);
     }
 
     public async Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -58,7 +62,7 @@ public class MedicineService : IMedicineService
         return medicine is null ? null : MapToDto(medicine);
     }
 
-    public async Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<MedicineDto>> CreateMedicineAsync(CreateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(dto.Name))
         {
@@ -70,9 +74,54 @@ public class MedicineService : IMedicineService
             return Result<MedicineDto>.Failure("Dosage form is required.");
         }
 
+        if (dto.Name.Trim().Length > 150)
+        {
+            return Result<MedicineDto>.Failure("Medicine name cannot exceed 150 characters.");
+        }
+
+        if (dto.GenericName != null && dto.GenericName.Trim().Length > 150)
+        {
+            return Result<MedicineDto>.Failure("Generic name cannot exceed 150 characters.");
+        }
+
+        if (dto.Form.Trim().Length > 50)
+        {
+            return Result<MedicineDto>.Failure("Dosage form cannot exceed 50 characters.");
+        }
+
+        if (dto.Strength != null && dto.Strength.Trim().Length > 50)
+        {
+            return Result<MedicineDto>.Failure("Strength cannot exceed 50 characters.");
+        }
+
         try
         {
             await using var uow = _uowFactory.Create();
+
+            if (!allowDuplicate)
+            {
+                var duplicates = await uow.Medicines.FindPotentialDuplicatesAsync(
+                    dto.Name.Trim(),
+                    dto.Form.Trim(),
+                    dto.Strength?.Trim(),
+                    cancellationToken: cancellationToken);
+
+                if (duplicates.Count > 0)
+                {
+                    var dup = duplicates[0];
+                    if (dup.IsActive)
+                    {
+                        return Result<MedicineDto>.Failure(
+                            $"DUPLICATE_WARNING: A medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}').");
+                    }
+                    else
+                    {
+                        return Result<MedicineDto>.Failure(
+                            $"DUPLICATE_WARNING: An inactive medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}'). You can reactivate it instead.");
+                    }
+                }
+            }
+
             var medicine = new Medicine
             {
                 Name = dto.Name.Trim(),
@@ -87,7 +136,7 @@ public class MedicineService : IMedicineService
             await uow.Medicines.AddAsync(medicine, cancellationToken);
             await uow.CommitAsync(cancellationToken);
 
-            _logger.LogInformation("Medicine created: {Id}", medicine.Id);
+            _logger.LogInformation("Medicine created: {Id} ('{Name}')", medicine.Id, medicine.Name);
             return Result<MedicineDto>.Success(MapToDto(medicine));
         }
         catch (Exception ex)
@@ -97,7 +146,7 @@ public class MedicineService : IMedicineService
         }
     }
 
-    public async Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, CancellationToken cancellationToken = default)
+    public async Task<Result<MedicineDto>> UpdateMedicineAsync(UpdateMedicineDto dto, bool allowDuplicate = false, CancellationToken cancellationToken = default)
     {
         if (dto.Id <= 0) return Result<MedicineDto>.Failure("Invalid medicine ID.");
 
@@ -111,6 +160,26 @@ public class MedicineService : IMedicineService
             return Result<MedicineDto>.Failure("Dosage form is required.");
         }
 
+        if (dto.Name.Trim().Length > 150)
+        {
+            return Result<MedicineDto>.Failure("Medicine name cannot exceed 150 characters.");
+        }
+
+        if (dto.GenericName != null && dto.GenericName.Trim().Length > 150)
+        {
+            return Result<MedicineDto>.Failure("Generic name cannot exceed 150 characters.");
+        }
+
+        if (dto.Form.Trim().Length > 50)
+        {
+            return Result<MedicineDto>.Failure("Dosage form cannot exceed 50 characters.");
+        }
+
+        if (dto.Strength != null && dto.Strength.Trim().Length > 50)
+        {
+            return Result<MedicineDto>.Failure("Strength cannot exceed 50 characters.");
+        }
+
         try
         {
             await using var uow = _uowFactory.Create();
@@ -118,6 +187,23 @@ public class MedicineService : IMedicineService
             if (medicine == null)
             {
                 return Result<MedicineDto>.Failure($"Medicine #{dto.Id} not found.");
+            }
+
+            if (!allowDuplicate)
+            {
+                var duplicates = await uow.Medicines.FindPotentialDuplicatesAsync(
+                    dto.Name.Trim(),
+                    dto.Form.Trim(),
+                    dto.Strength?.Trim(),
+                    excludeId: dto.Id,
+                    cancellationToken: cancellationToken);
+
+                if (duplicates.Count > 0)
+                {
+                    var dup = duplicates[0];
+                    return Result<MedicineDto>.Failure(
+                        $"DUPLICATE_WARNING: Another medicine with this formulation already exists in the catalog ('{dup.DisplayTitle}').");
+                }
             }
 
             medicine.Name = dto.Name.Trim();
@@ -131,6 +217,7 @@ public class MedicineService : IMedicineService
             await uow.Medicines.UpdateAsync(medicine, cancellationToken);
             await uow.CommitAsync(cancellationToken);
 
+            _logger.LogInformation("Medicine #{Id} updated in catalog", dto.Id);
             return Result<MedicineDto>.Success(MapToDto(medicine));
         }
         catch (Exception ex)
@@ -148,6 +235,16 @@ public class MedicineService : IMedicineService
             var medicine = await uow.Medicines.GetByIdAsync(id, cancellationToken);
             if (medicine == null) return Result.Failure("Medicine not found.");
 
+            var refCount = await uow.Medicines.GetPrescriptionReferenceCountAsync(id, cancellationToken);
+            if (refCount > 0)
+            {
+                _logger.LogInformation(
+                    "Medicine #{Id} ('{Name}') is referenced by {Count} prescription(s); deactivating to preserve historical prescription records.",
+                    id, medicine.Name, refCount);
+            }
+
+            // Safe deletion rule: deactivates medicine formulation so it no longer appears in active searches
+            // while preserving foreign key referential integrity and legal prescription snapshots
             medicine.IsActive = false;
             medicine.UpdatedAtUtc = _clock.UtcNow;
 
@@ -161,6 +258,53 @@ public class MedicineService : IMedicineService
             _logger.LogError(ex, "Failed to delete medicine #{Id}", id);
             return Result.Failure("Failed to delete medicine.");
         }
+    }
+
+    public async Task<Result> PurgeMedicineAsync(int id, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await using var uow = _uowFactory.Create();
+            var medicine = await uow.Medicines.GetByIdAsync(id, cancellationToken);
+            if (medicine == null) return Result.Failure("Medicine not found.");
+
+            var refCount = await uow.Medicines.GetPrescriptionReferenceCountAsync(id, cancellationToken);
+            if (refCount > 0)
+            {
+                return Result.Failure(
+                    $"Cannot delete medicine '{medicine.DisplayTitle}': It is referenced by {refCount} historical prescription(s). You may deactivate it instead to remove it from future prescribing without altering medical history.");
+            }
+
+            await uow.Medicines.DeleteAsync(medicine, cancellationToken);
+            await uow.CommitAsync(cancellationToken);
+
+            _logger.LogInformation("Unreferenced medicine #{Id} ('{Name}') was purged from catalog", id, medicine.Name);
+            return Result.Success();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to purge medicine #{Id}", id);
+            return Result.Failure("Failed to purge medicine.");
+        }
+    }
+
+    public async Task<MedicineUsageSummaryDto> GetMedicineUsageSummaryAsync(int id, CancellationToken cancellationToken = default)
+    {
+        await using var uow = _uowFactory.Create();
+        var medicine = await uow.Medicines.GetByIdAsync(id, cancellationToken);
+        if (medicine == null)
+        {
+            return new MedicineUsageSummaryDto(id, string.Empty, false, 0, false);
+        }
+
+        var refCount = await uow.Medicines.GetPrescriptionReferenceCountAsync(id, cancellationToken);
+        return new MedicineUsageSummaryDto(
+            MedicineId: medicine.Id,
+            MedicineName: medicine.DisplayTitle,
+            IsReferencedInPrescriptions: refCount > 0,
+            PrescriptionReferenceCount: refCount,
+            CanHardDelete: refCount == 0
+        );
     }
 
     private static MedicineDto MapToDto(Medicine m) =>
