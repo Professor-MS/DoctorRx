@@ -43,7 +43,6 @@ public class SqliteConfigurationTests : IDisposable
         // Assert
         Assert.True(Directory.Exists(appPaths.DataDirectory));
         Assert.True(Directory.Exists(appPaths.BackupsDirectory));
-        Assert.True(Directory.Exists(appPaths.DraftsDirectory));
         Assert.True(Directory.Exists(appPaths.LogsDirectory));
         Assert.True(Directory.Exists(appPaths.AssetsDirectory));
         Assert.Equal(Path.Combine(appPaths.DataDirectory, "doctorrx.db"), appPaths.DatabasePath);

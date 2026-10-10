@@ -225,5 +225,16 @@ This document records architectural and technical decisions made during the Doct
 - **Reason**:
   - Zero tolerance for clinical data loss, silent corruption, or dangling uncommitted WAL entries on shutdown.
 
+---
+
+## ADR 020: Single Active Doctor Invariant and Lowest-ID Migration Deduplication
+- **Status**: Accepted
+- **Decision**: 
+  - The database enforces a strictly unique active doctor invariant via a partial unique index: `CREATE UNIQUE INDEX IX_Doctors_SingleActive ON Doctors (IsActive) WHERE IsActive = 1;`.
+  - When migrating existing databases with multiple active doctors, migration `20261010100334_AddPrescriptionIsSealed` executes `UPDATE Doctors SET IsActive = 0 WHERE IsActive = 1 AND Id NOT IN (SELECT Id FROM Doctors WHERE IsActive = 1 ORDER BY Id ASC LIMIT 1);`.
+  - This preserves the lowest-Id active doctor (`ORDER BY Id ASC LIMIT 1`) to maintain deterministic continuity with the primary profile that the desktop application initially displayed and used.
+- **Reason**:
+  - Medical practices using DoctorRx operate with a single active primary prescriber per installation. Historical rows must never cause ambiguity or multiple concurrent active states. Preserving the lowest-Id record guarantees that the original established doctor record remains active.
+
 
 

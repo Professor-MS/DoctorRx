@@ -98,9 +98,7 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
         }
 
         var parsedTokens = SearchNormalizer.ParseQueryTokens(query);
-        var hasTokens = await Context.MedicineSearchTokens.AnyAsync(cancellationToken);
-
-        if (!hasTokens || parsedTokens.Count == 0)
+        if (parsedTokens.Count == 0)
         {
             var prefixPattern = $"{cleanQuery}%";
             return await baseQuery
@@ -112,7 +110,7 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
                 .ToListAsync(cancellationToken);
         }
 
-        // Multi-token intersection across MedicineSearchTokens
+        // Multi-token intersection across MedicineSearchTokens index
         IQueryable<int>? matchingIdsQuery = null;
         foreach (var token in parsedTokens)
         {
@@ -126,20 +124,22 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
                 : matchingIdsQuery.Intersect(tokenIds);
         }
 
-        var cleanPrefixPattern = $"{cleanQuery}%";
-        var directPrefixIds = baseQuery
-            .Where(m => (EF.Functions.Like(m.NormalizedName, cleanPrefixPattern) ||
-                        (m.GenericName != null && EF.Functions.Like(m.GenericName, cleanPrefixPattern))))
-            .Select(m => m.Id);
-
-        var candidateIdsQuery = matchingIdsQuery != null
-            ? matchingIdsQuery.Union(directPrefixIds)
-            : directPrefixIds;
-
-        var candidateIds = await candidateIdsQuery
+        var candidateIds = await matchingIdsQuery!
             .Distinct()
-            .Take(maxResults * 3)
+            .Take(maxResults * 2)
             .ToListAsync(cancellationToken);
+
+        if (candidateIds.Count == 0)
+        {
+            // Fallback for untokenized records: direct prefix matching
+            var cleanPrefixPattern = $"{cleanQuery}%";
+            candidateIds = await baseQuery
+                .Where(m => (EF.Functions.Like(m.NormalizedName, cleanPrefixPattern) ||
+                            (m.GenericName != null && EF.Functions.Like(m.GenericName, cleanPrefixPattern))))
+                .Select(m => m.Id)
+                .Take(maxResults)
+                .ToListAsync(cancellationToken);
+        }
 
         if (candidateIds.Count == 0)
         {

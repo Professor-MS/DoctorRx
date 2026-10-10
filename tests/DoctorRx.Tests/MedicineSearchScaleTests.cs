@@ -139,8 +139,11 @@ public class MedicineSearchScaleTests : IDisposable
             }
 
             var planText = string.Join("\n", planLines);
-            // Verify SQLite query planner uses the covering index on (Token, MedicineId)
+            // Verify SQLite query planner uses the covering index on (Token, MedicineId) with a range condition
             Assert.Contains("IX_MedicineSearchTokens_Token_MedicineId", planText);
+            Assert.True(planText.Contains("Token>") || planText.Contains("Token<") || planText.Contains("Token>=") || planText.Contains("Token<="),
+                $"Expected range condition on Token in query plan, but plan was: {planText}");
+            Assert.DoesNotContain("Token=?", planText);
         }
 
         // 3. Search under 100 ms with LIMIT

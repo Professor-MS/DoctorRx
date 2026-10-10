@@ -27,7 +27,6 @@ public class TestAppPaths : IAppPaths
     public string BackupsDirectory { get; }
     public string AutoBackupsDirectory { get; }
     public string SafetyBackupsDirectory { get; }
-    public string DraftsDirectory { get; }
     public string LogsDirectory { get; }
     public string AssetsDirectory { get; }
 
@@ -39,7 +38,6 @@ public class TestAppPaths : IAppPaths
         BackupsDirectory = Path.Combine(tempRoot, "Backups");
         AutoBackupsDirectory = Path.Combine(BackupsDirectory, "Auto");
         SafetyBackupsDirectory = Path.Combine(BackupsDirectory, "Safety");
-        DraftsDirectory = Path.Combine(tempRoot, "Drafts");
         LogsDirectory = Path.Combine(tempRoot, "Logs");
         AssetsDirectory = Path.Combine(tempRoot, "Assets");
 

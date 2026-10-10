@@ -174,6 +174,147 @@ public class SQLiteBenchmarkTests : IDisposable
     }
 
     [Fact]
+    public async Task Benchmark_100kPatients_SkewedDistribution_WorstCases_PerformSub50ms_WithExplainQueryPlan()
+    {
+        const int recordCount = 100_000;
+        const int batchSize = 10_000;
+
+        _output.WriteLine($"Seeding {recordCount:N0} skewed patient records (heavy 'Muhammad', 'Ali' distribution)...");
+        var sw = Stopwatch.StartNew();
+
+        await using (var context = await _factory.CreateDbContextAsync())
+        {
+            var conn = (SqliteConnection)context.Database.GetDbConnection();
+            if (conn.State != System.Data.ConnectionState.Open)
+            {
+                await conn.OpenAsync();
+            }
+
+            var commonPrefixes = new[] { "Muhammad Ali", "Muhammad", "Ali", "Ahmed", "Fatima" };
+            var commonSuffixes = new[] { "Khan", "Iqbal", "Bibi", "Raza", "Hassan", "Malik", "Chaudhry", "Saeed" };
+
+            for (int batch = 0; batch < recordCount / batchSize; batch++)
+            {
+                using var tx = conn.BeginTransaction();
+                using var cmd = conn.CreateCommand();
+                cmd.Transaction = tx;
+                cmd.CommandText = @"
+                    INSERT INTO Patients (RecordNumber, Name, NormalizedName, Age, Gender, Phone, PhoneDigits, IsArchived, CreatedAtUtc)
+                    VALUES ($rec, $name, $norm, $age, $gender, $phone, $digits, 0, $created);";
+
+                var pRec = cmd.Parameters.Add("$rec", SqliteType.Text);
+                var pName = cmd.Parameters.Add("$name", SqliteType.Text);
+                var pNorm = cmd.Parameters.Add("$norm", SqliteType.Text);
+                var pAge = cmd.Parameters.Add("$age", SqliteType.Integer);
+                var pGender = cmd.Parameters.Add("$gender", SqliteType.Integer);
+                var pPhone = cmd.Parameters.Add("$phone", SqliteType.Text);
+                var pDigits = cmd.Parameters.Add("$digits", SqliteType.Text);
+                var pCreated = cmd.Parameters.Add("$created", SqliteType.Text);
+
+                var now = DateTime.UtcNow.ToString("O");
+
+                for (int i = 0; i < batchSize; i++)
+                {
+                    int index = (batch * batchSize) + i + 1;
+                    // 50% of the distribution gets 'Muhammad' or 'Ali' prefixes
+                    string fullName;
+                    if (index % 4 == 0)
+                    {
+                        fullName = $"Muhammad Ali {commonSuffixes[index % commonSuffixes.Length]} {index}";
+                    }
+                    else if (index % 4 == 1)
+                    {
+                        fullName = $"Muhammad {commonSuffixes[index % commonSuffixes.Length]} {index}";
+                    }
+                    else if (index % 4 == 2)
+                    {
+                        fullName = $"Ali {commonSuffixes[index % commonSuffixes.Length]} {index}";
+                    }
+                    else
+                    {
+                        fullName = $"{commonPrefixes[index % commonPrefixes.Length]} {commonSuffixes[index % commonSuffixes.Length]} {index}";
+                    }
+
+                    var norm = SearchNormalizer.Normalize(fullName);
+                    var phone = (index % 2 == 0) ? $"0300{index:D7}" : $"+92 300 {index:D7}";
+                    var digits = SearchNormalizer.NormalizePhoneDigits(phone);
+
+                    pRec.Value = $"P-SKW-{index:D6}";
+                    pName.Value = fullName;
+                    pNorm.Value = norm;
+                    pAge.Value = 20 + (index % 60);
+                    pGender.Value = (index % 2) + 1;
+                    pPhone.Value = phone;
+                    pDigits.Value = digits;
+                    pCreated.Value = now;
+
+                    cmd.ExecuteNonQuery();
+                }
+
+                tx.Commit();
+            }
+
+            // Update stats
+            using var analyzeCmd = conn.CreateCommand();
+            analyzeCmd.CommandText = "ANALYZE;";
+            analyzeCmd.ExecuteNonQuery();
+        }
+
+        sw.Stop();
+        _output.WriteLine($"Ingested 100k skewed records in {sw.ElapsedMilliseconds} ms.");
+
+        var uowFactory = new UnitOfWorkFactory(_factory);
+        await using var uow = uowFactory.Create();
+
+        // Helper to run query, measure time and dump EXPLAIN QUERY PLAN
+        async Task RunCaseAsync(string query, string description)
+        {
+            // Dump explain plan
+            await using (var ctx = await _factory.CreateDbContextAsync())
+            {
+                var conn = (SqliteConnection)ctx.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+                using var expCmd = conn.CreateCommand();
+                var isPhone = query.All(c => char.IsDigit(c) || c == '+');
+                if (isPhone)
+                {
+                    var digits = SearchNormalizer.NormalizePhoneDigits(query);
+                    expCmd.CommandText = $"EXPLAIN QUERY PLAN SELECT Id, Name FROM Patients WHERE PhoneDigits LIKE '{digits}%' LIMIT 20;";
+                }
+                else
+                {
+                    var cleanQuery = SearchNormalizer.Normalize(query);
+                    expCmd.CommandText = $"EXPLAIN QUERY PLAN SELECT Id, Name FROM Patients WHERE NormalizedName LIKE '{cleanQuery}%' LIMIT 20;";
+                }
+                using var reader = await expCmd.ExecuteReaderAsync();
+                var planLines = new List<string>();
+                while (await reader.ReadAsync())
+                {
+                    planLines.Add(reader.GetString(3));
+                }
+                _output.WriteLine($"[EXPLAIN QUERY PLAN for '{query}' ({description})]:\n  {string.Join("\n  ", planLines)}");
+            }
+
+            // Benchmark search
+            sw.Restart();
+            var results = await uow.Patients.SearchAsync(query, maxResults: 20);
+            sw.Stop();
+            var timeMs = sw.ElapsedMilliseconds;
+
+            _output.WriteLine($"Search '{query}' ({description}) returned {results.Count} results in {timeMs} ms.");
+            Assert.NotEmpty(results);
+            Assert.True(results.Count <= 20);
+            Assert.True(timeMs < 100, $"Expected search for '{query}' under 100ms with LIMIT 20, but took {timeMs} ms.");
+        }
+
+        // Test 4 worst cases with LIMIT 20:
+        await RunCaseAsync("muhammad ali", "worst case skewed multi-word");
+        await RunCaseAsync("ali", "worst case single high-frequency word");
+        await RunCaseAsync("m", "worst case single character prefix");
+        await RunCaseAsync("0300", "worst case phone fragment");
+    }
+
+    [Fact]
     public async Task Benchmark_500kPrescriptions_HistoryLoad_OpenAndFinalize_Timings()
     {
         const int recordCount = 500_000;

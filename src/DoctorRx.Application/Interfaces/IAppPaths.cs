@@ -8,7 +8,6 @@ public interface IAppPaths
     string BackupsDirectory { get; }
     string AutoBackupsDirectory { get; }
     string SafetyBackupsDirectory { get; }
-    string DraftsDirectory { get; }
     string LogsDirectory { get; }
     string AssetsDirectory { get; }
 }

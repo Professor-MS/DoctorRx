@@ -71,7 +71,7 @@ public class DoctorEvidenceTests : IDisposable
     }
 
     [Fact]
-    public async Task Migration_PreExistingDuplicateActiveDoctors_ResolvedToSingleActive()
+    public async Task Migration_PreExistingDuplicateActiveDoctors_KeepsLowestIdActiveDoctor()
     {
         // Arrange: Migrate up to previous migration (AddDoctorTitleAndRegistrationLabel)
         await using var migContext = await _factory.CreateDbContextAsync();
@@ -100,9 +100,14 @@ VALUES ('Dr.', 'Doctor Two', 'FCPS', 'Reg. No.', 'REG-002', 'Neurology', 'Clinic
         // Act: Apply latest migration (AddPrescriptionIsSealed) which deduplicates active doctors and creates IX_Doctors_SingleActive
         await migContext.Database.MigrateAsync();
 
-        // Assert 1: Only 1 doctor remains active, the other is set to IsActive = 0
+        // Assert 1: Only 1 doctor remains active, specifically the lowest-Id doctor (Doctor One)
         var activeCountAfter = Convert.ToInt32(await countCmd.ExecuteScalarAsync());
         Assert.Equal(1, activeCountAfter);
+
+        await using var activeDocCmd = conn.CreateCommand();
+        activeDocCmd.CommandText = "SELECT Name FROM Doctors WHERE IsActive = 1;";
+        var activeDoctorName = Convert.ToString(await activeDocCmd.ExecuteScalarAsync());
+        Assert.Equal("Doctor One", activeDoctorName);
 
         // Assert 2: Attempting to insert or activate a second active doctor violates the unique index IX_Doctors_SingleActive
         await using var duplicateCmd = conn.CreateCommand();
