@@ -216,6 +216,9 @@ public class NavigationSectionTests
 
         public Task<Result<DoctorDto>> UpdateDoctorAsync(UpdateDoctorDto dto, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result<DoctorDto>.Failure("Stub"));
+
+        public Task<Result<DoctorDto>> SwitchActiveDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(Result<DoctorDto>.Failure("Stub"));
     }
 
     private class StubDialogService : IDialogService

@@ -237,8 +237,8 @@ public class SQLiteBenchmarkTests : IDisposable
                 rxCmd.Transaction = tx;
                 rxCmd.CommandText = @"
                     INSERT INTO Prescriptions 
-                    (PrescriptionNumber, PatientId, DoctorId, PrescriptionDate, Doctor_Name, Doctor_Qualification, Doctor_RegistrationNumber, Doctor_Specialization, Doctor_ClinicName, Patient_Name, Patient_Gender, Patient_AgeText, Status, FinalizedAtUtc, AmendmentNumber, Version, CreatedAtUtc)
-                    VALUES ($num, $patId, $docId, $pDate, 'Dr. Benchmark', 'MBBS', 'BM-12345', 'Internal Medicine', 'Apex Clinic', 'Benchmark Patient', 1, '40 yrs', 1, $now, 0, 1, $now);";
+                    (PrescriptionNumber, PatientId, DoctorId, PrescriptionDate, Doctor_Name, Doctor_Qualification, Doctor_RegistrationNumber, Doctor_Specialization, Doctor_ClinicName, Patient_Name, Patient_Gender, Patient_AgeText, Status, FinalizedAtUtc, AmendmentNumber, Version, CreatedAtUtc, IsSealed)
+                    VALUES ($num, $patId, $docId, $pDate, 'Dr. Benchmark', 'MBBS', 'BM-12345', 'Internal Medicine', 'Apex Clinic', 'Benchmark Patient', 1, '40 yrs', 1, $now, 0, 1, $now, 0);";
 
                 var pNum = rxCmd.Parameters.Add("$num", SqliteType.Text);
                 var pPatId = rxCmd.Parameters.Add("$patId", SqliteType.Integer);
@@ -268,6 +268,15 @@ public class SQLiteBenchmarkTests : IDisposable
 
                     pRxId.Value = id;
                     medCmd.ExecuteNonQuery();
+                }
+
+                int startId = (batch * batchSize) + 1;
+                int endId = (batch + 1) * batchSize;
+                using (var sealCmd = conn.CreateCommand())
+                {
+                    sealCmd.Transaction = tx;
+                    sealCmd.CommandText = $"UPDATE Prescriptions SET IsSealed = 1 WHERE Id BETWEEN {startId} AND {endId};";
+                    sealCmd.ExecuteNonQuery();
                 }
 
                 tx.Commit();

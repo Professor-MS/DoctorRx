@@ -206,10 +206,34 @@ public class DoctorService : IDoctorService
         if (dto.RegistrationNumber.Length > 50) return Result<DoctorDto>.Failure("Registration number cannot exceed 50 characters.");
         if (dto.Specialization.Length > 150) return Result<DoctorDto>.Failure("Specialization cannot exceed 150 characters.");
         if (dto.ClinicName.Length > 200) return Result<DoctorDto>.Failure("Clinic name cannot exceed 200 characters.");
+        if (dto.Phone?.Length > 30) return Result<DoctorDto>.Failure("Phone cannot exceed 30 characters.");
+        if (dto.ClinicPhone?.Length > 30) return Result<DoctorDto>.Failure("Clinic phone cannot exceed 30 characters.");
+        if (dto.Email?.Length > 100) return Result<DoctorDto>.Failure("Email cannot exceed 100 characters.");
+        if (dto.ClinicAddress?.Length > 300) return Result<DoctorDto>.Failure("Clinic address cannot exceed 300 characters.");
+        if (dto.HeaderText?.Length > 500) return Result<DoctorDto>.Failure("Header text cannot exceed 500 characters.");
+        if (dto.FooterText?.Length > 500) return Result<DoctorDto>.Failure("Footer text cannot exceed 500 characters.");
+
+        if (!string.IsNullOrWhiteSpace(dto.Phone))
+        {
+            var digits = new string(dto.Phone.Where(char.IsDigit).ToArray());
+            if (digits.Length < 7) return Result<DoctorDto>.Failure("Doctor phone must contain at least 7 digits.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.ClinicPhone))
+        {
+            var digits = new string(dto.ClinicPhone.Where(char.IsDigit).ToArray());
+            if (digits.Length < 7) return Result<DoctorDto>.Failure("Clinic phone must contain at least 7 digits.");
+        }
 
         try
         {
             await using var uow = _uowFactory.Create();
+            var activeDoc = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
+            if (activeDoc != null)
+            {
+                return Result<DoctorDto>.Failure("An active doctor profile already exists.");
+            }
+
             var doc = new Doctor
             {
                 TitlePrefix = titlePrefix,
@@ -262,6 +286,24 @@ public class DoctorService : IDoctorService
         if (dto.RegistrationNumber.Length > 50) return Result<DoctorDto>.Failure("Registration number cannot exceed 50 characters.");
         if (dto.Specialization.Length > 150) return Result<DoctorDto>.Failure("Specialization cannot exceed 150 characters.");
         if (dto.ClinicName.Length > 200) return Result<DoctorDto>.Failure("Clinic name cannot exceed 200 characters.");
+        if (dto.Phone?.Length > 30) return Result<DoctorDto>.Failure("Phone cannot exceed 30 characters.");
+        if (dto.ClinicPhone?.Length > 30) return Result<DoctorDto>.Failure("Clinic phone cannot exceed 30 characters.");
+        if (dto.Email?.Length > 100) return Result<DoctorDto>.Failure("Email cannot exceed 100 characters.");
+        if (dto.ClinicAddress?.Length > 300) return Result<DoctorDto>.Failure("Clinic address cannot exceed 300 characters.");
+        if (dto.HeaderText?.Length > 500) return Result<DoctorDto>.Failure("Header text cannot exceed 500 characters.");
+        if (dto.FooterText?.Length > 500) return Result<DoctorDto>.Failure("Footer text cannot exceed 500 characters.");
+
+        if (!string.IsNullOrWhiteSpace(dto.Phone))
+        {
+            var digits = new string(dto.Phone.Where(char.IsDigit).ToArray());
+            if (digits.Length < 7) return Result<DoctorDto>.Failure("Doctor phone must contain at least 7 digits.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(dto.ClinicPhone))
+        {
+            var digits = new string(dto.ClinicPhone.Where(char.IsDigit).ToArray());
+            if (digits.Length < 7) return Result<DoctorDto>.Failure("Clinic phone must contain at least 7 digits.");
+        }
 
         try
         {
@@ -297,6 +339,42 @@ public class DoctorService : IDoctorService
         {
             _logger.LogError(ex, "Failed to update doctor profile");
             return Result<DoctorDto>.Failure("Unable to update doctor profile.");
+        }
+    }
+
+    public async Task<Result<DoctorDto>> SwitchActiveDoctorAsync(int doctorId, CancellationToken cancellationToken = default)
+    {
+        if (doctorId <= 0) return Result<DoctorDto>.Failure("Invalid doctor ID.");
+
+        try
+        {
+            await using var uow = _uowFactory.Create();
+            var target = await uow.Doctors.GetByIdAsync(doctorId, cancellationToken);
+            if (target == null)
+            {
+                return Result<DoctorDto>.Failure("Doctor profile not found.");
+            }
+
+            var active = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
+            if (active != null && active.Id != doctorId)
+            {
+                active.IsActive = false;
+                active.UpdatedAtUtc = _clock.UtcNow;
+                await uow.Doctors.UpdateAsync(active, cancellationToken);
+            }
+
+            target.IsActive = true;
+            target.UpdatedAtUtc = _clock.UtcNow;
+            await uow.Doctors.UpdateAsync(target, cancellationToken);
+
+            await uow.CommitAsync(cancellationToken);
+            _logger.LogInformation("Switched active doctor to Id {DoctorId}", target.Id);
+            return Result<DoctorDto>.Success(MapToDto(target));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to switch active doctor to Id {DoctorId}", doctorId);
+            return Result<DoctorDto>.Failure("Unable to switch active doctor.");
         }
     }
 

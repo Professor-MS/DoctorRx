@@ -26,15 +26,22 @@ public class ScreenResponsiveTests
 {
     private static string GetUiChecksDirectory()
     {
-        var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "DoctorRx.sln")))
+        if (Environment.GetEnvironmentVariable("DOCTORRX_CAPTURE_UI_DOCS") == "1")
         {
-            currentDir = currentDir.Parent;
+            var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+            while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "DoctorRx.sln")))
+            {
+                currentDir = currentDir.Parent;
+            }
+            string projectRoot = currentDir?.FullName ?? AppContext.BaseDirectory;
+            string outputDir = Path.Combine(projectRoot, "docs", "ui-checks");
+            Directory.CreateDirectory(outputDir);
+            return outputDir;
         }
-        string projectRoot = currentDir?.FullName ?? AppContext.BaseDirectory;
-        string outputDir = Path.Combine(projectRoot, "docs", "ui-checks");
-        Directory.CreateDirectory(outputDir);
-        return outputDir;
+
+        string tempDir = Path.Combine(Path.GetTempPath(), "DoctorRx_UiChecks");
+        Directory.CreateDirectory(tempDir);
+        return tempDir;
     }
 
     private static void SaveVisualToPng(FrameworkElement element, int width, int height, string filename, int dpi = 96)

@@ -274,15 +274,30 @@ public partial class App : System.Windows.Application
         };
     }
 
+    private static int _isShowingErrorDialog = 0;
+
     private static void ShowSafeErrorDialog(string userFriendlyMessage, Exception ex)
     {
         var errorRef = Guid.NewGuid().ToString("N")[..8].ToUpperInvariant();
         Serilog.Log.Error(ex, "Unhandled application error [Ref: {ErrorRef}]", errorRef);
 
-        MessageBox.Show(
-            $"{userFriendlyMessage}\n\nError Reference ID: {errorRef}\nPlease quote this ID if contacting technical support.",
-            "DoctorRx System Notice",
-            MessageBoxButton.OK,
-            MessageBoxImage.Warning);
+        // Prevent recursive modal dialog cascade / stack overflow during layout or dispatcher loops
+        if (System.Threading.Interlocked.CompareExchange(ref _isShowingErrorDialog, 1, 0) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            MessageBox.Show(
+                $"{userFriendlyMessage}\n\nError Reference ID: {errorRef}\nPlease quote this ID if contacting technical support.",
+                "DoctorRx System Notice",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            System.Threading.Interlocked.Exchange(ref _isShowingErrorDialog, 0);
+        }
     }
 }

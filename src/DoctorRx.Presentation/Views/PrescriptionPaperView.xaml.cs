@@ -22,11 +22,11 @@ public partial class PrescriptionPaperView : UserControl
         {
             ClinicNameText.Text = !string.IsNullOrWhiteSpace(p.DoctorSnapshot.ClinicName) 
                 ? p.DoctorSnapshot.ClinicName 
-                : "DoctorRx Medical Clinic";
+                : string.Empty;
 
             DoctorNameText.Text = !string.IsNullOrWhiteSpace(p.DoctorSnapshot.DisplayName) 
                 ? p.DoctorSnapshot.DisplayName 
-                : "Attending Physician";
+                : string.Empty;
 
             DoctorQualificationText.Text = p.DoctorSnapshot.Qualification;
             DoctorSpecializationText.Text = p.DoctorSnapshot.Specialization;

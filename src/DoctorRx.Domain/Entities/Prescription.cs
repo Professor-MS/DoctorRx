@@ -49,6 +49,12 @@ public class Prescription : AuditableEntity
     public Prescription? ParentPrescription { get; private set; }
     public int AmendmentNumber { get; private set; }
     public int Version { get; set; } = 1;
+    public bool IsSealed { get; set; }
+
+    public void Seal()
+    {
+        IsSealed = true;
+    }
 
     // Prescribed items
     private readonly List<PrescriptionMedicine> _items = new();

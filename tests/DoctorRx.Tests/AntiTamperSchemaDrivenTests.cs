@@ -111,6 +111,10 @@ public class AntiTamperSchemaDrivenTests : IDisposable
         initContext.Prescriptions.Add(rx);
         await initContext.SaveChangesAsync();
 
+        rx.Seal();
+        initContext.Prescriptions.Update(rx);
+        await initContext.SaveChangesAsync();
+
         var rxId = rx.Id;
 
         // Allowed transition columns that can be updated during Cancel or Supersede transitions
@@ -179,7 +183,8 @@ public class AntiTamperSchemaDrivenTests : IDisposable
             Assert.True(
                 ex.Message.Contains("immutable", StringComparison.OrdinalIgnoreCase) ||
                 ex.Message.Contains("terminal", StringComparison.OrdinalIgnoreCase) ||
-                ex.Message.Contains("abort", StringComparison.OrdinalIgnoreCase),
+                ex.Message.Contains("abort", StringComparison.OrdinalIgnoreCase) ||
+                ex.Message.Contains("sealed", StringComparison.OrdinalIgnoreCase),
                 $"Column '{colName}' update did not abort with anti-tamper message. Got: {ex.Message}");
         }
 
@@ -221,6 +226,92 @@ public class AntiTamperSchemaDrivenTests : IDisposable
         // Assert: Cancellation must succeed cleanly
         Assert.Null(exception);
         Assert.Equal(PrescriptionStatus.Cancelled, rx.Status);
+    }
+
+    [Fact]
+    public async Task AntiTamperTrigger_IsSealed_TransitionZeroToOne_Succeeds_TransitionOneToZero_Aborts()
+    {
+        await using var initContext = await _factory.CreateDbContextAsync();
+        await initContext.Database.MigrateAsync();
+
+        var doctor = new Doctor { Name = "Dr. Seal", Qualification = "MBBS", RegistrationNumber = "REG-S1", ClinicName = "Clinic", IsActive = true };
+        initContext.Doctors.Add(doctor);
+        var patient = new Patient { Name = "Seal Patient", NormalizedName = "seal patient", Gender = Gender.Male, RecordNumber = "P-S1" };
+        initContext.Patients.Add(patient);
+        await initContext.SaveChangesAsync();
+
+        var prescriptionDate = DateOnly.FromDateTime(DateTime.Today);
+        var rx = Prescription.CreateFinalized(
+            prescriptionNumber: "RX-SEAL-001",
+            patientId: patient.Id,
+            doctorId: doctor.Id,
+            prescriptionDate: prescriptionDate,
+            doctorSnapshot: doctor.ToSnapshot(),
+            patientSnapshot: patient.ToSnapshot(prescriptionDate),
+            finalizedAtUtc: DateTime.UtcNow
+        );
+        rx.IsSealed = false;
+        initContext.Prescriptions.Add(rx);
+        await initContext.SaveChangesAsync();
+
+        // Step 1: Transition 0 -> 1 succeeds (sealing)
+        rx.Seal();
+        initContext.Prescriptions.Update(rx);
+        await initContext.SaveChangesAsync();
+        Assert.True(rx.IsSealed);
+
+        // Step 2: Attempting transition 1 -> 0 aborts via SQLite trigger
+        await using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        await connection.OpenAsync();
+        await using var unsealCmd = connection.CreateCommand();
+        unsealCmd.CommandText = $"UPDATE Prescriptions SET IsSealed = 0 WHERE Id = {rx.Id};";
+
+        var ex = await Assert.ThrowsAsync<SqliteException>(async () =>
+        {
+            await unsealCmd.ExecuteNonQueryAsync();
+        });
+        Assert.Contains("sealed", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public async Task AntiTamperTrigger_PrescriptionMedicines_InsertOnSealedPrescription_Aborts()
+    {
+        await using var initContext = await _factory.CreateDbContextAsync();
+        await initContext.Database.MigrateAsync();
+
+        var doctor = new Doctor { Name = "Dr. Seal Med", Qualification = "MBBS", RegistrationNumber = "REG-S2", ClinicName = "Clinic", IsActive = true };
+        initContext.Doctors.Add(doctor);
+        var patient = new Patient { Name = "Seal Med Patient", NormalizedName = "seal med patient", Gender = Gender.Female, RecordNumber = "P-S2" };
+        initContext.Patients.Add(patient);
+        await initContext.SaveChangesAsync();
+
+        var prescriptionDate = DateOnly.FromDateTime(DateTime.Today);
+        var rx = Prescription.CreateFinalized(
+            prescriptionNumber: "RX-SEAL-002",
+            patientId: patient.Id,
+            doctorId: doctor.Id,
+            prescriptionDate: prescriptionDate,
+            doctorSnapshot: doctor.ToSnapshot(),
+            patientSnapshot: patient.ToSnapshot(prescriptionDate),
+            finalizedAtUtc: DateTime.UtcNow
+        );
+        rx.Seal();
+        initContext.Prescriptions.Add(rx);
+        await initContext.SaveChangesAsync();
+
+        // Attempting direct SQL insert into PrescriptionMedicines for sealed prescription
+        await using var connection = new SqliteConnection($"Data Source={_dbPath}");
+        await connection.OpenAsync();
+        await using var insertCmd = connection.CreateCommand();
+        insertCmd.CommandText = $@"
+INSERT INTO PrescriptionMedicines (PrescriptionId, MedicineName, Form, Dose, Frequency, Route, Duration)
+VALUES ({rx.Id}, 'Tampered Drug', 'Tablet', '500mg', 'Daily', 'Oral', '5 days');";
+
+        var ex = await Assert.ThrowsAsync<SqliteException>(async () =>
+        {
+            await insertCmd.ExecuteNonQueryAsync();
+        });
+        Assert.Contains("sealed", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     private static object GetDummyTamperValue(string colName, string colType)

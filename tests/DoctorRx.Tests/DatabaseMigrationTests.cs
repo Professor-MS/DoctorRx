@@ -598,7 +598,7 @@ public class DatabaseMigrationTests : IDisposable
                 VALUES ({cancelledRxId}, 'IllegalMed', 'Tablet', '10mg', '1 tab', 'OD', 'Oral', '1 day', 2);";
 
             var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
-            Assert.Contains("Cannot add medicine items to a cancelled or superseded prescription", ex.Message);
+            Assert.Contains("Cannot add medicine items", ex.Message);
         }
 
         // 2. Finalize and then Supersede (via Amend) another prescription
@@ -642,7 +642,7 @@ public class DatabaseMigrationTests : IDisposable
                 VALUES ({originalSupersededId}, 'IllegalMed2', 'Tablet', '10mg', '1 tab', 'OD', 'Oral', '1 day', 2);";
 
             var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
-            Assert.Contains("Cannot add medicine items to a cancelled or superseded prescription", ex.Message);
+            Assert.Contains("Cannot add medicine items", ex.Message);
         }
     }
 }

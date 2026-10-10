@@ -70,6 +70,11 @@ public class DoctorRxDbContext : DbContext
             entity.Property(e => e.ClinicAddress).HasMaxLength(300);
             entity.Property(e => e.ClinicPhone).HasMaxLength(30);
             entity.Property(e => e.Email).HasMaxLength(100);
+
+            entity.HasIndex(e => e.IsActive)
+                .IsUnique()
+                .HasFilter("IsActive = 1")
+                .HasDatabaseName("IX_Doctors_SingleActive");
         });
 
         // Medicine catalog configuration (Zero clinical defaults)
@@ -101,6 +106,7 @@ public class DoctorRxDbContext : DbContext
 
             entity.Property(e => e.Version).IsConcurrencyToken();
             entity.Property(e => e.CancellationReason).HasMaxLength(500);
+            entity.Property(e => e.IsSealed);
 
             entity.Property(e => e.ChiefComplaints).HasMaxLength(1000);
             entity.Property(e => e.BloodPressure).HasMaxLength(20);

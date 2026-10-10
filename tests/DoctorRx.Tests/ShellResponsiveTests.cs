@@ -197,14 +197,22 @@ public class ShellResponsiveTests
             contentRoot.Arrange(new Rect(0, 0, width, height));
             contentRoot.UpdateLayout();
 
-            // Output directory: docs/ui-checks/
-            var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
-            while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "DoctorRx.sln")))
+            // Output directory: docs/ui-checks/ or temp
+            string outputDir;
+            if (Environment.GetEnvironmentVariable("DOCTORRX_CAPTURE_UI_DOCS") == "1")
             {
-                currentDir = currentDir.Parent;
+                var currentDir = new DirectoryInfo(AppContext.BaseDirectory);
+                while (currentDir != null && !File.Exists(Path.Combine(currentDir.FullName, "DoctorRx.sln")))
+                {
+                    currentDir = currentDir.Parent;
+                }
+                string projectRoot = currentDir?.FullName ?? AppContext.BaseDirectory;
+                outputDir = Path.Combine(projectRoot, "docs", "ui-checks");
             }
-            string projectRoot = currentDir?.FullName ?? AppContext.BaseDirectory;
-            string outputDir = Path.Combine(projectRoot, "docs", "ui-checks");
+            else
+            {
+                outputDir = Path.Combine(Path.GetTempPath(), "DoctorRx_UiChecks");
+            }
             Directory.CreateDirectory(outputDir);
 
             int[] dpis = [96, 120, 144, 168, 192];
@@ -336,6 +344,11 @@ public class ShellResponsiveTests
             Task.FromResult(DoctorRx.Application.Common.Result<DoctorDto>.Success(new DoctorDto(
                 dto.Id, dto.Name, dto.Qualification, dto.RegistrationNumber, dto.Specialization,
                 dto.Phone, dto.Email, dto.ClinicName, dto.ClinicAddress, dto.ClinicPhone, dto.HeaderText, dto.FooterText)));
+
+        public Task<DoctorRx.Application.Common.Result<DoctorDto>> SwitchActiveDoctorAsync(int doctorId, CancellationToken cancellationToken = default) =>
+            Task.FromResult(DoctorRx.Application.Common.Result<DoctorDto>.Success(new DoctorDto(
+                doctorId, "Dr. Switched", "MBBS", "12345", "Cardiologist",
+                null, null, "Test Clinic", null, null, null, null)));
     }
 
     private class StubDialogService : IDialogService

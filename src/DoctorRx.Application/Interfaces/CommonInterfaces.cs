@@ -21,6 +21,7 @@ public interface IDoctorService
     Task<DoctorDto?> GetActiveDoctorAsync(CancellationToken cancellationToken = default);
     Task<Result<DoctorDto>> CreateDoctorAsync(CreateDoctorDto dto, CancellationToken cancellationToken = default);
     Task<Result<DoctorDto>> UpdateDoctorAsync(UpdateDoctorDto dto, CancellationToken cancellationToken = default);
+    Task<Result<DoctorDto>> SwitchActiveDoctorAsync(int doctorId, CancellationToken cancellationToken = default);
 }
 
 public interface IDashboardService

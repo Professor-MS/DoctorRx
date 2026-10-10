@@ -118,13 +118,30 @@ public class DatabaseHealthService : IDatabaseHealthService
             cmd.CommandText = "PRAGMA quick_check;";
 
             var result = (await cmd.ExecuteScalarAsync(cancellationToken))?.ToString();
-            await conn.CloseAsync();
 
             bool passed = string.Equals(result, "ok", StringComparison.OrdinalIgnoreCase);
             if (!passed)
             {
                 _logger.LogError("Database PRAGMA quick_check reported failure: {Result}", result);
             }
+            else
+            {
+                try
+                {
+                    await using var checkCmd = conn.CreateCommand();
+                    checkCmd.CommandText = "SELECT COUNT(1) FROM Prescriptions WHERE Status = 1 AND IsSealed = 0;";
+                    var unsealedCount = Convert.ToInt64(await checkCmd.ExecuteScalarAsync(cancellationToken) ?? 0);
+                    if (unsealedCount > 0)
+                    {
+                        _logger.LogWarning("Database health check: Found {Count} finalized prescriptions with IsSealed = 0", unsealedCount);
+                    }
+                }
+                catch
+                {
+                    // Ignore if IsSealed column is not yet present
+                }
+            }
+            await conn.CloseAsync();
 
             return new DatabaseHealthReport(
                 IsHealthy: passed,

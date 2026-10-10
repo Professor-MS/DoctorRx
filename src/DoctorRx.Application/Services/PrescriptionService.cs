@@ -231,6 +231,12 @@ public class PrescriptionService : IPrescriptionService
                 }
 
                 await uow.CommitAsync(cancellationToken);
+
+                // Two-step seal within write transaction: parent + items inserted unsealed, then sealed to 1
+                rx.Seal();
+                await uow.Prescriptions.UpdateAsync(rx, cancellationToken);
+                await uow.CommitAsync(cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 _logger.LogInformation("Prescription #{PrescriptionId} finalized successfully", rx.Id);
@@ -347,6 +353,12 @@ public class PrescriptionService : IPrescriptionService
                 await uow.Patients.UpdateAsync(patient, cancellationToken);
 
                 await uow.CommitAsync(cancellationToken);
+
+                // Two-step seal within write transaction
+                amendedRx.Seal();
+                await uow.Prescriptions.UpdateAsync(amendedRx, cancellationToken);
+                await uow.CommitAsync(cancellationToken);
+
                 await tx.CommitAsync(cancellationToken);
 
                 _logger.LogInformation("Prescription #{OriginalId} superseded by amendment #{AmendedId}", original.Id, amendedRx.Id);
