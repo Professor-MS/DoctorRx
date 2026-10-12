@@ -236,5 +236,31 @@ This document records architectural and technical decisions made during the Doct
 - **Reason**:
   - Medical practices using DoctorRx operate with a single active primary prescriber per installation. Historical rows must never cause ambiguity or multiple concurrent active states. Preserving the lowest-Id record guarantees that the original established doctor record remains active.
 
+---
+
+## ADR 021: Prescription Search Token Architecture and Query Layer Performance
+- **Status**: Accepted
+- **Decision**:
+  - **Prescription-Specific Token Store**: Maintain a dedicated `PrescriptionSearchTokens` table storing only prescription-specific tokens: prescription number parts (full normalized, without `rx-`, date part, sequence number, and stripped zeros, e.g. `2` for `0002`, plus `-A1` and `A1` amendment tokens), snapshot patient-name words, and prescribed items' medicine brand and generic words.
+  - **Live Patient Data Decoupling & Dual Resolution**: To ensure renamed patients remain discoverable by both snapshot historical name and updated patient name (Amendment 1), `PrescriptionSearchTokens` deliberately avoids duplicating live patient name, phone digits, or record number. Instead, multi-token searches perform a per-token UNION between direct `PrescriptionSearchTokens` matches and prescriptions whose `PatientId` resolves via `PatientSearchTokens` (or direct patient record number), intersecting candidate IDs across query tokens.
+  - **Composite B-Tree Indexes**:
+    - `IX_Prescriptions_Date_Id` on `(PrescriptionDate, Id)` for default history chronologic paging.
+    - `IX_Prescriptions_Status_Date` on `(Status, PrescriptionDate)` for status-filtered queries.
+    - `IX_Prescriptions_PatientId_Date` on `(PatientId, PrescriptionDate)` for patient history queries.
+    - `IX_Prescriptions_SnapshotName_Id` on `(Patient_Name COLLATE NOCASE, Id)` for alphabetical patient name sorting.
+    - `IX_PrescriptionSearchTokens_Token_PrescriptionId` on `(Token, PrescriptionId)` for token lookups.
+  - **Single SQL Query with Correlated Subquery**: `ReplacedByNumber` is projected in the primary query using a correlated subquery (`Context.Prescriptions.Where(sub => sub.ParentPrescriptionId == p.Id).Select(sub => sub.PrescriptionNumber).FirstOrDefault()`), avoiding any N+1 query execution.
+  - **Count Capping**: Total count query is capped at `10,000+` (`dbQuery.Take(10001).CountAsync()`) to prevent full table count scans on large databases.
+  - **Background Repair & Idempotence**: `SearchIndexRepairService` verifies prescription tokens and repairs missing/unindexed rows in chunked transactions of 100 with exponential backoff on `SQLITE_BUSY`/`SQLITE_LOCKED`, recording `PrescriptionSearchIndexVersion = 1` in `AppMetas`.
+- **Benchmark Performance (500,000 Prescriptions)**:
+  - First-page default history query (`PageSize = 50`): < 100 ms.
+  - Worst-case filter query (`Issued` + `Today` across 500k): < 200 ms.
+  - Single prescription detailed lookup (#250,000 with items): < 100 ms.
+  - 50 concurrent finalizations: fully isolated with zero concurrency failure.
+- **Alternatives Rejected**:
+  - Storing patient's current name and phone inside prescription tokens: Rejected because updating a patient's name or phone would require rewriting thousands of historical prescription search token rows.
+  - N+1 replacement lookups in memory: Rejected due to latency degradation on paginated result sets.
+
+
 
 

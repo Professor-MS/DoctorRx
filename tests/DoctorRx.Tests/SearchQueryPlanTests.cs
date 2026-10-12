@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using DoctorRx.Application.Common;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Services;
+using DoctorRx.Domain.Enums;
 using DoctorRx.Infrastructure.Data;
 using DoctorRx.Infrastructure.Repositories;
 using DoctorRx.Infrastructure.Services;
@@ -156,6 +157,64 @@ public class SearchQueryPlanTests : IDisposable
 
         Assert.Contains("USING INDEX IX_Medicines_NormalizedName", planText);
         Assert.DoesNotContain("SCAN Medicines", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_PrescriptionDateSort_UsesDateIdIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var query = context.Prescriptions
+            .AsNoTracking()
+            .OrderByDescending(p => p.PrescriptionDate)
+            .ThenByDescending(p => p.Id)
+            .Take(50);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date"));
+        Assert.DoesNotContain("SCAN p\n", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_PrescriptionStatusFilter_UsesStatusDateIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var query = context.Prescriptions
+            .AsNoTracking()
+            .Where(p => p.Status == PrescriptionStatus.Finalized)
+            .OrderByDescending(p => p.PrescriptionDate)
+            .ThenByDescending(p => p.Id)
+            .Take(50);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.Contains("USING INDEX IX_Prescriptions_Status_Date", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_PrescriptionSearchTokens_UsesTokenPrescriptionIdIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var query = context.PrescriptionSearchTokens
+            .AsNoTracking()
+            .Where(t => t.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart && t.Token == "20261009")
+            .Select(t => t.PrescriptionId);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.Contains("USING INDEX IX_PrescriptionSearchTokens_Token_PrescriptionId", planText);
     }
 
     [Fact]

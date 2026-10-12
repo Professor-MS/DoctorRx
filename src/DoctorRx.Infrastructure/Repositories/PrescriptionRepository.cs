@@ -3,8 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using DoctorRx.Application.Common;
 using DoctorRx.Domain.Entities;
+using DoctorRx.Domain.Enums;
 using DoctorRx.Domain.Interfaces;
+using DoctorRx.Domain.Models;
 using DoctorRx.Infrastructure.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -84,10 +87,300 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
         return $"{key}-{seq.CurrentValue:D4}";
     }
 
+    public override async Task<Prescription> AddAsync(Prescription entity, CancellationToken cancellationToken = default)
+    {
+        var result = await base.AddAsync(entity, cancellationToken);
+        var tokens = SearchNormalizer.GeneratePrescriptionTokens(entity);
+        foreach (var token in tokens)
+        {
+            token.Prescription = entity;
+            await Context.PrescriptionSearchTokens.AddAsync(token, cancellationToken);
+        }
+        return result;
+    }
+
+    public async Task ReplaceSearchTokensAsync(int prescriptionId, IEnumerable<PrescriptionSearchToken> tokens, CancellationToken cancellationToken = default)
+    {
+        var existing = await Context.PrescriptionSearchTokens
+            .Where(t => t.PrescriptionId == prescriptionId)
+            .ToListAsync(cancellationToken);
+
+        Context.PrescriptionSearchTokens.RemoveRange(existing);
+
+        foreach (var token in tokens)
+        {
+            token.PrescriptionId = prescriptionId;
+            await Context.PrescriptionSearchTokens.AddAsync(token, cancellationToken);
+        }
+    }
+
     public async Task<Prescription?> GetReplacementPrescriptionAsync(int parentPrescriptionId, CancellationToken cancellationToken = default)
     {
         return await DbSet
             .AsNoTracking()
             .FirstOrDefaultAsync(p => p.ParentPrescriptionId == parentPrescriptionId, cancellationToken);
     }
+
+    public async Task<PrescriptionHistoryPagedResult> SearchPrescriptionsPagedAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default)
+    {
+        var pageNumber = criteria.PageNumber < 1 ? 1 : criteria.PageNumber;
+        var pageSize = criteria.PageSize < 1 ? 50 : criteria.PageSize;
+
+        var dbQuery = await BuildFilterQueryAsync(criteria, cancellationToken);
+
+        // Sorting with stable tie-breaker on Id
+        IOrderedQueryable<Prescription> orderedQuery = criteria.SortOption switch
+        {
+            PrescriptionSortOption.NewestFirst => dbQuery.OrderByDescending(p => p.PrescriptionDate).ThenByDescending(p => p.Id),
+            PrescriptionSortOption.OldestFirst => dbQuery.OrderBy(p => p.PrescriptionDate).ThenBy(p => p.Id),
+            PrescriptionSortOption.PatientName => dbQuery.OrderBy(p => p.PatientSnapshot.Name).ThenBy(p => p.Id),
+            PrescriptionSortOption.PrescriptionNumber => dbQuery.OrderByDescending(p => p.PrescriptionNumber).ThenByDescending(p => p.Id),
+            _ => dbQuery.OrderByDescending(p => p.PrescriptionDate).ThenByDescending(p => p.Id)
+        };
+
+        // Projected DTO query - no entity materialization or tracking
+        var items = await orderedQuery
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .Select(p => new PrescriptionHistoryItemDto(
+                p.Id,
+                p.PrescriptionNumber,
+                p.AmendmentNumber,
+                p.PrescriptionDate,
+                p.PatientSnapshot.Name,
+                p.Patient != null ? p.Patient.RecordNumber : string.Empty,
+                p.Items.Count,
+                p.Status,
+                p.Status == PrescriptionStatus.Superseded
+                    ? Context.Prescriptions.Where(sub => sub.ParentPrescriptionId == p.Id).Select(sub => sub.PrescriptionNumber).FirstOrDefault()
+                    : null,
+                p.FinalizedAtUtc
+            ))
+            .ToListAsync(cancellationToken);
+
+        const int MaxCountCap = 10_000;
+        var totalCountRaw = await dbQuery.Take(MaxCountCap + 1).CountAsync(cancellationToken);
+        bool isCapped = totalCountRaw > MaxCountCap;
+        int totalCount = isCapped ? MaxCountCap : totalCountRaw;
+
+        return new PrescriptionHistoryPagedResult(items, totalCount, isCapped, pageNumber, pageSize);
+    }
+
+    public async Task<int> GetPrescriptionCountAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default)
+    {
+        var dbQuery = await BuildFilterQueryAsync(criteria, cancellationToken);
+        const int MaxCountCap = 10_000;
+        var raw = await dbQuery.Take(MaxCountCap + 1).CountAsync(cancellationToken);
+        return Math.Min(raw, MaxCountCap);
+    }
+
+    private async Task<IQueryable<Prescription>> BuildFilterQueryAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken)
+    {
+        var dbQuery = DbSet.AsNoTracking();
+
+        // 1. Date filter (presets or custom)
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        DateOnly? fromDate = criteria.FromDate;
+        DateOnly? toDate = criteria.ToDate;
+
+        switch (criteria.DatePreset)
+        {
+            case PrescriptionDatePreset.Today:
+                fromDate = today;
+                toDate = today;
+                break;
+            case PrescriptionDatePreset.Last7Days:
+                fromDate = today.AddDays(-6);
+                toDate = today;
+                break;
+            case PrescriptionDatePreset.ThisMonth:
+                fromDate = new DateOnly(today.Year, today.Month, 1);
+                toDate = today;
+                break;
+            case PrescriptionDatePreset.Custom:
+                break;
+            case PrescriptionDatePreset.All:
+            default:
+                break;
+        }
+
+        if (fromDate.HasValue)
+        {
+            dbQuery = dbQuery.Where(p => p.PrescriptionDate >= fromDate.Value);
+        }
+        if (toDate.HasValue)
+        {
+            dbQuery = dbQuery.Where(p => p.PrescriptionDate <= toDate.Value);
+        }
+
+        // 2. Status filter
+        switch (criteria.StatusFilter)
+        {
+            case PrescriptionStatusSearchFilter.Default:
+                if (!criteria.IncludeReplaced)
+                {
+                    dbQuery = dbQuery.Where(p => p.Status == PrescriptionStatus.Finalized || p.Status == PrescriptionStatus.Cancelled);
+                }
+                break;
+            case PrescriptionStatusSearchFilter.Issued:
+                dbQuery = dbQuery.Where(p => p.Status == PrescriptionStatus.Finalized);
+                break;
+            case PrescriptionStatusSearchFilter.Cancelled:
+                dbQuery = dbQuery.Where(p => p.Status == PrescriptionStatus.Cancelled);
+                break;
+            case PrescriptionStatusSearchFilter.Replaced:
+                dbQuery = dbQuery.Where(p => p.Status == PrescriptionStatus.Superseded);
+                break;
+            case PrescriptionStatusSearchFilter.All:
+                break;
+        }
+
+        // 3. Patient ID filter
+        if (criteria.PatientId.HasValue && criteria.PatientId.Value > 0)
+        {
+            dbQuery = dbQuery.Where(p => p.PatientId == criteria.PatientId.Value);
+        }
+
+        // 4. Text search
+        if (!string.IsNullOrWhiteSpace(criteria.SearchText))
+        {
+            var parsedTokens = SearchNormalizer.ParseQueryTokens(criteria.SearchText);
+            if (parsedTokens.Count > 0)
+            {
+                var meta = await Context.AppMetas.FirstOrDefaultAsync(m => m.Key == "PrescriptionSearchIndexVersion", cancellationToken);
+                bool isIndexAvailable = meta?.Value == "1";
+
+                if (isIndexAvailable)
+                {
+                    IQueryable<int>? matchingRxIdsQuery = null;
+
+                    foreach (var token in parsedTokens)
+                    {
+                        // (a) Match prescription search tokens directly
+                        IQueryable<int> directRxTokensQuery;
+
+                        if (token.IsRxNumberPrefix && token.RxNumberWithoutPrefix != null)
+                        {
+                            var fullNorm = token.NormalizedToken;
+                            var withoutPrefix = token.RxNumberWithoutPrefix;
+                            directRxTokensQuery = Context.PrescriptionSearchTokens
+                                .Where(x => x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
+                                           (x.Token == fullNorm || x.Token == withoutPrefix))
+                                .Select(x => x.PrescriptionId);
+                        }
+                        else if (token.IsAmendment)
+                        {
+                            var norm = token.NormalizedToken;
+                            var withHyphen = norm.StartsWith('-') ? norm : $"-{norm}";
+                            var withoutHyphen = norm.StartsWith('-') ? norm[1..] : norm;
+                            directRxTokensQuery = Context.PrescriptionSearchTokens
+                                .Where(x => x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
+                                           (x.Token == withHyphen || x.Token == withoutHyphen))
+                                .Select(x => x.PrescriptionId);
+                        }
+                        else if (token.IsDigitsOnly)
+                        {
+                            var digits = token.StrippedDigits;
+                            var norm = token.NormalizedToken;
+                            directRxTokensQuery = Context.PrescriptionSearchTokens
+                                .Where(x => x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
+                                           (x.Token == digits || x.Token == norm))
+                                .Select(x => x.PrescriptionId);
+                        }
+                        else
+                        {
+                            var prefix = $"{token.NormalizedToken}%";
+                            directRxTokensQuery = Context.PrescriptionSearchTokens
+                                .Where(x => EF.Functions.Like(x.Token, prefix))
+                                .Select(x => x.PrescriptionId);
+                        }
+
+                        // (b) Match patients through PatientSearchTokens (current patient data)
+                        IQueryable<int> patientIdsQuery;
+                        if (token.IsRecordNumberPrefix && token.RecordNumberDigits != null)
+                        {
+                            var recDigits = token.RecordNumberDigits;
+                            var recNorm = token.NormalizedToken;
+                            patientIdsQuery = Context.PatientSearchTokens
+                                .Where(x => x.TokenType == SearchTokenType.RecordNumber &&
+                                           (x.Token == recDigits || x.Token == recNorm))
+                                .Select(x => x.PatientId);
+                        }
+                        else if (token.IsDigitsOnly)
+                        {
+                            var digits = token.StrippedDigits;
+                            if (digits.Length >= 3)
+                            {
+                                var prefix = $"{digits}%";
+                                patientIdsQuery = Context.PatientSearchTokens
+                                    .Where(x => (x.TokenType == SearchTokenType.PhoneSuffix && EF.Functions.Like(x.Token, prefix)) ||
+                                               (x.TokenType == SearchTokenType.RecordNumber && x.Token == digits))
+                                    .Select(x => x.PatientId);
+                            }
+                            else
+                            {
+                                patientIdsQuery = Context.PatientSearchTokens
+                                    .Where(x => x.TokenType == SearchTokenType.RecordNumber && x.Token == digits)
+                                    .Select(x => x.PatientId);
+                            }
+                        }
+                        else
+                        {
+                            var prefix = $"{token.NormalizedToken}%";
+                            var norm = token.NormalizedToken;
+                            patientIdsQuery = Context.PatientSearchTokens
+                                .Where(x => (x.TokenType == SearchTokenType.NameWord && EF.Functions.Like(x.Token, prefix)) ||
+                                           (x.TokenType == SearchTokenType.RecordNumber && x.Token == norm))
+                                .Select(x => x.PatientId);
+                        }
+
+                        // Union with direct patient matches
+                        var directPatientMatches = Context.Patients
+                            .Where(pt => EF.Functions.Like(pt.RecordNumber, $"{token.NormalizedToken}%") ||
+                                         EF.Functions.Like(pt.NormalizedName, $"{token.NormalizedToken}%"))
+                            .Select(pt => pt.Id);
+
+                        var combinedPatientIds = patientIdsQuery.Union(directPatientMatches);
+
+                        var rxFromPatientsQuery = Context.Prescriptions
+                            .Where(p => combinedPatientIds.Contains(p.PatientId))
+                            .Select(p => p.Id);
+
+                        // UNION (a) and (b) for this token
+                        var tokenRxCandidates = directRxTokensQuery.Union(rxFromPatientsQuery);
+
+                        // INTERSECT across all query tokens
+                        matchingRxIdsQuery = matchingRxIdsQuery == null
+                            ? tokenRxCandidates
+                            : matchingRxIdsQuery.Intersect(tokenRxCandidates);
+                    }
+
+                    if (matchingRxIdsQuery != null)
+                    {
+                        dbQuery = dbQuery.Where(p => matchingRxIdsQuery.Contains(p.Id));
+                    }
+                }
+                else
+                {
+                    // Fallback slower query while indexing is incomplete
+                    foreach (var token in parsedTokens)
+                    {
+                        var term = $"%{token.NormalizedToken}%";
+                        var digits = token.IsDigitsOnly ? token.StrippedDigits : null;
+
+                        dbQuery = dbQuery.Where(p =>
+                            EF.Functions.Like(p.PrescriptionNumber, term) ||
+                            EF.Functions.Like(p.PatientSnapshot.Name, term) ||
+                            p.Items.Any(i => EF.Functions.Like(i.MedicineName, term) || (i.GenericName != null && EF.Functions.Like(i.GenericName, term))) ||
+                            (p.Patient != null && EF.Functions.Like(p.Patient.Name, term)) ||
+                            (p.Patient != null && EF.Functions.Like(p.Patient.RecordNumber, term)) ||
+                            (digits != null && p.Patient != null && p.Patient.PhoneDigits != null && EF.Functions.Like(p.Patient.PhoneDigits, $"%{digits}%")));
+                    }
+                }
+            }
+        }
+
+        return dbQuery;
+    }
 }
+

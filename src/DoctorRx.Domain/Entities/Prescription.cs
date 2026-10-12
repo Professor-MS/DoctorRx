@@ -60,6 +60,10 @@ public class Prescription : AuditableEntity
     private readonly List<PrescriptionMedicine> _items = new();
     public ICollection<PrescriptionMedicine> Items => _items;
 
+    // Search tokens
+    private readonly List<PrescriptionSearchToken> _searchTokens = new();
+    public ICollection<PrescriptionSearchToken> SearchTokens => _searchTokens;
+
     // EF Core constructor
     public Prescription()
     {

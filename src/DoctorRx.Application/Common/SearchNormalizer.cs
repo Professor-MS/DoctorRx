@@ -312,6 +312,138 @@ public static class SearchNormalizer
     }
 
     /// <summary>
+    /// Generates prescription-number search tokens from a prescription number string (e.g. "RX-20261009-0002" or "RX-20261009-0002-A1").
+    /// Produces full normalized, partial without 'rx-', date part, sequence number, stripped sequence number, and amendment suffix.
+    /// </summary>
+    public static HashSet<string> GeneratePrescriptionNumberTokens(string? prescriptionNumber)
+    {
+        var tokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(prescriptionNumber))
+        {
+            return tokens;
+        }
+
+        var normalized = Normalize(prescriptionNumber);
+        tokens.Add(normalized); // e.g. "rx-20261009-0002" or "rx-20261009-0002-a1"
+
+        if (normalized.StartsWith("rx-", StringComparison.OrdinalIgnoreCase) && normalized.Length > 3)
+        {
+            var withoutPrefix = normalized[3..];
+            tokens.Add(withoutPrefix); // e.g. "20261009-0002" or "20261009-0002-a1"
+        }
+
+        var parts = normalized.Split('-', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        foreach (var part in parts)
+        {
+            if (string.IsNullOrWhiteSpace(part) || part.Equals("rx", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            tokens.Add(part); // e.g. "20261009", "0002", "a1"
+
+            if (part.All(char.IsAsciiDigit))
+            {
+                var stripped = StripLeadingZeros(part);
+                if (!string.IsNullOrEmpty(stripped))
+                {
+                    tokens.Add(stripped); // e.g. "2" for "0002"
+                }
+            }
+            else if (part.StartsWith('a') && part.Length > 1 && part[1..].All(char.IsAsciiDigit))
+            {
+                // Amendment token like "a1", also add "-a1"
+                tokens.Add($"-{part}");
+            }
+        }
+
+        return tokens;
+    }
+
+    /// <summary>
+    /// Generates all search tokens for a Prescription entity.
+    /// In accordance with Amendment 1: holds ONLY prescription-specific tokens
+    /// (prescription number parts, snapshot patient-name words, and medicine/generic words of prescribed items).
+    /// </summary>
+    public static List<PrescriptionSearchToken> GeneratePrescriptionTokens(Prescription prescription)
+    {
+        var result = new List<PrescriptionSearchToken>();
+
+        // 1. Prescription number tokens
+        var rxTokens = GeneratePrescriptionNumberTokens(prescription.PrescriptionNumber);
+        foreach (var token in rxTokens)
+        {
+            result.Add(new PrescriptionSearchToken
+            {
+                PrescriptionId = prescription.Id,
+                Token = token,
+                TokenType = PrescriptionSearchTokenType.PrescriptionNumberPart
+            });
+        }
+
+        // 2. Snapshot patient name words
+        if (!string.IsNullOrWhiteSpace(prescription.PatientSnapshot?.Name))
+        {
+            var nameWords = ExtractWordTokens(prescription.PatientSnapshot.Name);
+            foreach (var word in nameWords)
+            {
+                result.Add(new PrescriptionSearchToken
+                {
+                    PrescriptionId = prescription.Id,
+                    Token = word,
+                    TokenType = PrescriptionSearchTokenType.SnapshotPatientName
+                });
+            }
+        }
+
+        // 3. Medicine brand & generic words from items
+        if (prescription.Items != null)
+        {
+            var seenItemTokens = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var item in prescription.Items)
+            {
+                if (!string.IsNullOrWhiteSpace(item.MedicineName))
+                {
+                    var medWords = ExtractWordTokens(item.MedicineName);
+                    foreach (var word in medWords)
+                    {
+                        var key = $"med:{word}";
+                        if (seenItemTokens.Add(key))
+                        {
+                            result.Add(new PrescriptionSearchToken
+                            {
+                                PrescriptionId = prescription.Id,
+                                Token = word,
+                                TokenType = PrescriptionSearchTokenType.MedicineName
+                            });
+                        }
+                    }
+                }
+
+                if (!string.IsNullOrWhiteSpace(item.GenericName))
+                {
+                    var genWords = ExtractWordTokens(item.GenericName);
+                    foreach (var word in genWords)
+                    {
+                        var key = $"gen:{word}";
+                        if (seenItemTokens.Add(key))
+                        {
+                            result.Add(new PrescriptionSearchToken
+                            {
+                                PrescriptionId = prescription.Id,
+                                Token = word,
+                                TokenType = PrescriptionSearchTokenType.MedicineGeneric
+                            });
+                        }
+                    }
+                }
+            }
+        }
+
+        return result;
+    }
+
+    /// <summary>
     /// Represents a parsed search token for query evaluation.
     /// </summary>
     public sealed record ParsedQueryToken(
@@ -320,7 +452,10 @@ public static class SearchNormalizer
         bool IsDigitsOnly,
         string StrippedDigits,
         bool IsRecordNumberPrefix,
-        string? RecordNumberDigits
+        string? RecordNumberDigits,
+        bool IsRxNumberPrefix = false,
+        string? RxNumberWithoutPrefix = null,
+        bool IsAmendment = false
     );
 
     /// <summary>
@@ -352,16 +487,25 @@ public static class SearchNormalizer
                 recordDigits = StripLeadingZeros(raw[2..]);
             }
 
+            var isRxPrefix = raw.StartsWith("rx-", StringComparison.OrdinalIgnoreCase);
+            var rxWithoutPrefix = isRxPrefix && raw.Length > 3 ? raw[3..] : null;
+            var isAmendment = (raw.StartsWith("-a", StringComparison.OrdinalIgnoreCase) && raw.Length > 2 && raw[2..].All(char.IsAsciiDigit)) ||
+                              (raw.StartsWith('a') && raw.Length > 1 && raw[1..].All(char.IsAsciiDigit));
+
             list.Add(new ParsedQueryToken(
                 RawToken: raw,
                 NormalizedToken: raw,
                 IsDigitsOnly: isDigits,
                 StrippedDigits: strippedDigits,
                 IsRecordNumberPrefix: isRecordPrefix,
-                RecordNumberDigits: recordDigits
+                RecordNumberDigits: recordDigits,
+                IsRxNumberPrefix: isRxPrefix,
+                RxNumberWithoutPrefix: rxWithoutPrefix,
+                IsAmendment: isAmendment
             ));
         }
 
         return list;
     }
 }
+

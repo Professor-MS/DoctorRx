@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 using DoctorRx.Domain.Entities;
+using DoctorRx.Domain.Models;
 
 namespace DoctorRx.Domain.Interfaces;
 
@@ -14,4 +15,8 @@ public interface IPrescriptionRepository : IRepository<Prescription>
     Task<int> GetCountForDateAsync(DateOnly date, CancellationToken cancellationToken = default);
     Task<string> GenerateNextPrescriptionNumberAsync(DateOnly? date = null, CancellationToken cancellationToken = default);
     Task<Prescription?> GetReplacementPrescriptionAsync(int parentPrescriptionId, CancellationToken cancellationToken = default);
+    Task<PrescriptionHistoryPagedResult> SearchPrescriptionsPagedAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default);
+    Task<int> GetPrescriptionCountAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default);
+    Task ReplaceSearchTokensAsync(int prescriptionId, IEnumerable<PrescriptionSearchToken> tokens, CancellationToken cancellationToken = default);
 }
+

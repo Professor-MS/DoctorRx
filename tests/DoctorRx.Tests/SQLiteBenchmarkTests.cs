@@ -1,12 +1,15 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using DoctorRx.Application.Common;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Services;
 using DoctorRx.Domain.Entities;
 using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.Models;
 using DoctorRx.Infrastructure.Data;
 using DoctorRx.Infrastructure.Repositories;
 using DoctorRx.Infrastructure.Services;
@@ -456,6 +459,27 @@ public class SQLiteBenchmarkTests : IDisposable
         Assert.Equal(20, recent.Count);
         Assert.True(historyLoadTimeMs < 100, $"History load took {historyLoadTimeMs}ms, expected < 100ms");
 
+        // 1b. SearchPrescriptionsAsync first-page load (50 items across 500,000 records)
+        sw.Restart();
+        var firstPage = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(PageSize: 50));
+        sw.Stop();
+        var firstPageTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] Prescription History first-page query (50 across 500,000 records): {firstPageTimeMs} ms (returned {firstPage.Items.Count} records, TotalCount: {firstPage.TotalCount})");
+        Assert.Equal(50, firstPage.Items.Count);
+        Assert.True(firstPageTimeMs < 100, $"First-page history load took {firstPageTimeMs}ms, expected < 100ms");
+
+        // 1c. SearchPrescriptionsAsync worst-case filter (Issued + Today across 500,000 records)
+        sw.Restart();
+        var filterResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(
+            StatusFilter: PrescriptionStatusSearchFilter.Issued,
+            DatePreset: PrescriptionDatePreset.Today,
+            PageSize: 50
+        ));
+        sw.Stop();
+        var filterTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] Prescription History worst-case filter (Issued + Today across 500k): {filterTimeMs} ms");
+        Assert.True(filterTimeMs < 200, $"Worst-case filter took {filterTimeMs}ms, expected < 200ms");
+
         // 2. Open one prescription timing (detailed lookup with items snapshot)
         sw.Restart();
         var openedRx = await rxService.GetPrescriptionByIdAsync(id: 250_000);
@@ -498,5 +522,46 @@ public class SQLiteBenchmarkTests : IDisposable
         Assert.True(finalizeResult.IsSuccess, finalizeResult.ErrorMessage);
         Assert.NotNull(finalizeResult.Value);
         Assert.True(finalizeTimeMs < 1000, $"Finalize prescription took {finalizeTimeMs}ms, expected < 1000ms");
+
+        // 4. 50-concurrent finalization impact
+        var concurrentTasks = Enumerable.Range(1, 50).Select(async i =>
+        {
+            var dto = new CreatePrescriptionDto
+            {
+                PatientId = patientId,
+                DoctorId = doctorId,
+                PrescriptionDate = clock.Today,
+                ChiefComplaints = $"Concurrent stress check {i}",
+                Items = new List<CreatePrescriptionMedicineDto>
+                {
+                    new()
+                    {
+                        MedicineName = $"ConcurrentMed-{i}",
+                        Form = "Tablet",
+                        Strength = "10mg",
+                        Dose = "1 tab",
+                        Frequency = "OD",
+                        Route = "Oral",
+                        Duration = "1 day"
+                    }
+                }
+            };
+            return await rxService.FinalizePrescriptionAsync(dto);
+        });
+
+        sw.Restart();
+        var concurrentResults = await Task.WhenAll(concurrentTasks);
+        sw.Stop();
+        var concurrentTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] 50 concurrent finalizations: {concurrentTimeMs} ms ({concurrentTimeMs / 50.0:F1} ms/op)");
+        Assert.All(concurrentResults, r => Assert.True(r.IsSuccess, r.ErrorMessage));
+
+        // 5. Measure repair job duration
+        var repairService = new SearchIndexRepairService(_factory, NullLogger<SearchIndexRepairService>.Instance);
+        sw.Restart();
+        var repairReport = await repairService.RepairIndexAsync();
+        sw.Stop();
+        var repairTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] Repair job duration: {repairTimeMs} ms (Prescriptions repaired: {repairReport.PrescriptionsRepaired})");
     }
 }

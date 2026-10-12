@@ -14,6 +14,7 @@ using DoctorRx.Application.Interfaces;
 using DoctorRx.Application.Services;
 using DoctorRx.Domain.Enums;
 using DoctorRx.Domain.Interfaces;
+using DoctorRx.Domain.Models;
 using DoctorRx.Domain.ValueObjects;
 using DoctorRx.Presentation.Services;
 using DoctorRx.Presentation.ViewModels;
@@ -635,6 +636,8 @@ public class ScreenResponsiveTests
         public Task<Result<PrescriptionDetailDto>> FinalizePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Result<PrescriptionDetailDto>> AmendPrescriptionAsync(int originalId, CreatePrescriptionDto newContent, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<Result> CancelPrescriptionAsync(int id, string reason, CancellationToken cancellationToken = default) => Task.FromResult(Result.Success());
+        public Task<PrescriptionHistoryPagedResult> SearchPrescriptionsAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrescriptionHistoryPagedResult(Array.Empty<PrescriptionHistoryItemDto>(), 0, false, 1, 50));
     }
 
     private class StubMedicineService : IMedicineService

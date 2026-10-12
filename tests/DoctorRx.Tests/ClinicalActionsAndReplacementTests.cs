@@ -7,6 +7,7 @@ using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Interfaces;
 using DoctorRx.Domain.Enums;
 using DoctorRx.Domain.Interfaces;
+using DoctorRx.Domain.Models;
 using DoctorRx.Domain.ValueObjects;
 using DoctorRx.Presentation.Services;
 using DoctorRx.Presentation.ViewModels;
@@ -248,6 +249,9 @@ public class ClinicalActionsAndReplacementTests
             _replacements.TryGetValue(parentPrescriptionId, out var replacement);
             return Task.FromResult(replacement);
         }
+
+        public Task<PrescriptionHistoryPagedResult> SearchPrescriptionsAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrescriptionHistoryPagedResult(Array.Empty<PrescriptionHistoryItemDto>(), 0, false, 1, 50));
     }
 
     private class TestNavigationTracker : INavigationService

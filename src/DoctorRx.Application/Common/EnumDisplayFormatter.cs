@@ -67,4 +67,34 @@ public static class EnumDisplayFormatter
         RouteOfAdministration.Other => "Other",
         _ => route.ToString()
     };
+
+    public static string GetDisplayName(PrescriptionDatePreset preset) => preset switch
+    {
+        PrescriptionDatePreset.All => "All Dates",
+        PrescriptionDatePreset.Today => "Today",
+        PrescriptionDatePreset.Last7Days => "Last 7 Days",
+        PrescriptionDatePreset.ThisMonth => "This Month",
+        PrescriptionDatePreset.Custom => "Custom Range",
+        _ => preset.ToString()
+    };
+
+    public static string GetDisplayName(PrescriptionStatusSearchFilter filter) => filter switch
+    {
+        PrescriptionStatusSearchFilter.Default => "Issued & Cancelled",
+        PrescriptionStatusSearchFilter.Issued => "Issued",
+        PrescriptionStatusSearchFilter.Cancelled => "Cancelled",
+        PrescriptionStatusSearchFilter.Replaced => "Replaced",
+        PrescriptionStatusSearchFilter.All => "All Statuses",
+        _ => filter.ToString()
+    };
+
+    public static string GetDisplayName(PrescriptionSortOption sort) => sort switch
+    {
+        PrescriptionSortOption.NewestFirst => "Newest First",
+        PrescriptionSortOption.OldestFirst => "Oldest First",
+        PrescriptionSortOption.PatientName => "Patient Name",
+        PrescriptionSortOption.PrescriptionNumber => "Prescription Number",
+        _ => sort.ToString()
+    };
 }
+

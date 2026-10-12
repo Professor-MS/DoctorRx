@@ -7,6 +7,7 @@ using DoctorRx.Application.Common;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Interfaces;
 using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.Models;
 using DoctorRx.Domain.ValueObjects;
 using DoctorRx.Presentation.Services;
 using DoctorRx.Presentation.ViewModels;
@@ -204,6 +205,9 @@ public class NavigationSectionTests
 
         public Task<Result> CancelPrescriptionAsync(int id, string reason, CancellationToken cancellationToken = default) =>
             Task.FromResult(Result.Success());
+
+        public Task<PrescriptionHistoryPagedResult> SearchPrescriptionsAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PrescriptionHistoryPagedResult(Array.Empty<PrescriptionHistoryItemDto>(), 0, false, 1, 50));
     }
 
     private class StubDoctorService : IDoctorService

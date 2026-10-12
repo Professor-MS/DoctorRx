@@ -22,6 +22,7 @@ public class DoctorRxDbContext : DbContext
     public DbSet<Draft> Drafts => Set<Draft>();
     public DbSet<PatientSearchToken> PatientSearchTokens => Set<PatientSearchToken>();
     public DbSet<MedicineSearchToken> MedicineSearchTokens => Set<MedicineSearchToken>();
+    public DbSet<PrescriptionSearchToken> PrescriptionSearchTokens => Set<PrescriptionSearchToken>();
     public DbSet<AppMeta> AppMetas => Set<AppMeta>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -103,6 +104,9 @@ public class DoctorRxDbContext : DbContext
             entity.Property(e => e.PrescriptionNumber).IsRequired().HasMaxLength(50);
             entity.HasIndex(e => e.PrescriptionNumber).IsUnique().HasDatabaseName("IX_Prescriptions_Number");
             entity.HasIndex(e => e.PrescriptionDate).HasDatabaseName("IX_Prescriptions_Date");
+            entity.HasIndex(e => new { e.PrescriptionDate, e.Id }).HasDatabaseName("IX_Prescriptions_Date_Id");
+            entity.HasIndex(e => new { e.Status, e.PrescriptionDate }).HasDatabaseName("IX_Prescriptions_Status_Date");
+            entity.HasIndex(e => new { e.PatientId, e.PrescriptionDate }).HasDatabaseName("IX_Prescriptions_PatientId_Date");
 
             entity.Property(e => e.Version).IsConcurrencyToken();
             entity.Property(e => e.CancellationReason).HasMaxLength(500);
@@ -248,6 +252,26 @@ public class DoctorRxDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        // Prescription Search Tokens configuration (B-tree index for prefix queries)
+        modelBuilder.Entity<PrescriptionSearchToken>(entity =>
+        {
+            entity.ToTable("PrescriptionSearchTokens");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Token).IsRequired().HasMaxLength(100).UseCollation("NOCASE");
+            entity.Property(e => e.TokenType).IsRequired();
+
+            entity.HasIndex(e => new { e.Token, e.PrescriptionId })
+                  .HasDatabaseName("IX_PrescriptionSearchTokens_Token_PrescriptionId");
+
+            entity.HasIndex(e => e.PrescriptionId)
+                  .HasDatabaseName("IX_PrescriptionSearchTokens_PrescriptionId");
+
+            entity.HasOne(e => e.Prescription)
+                  .WithMany(p => p.SearchTokens)
+                  .HasForeignKey(e => e.PrescriptionId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
         // App Metadata configuration
         modelBuilder.Entity<AppMeta>(entity =>
         {
@@ -293,6 +317,21 @@ public class DoctorRxDbContext : DbContext
                 if (string.IsNullOrEmpty(entry.Entity.NormalizedName) || entry.Entity.SearchTokens.Count == 0)
                 {
                     DoctorRx.Application.Common.EntitySearchExtensions.RefreshSearchFields(entry.Entity);
+                }
+            }
+        }
+
+        foreach (var entry in ChangeTracker.Entries<Prescription>())
+        {
+            if (entry.State == EntityState.Added)
+            {
+                if (entry.Entity.SearchTokens.Count == 0 && !string.IsNullOrEmpty(entry.Entity.PrescriptionNumber))
+                {
+                    var tokens = DoctorRx.Application.Common.SearchNormalizer.GeneratePrescriptionTokens(entry.Entity);
+                    foreach (var token in tokens)
+                    {
+                        entry.Entity.SearchTokens.Add(token);
+                    }
                 }
             }
         }

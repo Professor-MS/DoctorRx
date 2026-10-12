@@ -61,6 +61,13 @@ public class PrescriptionService : IPrescriptionService
         return replacement is null ? null : MapToSummaryDto(replacement);
     }
 
+    public async Task<PrescriptionHistoryPagedResult> SearchPrescriptionsAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default)
+    {
+        await using var uow = _uowFactory.Create();
+        return await uow.Prescriptions.SearchPrescriptionsPagedAsync(criteria, cancellationToken);
+    }
+
+
     public async Task<Result<PrescriptionDetailDto>> FinalizePrescriptionAsync(CreatePrescriptionDto dto, CancellationToken cancellationToken = default)
     {
         if (dto.PatientId <= 0)

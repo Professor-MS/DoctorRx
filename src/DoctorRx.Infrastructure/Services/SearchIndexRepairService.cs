@@ -15,6 +15,7 @@ namespace DoctorRx.Infrastructure.Services;
 public class SearchIndexRepairService : ISearchIndexRepairService
 {
     private const string CurrentIndexVersion = "2";
+    private const string CurrentPrescriptionIndexVersion = "1";
     private const int BatchSize = 100;
 
     private readonly IDbContextFactory<DoctorRxDbContext> _contextFactory;
@@ -34,18 +35,23 @@ public class SearchIndexRepairService : ISearchIndexRepairService
         int patientsRepaired = 0;
         int medicinesChecked = 0;
         int medicinesRepaired = 0;
+        int prescriptionsChecked = 0;
+        int prescriptionsRepaired = 0;
 
         await using (var context = await _contextFactory.CreateDbContextAsync(cancellationToken))
         {
             var meta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "SearchIndexVersion", cancellationToken);
-            if (meta?.Value == CurrentIndexVersion)
+            var rxMeta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "PrescriptionSearchIndexVersion", cancellationToken);
+
+            if (meta?.Value == CurrentIndexVersion && rxMeta?.Value == CurrentPrescriptionIndexVersion)
             {
-                // Quick check: verify if there are any orphan or unindexed patients
-                var anyUnindexed = await context.Patients.AnyAsync(p => p.NormalizedName == "" || (p.SearchTokens.Count == 0 && p.Name != ""), cancellationToken);
-                if (!anyUnindexed)
+                var anyUnindexedPatients = await context.Patients.AnyAsync(p => p.NormalizedName == "" || (p.SearchTokens.Count == 0 && p.Name != ""), cancellationToken);
+                var anyUnindexedPrescriptions = await context.Prescriptions.AnyAsync(p => p.SearchTokens.Count == 0 && p.PrescriptionNumber != "", cancellationToken);
+
+                if (!anyUnindexedPatients && !anyUnindexedPrescriptions)
                 {
-                    _logger.LogInformation("Search index version {Version} is already current and healthy.", CurrentIndexVersion);
-                    return new SearchIndexRepairReport(0, 0, 0, 0);
+                    _logger.LogInformation("Search indexes are already current and healthy.");
+                    return new SearchIndexRepairReport(0, 0, 0, 0, 0, 0);
                 }
             }
         }
@@ -82,7 +88,6 @@ public class SearchIndexRepairService : ISearchIndexRepairService
 
                 if (!needsRepair)
                 {
-                    // Check if any expected token is missing
                     var storedTokens = new HashSet<string>(patient.SearchTokens.Select(t => $"{t.TokenType}:{t.Token}"), StringComparer.OrdinalIgnoreCase);
                     var expectedSet = expectedTokens.Select(t => $"{t.TokenType}:{t.Token}");
                     if (!expectedSet.All(storedTokens.Contains))
@@ -106,7 +111,7 @@ public class SearchIndexRepairService : ISearchIndexRepairService
 
             if (batchRepaired > 0)
             {
-                await context.SaveChangesAsync(cancellationToken);
+                await SaveWithBusyRetryAsync(context, cancellationToken);
             }
         }
 
@@ -161,36 +166,132 @@ public class SearchIndexRepairService : ISearchIndexRepairService
 
             if (batchRepaired > 0)
             {
-                await context.SaveChangesAsync(cancellationToken);
+                await SaveWithBusyRetryAsync(context, cancellationToken);
             }
         }
 
-        // Update version metadata
-        await using (var context = await _contextFactory.CreateDbContextAsync(cancellationToken))
+        // 3. Repair Prescriptions in chunked transactions
+        int lastPrescriptionId = 0;
+        while (!cancellationToken.IsCancellationRequested)
         {
-            var meta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "SearchIndexVersion", cancellationToken);
-            if (meta == null)
+            await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
+            var batch = await context.Prescriptions
+                .Include(p => p.SearchTokens)
+                .Include(p => p.Items)
+                .Where(p => p.Id > lastPrescriptionId)
+                .OrderBy(p => p.Id)
+                .Take(BatchSize)
+                .ToListAsync(cancellationToken);
+
+            if (batch.Count == 0) break;
+
+            var batchRepaired = 0;
+            foreach (var rx in batch)
             {
-                context.AppMetas.Add(new AppMeta
+                prescriptionsChecked++;
+                lastPrescriptionId = rx.Id;
+
+                var expectedTokens = SearchNormalizer.GeneratePrescriptionTokens(rx);
+                var needsRepair = rx.SearchTokens.Count != expectedTokens.Count;
+
+                if (!needsRepair)
                 {
-                    Key = "SearchIndexVersion",
-                    Value = CurrentIndexVersion,
-                    UpdatedAtUtc = DateTime.UtcNow
-                });
-            }
-            else
-            {
-                meta.Value = CurrentIndexVersion;
-                meta.UpdatedAtUtc = DateTime.UtcNow;
+                    var storedTokens = new HashSet<string>(rx.SearchTokens.Select(t => $"{(int)t.TokenType}:{t.Token}"), StringComparer.OrdinalIgnoreCase);
+                    var expectedSet = expectedTokens.Select(t => $"{(int)t.TokenType}:{t.Token}");
+                    if (!expectedSet.All(storedTokens.Contains))
+                    {
+                        needsRepair = true;
+                    }
+                }
+
+                if (needsRepair)
+                {
+                    context.PrescriptionSearchTokens.RemoveRange(rx.SearchTokens);
+                    foreach (var token in expectedTokens)
+                    {
+                        token.PrescriptionId = rx.Id;
+                        context.PrescriptionSearchTokens.Add(token);
+                    }
+                    batchRepaired++;
+                    prescriptionsRepaired++;
+                }
             }
 
-            await context.SaveChangesAsync(cancellationToken);
+            if (batchRepaired > 0)
+            {
+                await SaveWithBusyRetryAsync(context, cancellationToken);
+            }
+        }
+
+        // Update version metadata if not cancelled early
+        if (!cancellationToken.IsCancellationRequested)
+        {
+            await using (var context = await _contextFactory.CreateDbContextAsync(cancellationToken))
+            {
+                var meta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "SearchIndexVersion", cancellationToken);
+                if (meta == null)
+                {
+                    context.AppMetas.Add(new AppMeta
+                    {
+                        Key = "SearchIndexVersion",
+                        Value = CurrentIndexVersion,
+                        UpdatedAtUtc = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    meta.Value = CurrentIndexVersion;
+                    meta.UpdatedAtUtc = DateTime.UtcNow;
+                }
+
+                var rxMeta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "PrescriptionSearchIndexVersion", cancellationToken);
+                if (rxMeta == null)
+                {
+                    context.AppMetas.Add(new AppMeta
+                    {
+                        Key = "PrescriptionSearchIndexVersion",
+                        Value = CurrentPrescriptionIndexVersion,
+                        UpdatedAtUtc = DateTime.UtcNow
+                    });
+                }
+                else
+                {
+                    rxMeta.Value = CurrentPrescriptionIndexVersion;
+                    rxMeta.UpdatedAtUtc = DateTime.UtcNow;
+                }
+
+                await SaveWithBusyRetryAsync(context, cancellationToken);
+            }
         }
 
         _logger.LogInformation(
-            "Search index repair completed without PII: {CheckedPatients} patients checked ({RepairedPatients} repaired); {CheckedMeds} medicines checked ({RepairedMeds} repaired).",
-            patientsChecked, patientsRepaired, medicinesChecked, medicinesRepaired);
+            "Search index repair completed without PII: {CheckedPatients} patients checked ({RepairedPatients} repaired); {CheckedMeds} medicines checked ({RepairedMeds} repaired); {CheckedRx} prescriptions checked ({RepairedRx} repaired).",
+            patientsChecked, patientsRepaired, medicinesChecked, medicinesRepaired, prescriptionsChecked, prescriptionsRepaired);
 
-        return new SearchIndexRepairReport(patientsChecked, patientsRepaired, medicinesChecked, medicinesRepaired);
+        return new SearchIndexRepairReport(patientsChecked, patientsRepaired, medicinesChecked, medicinesRepaired, prescriptionsChecked, prescriptionsRepaired);
+    }
+
+    private static async Task SaveWithBusyRetryAsync(DoctorRxDbContext context, CancellationToken cancellationToken)
+    {
+        const int maxRetries = 5;
+        for (int retry = 0; retry < maxRetries; retry++)
+        {
+            try
+            {
+                await context.SaveChangesAsync(cancellationToken);
+                return;
+            }
+            catch (Exception ex) when (IsSqliteBusy(ex) && retry < maxRetries - 1)
+            {
+                await Task.Delay(50 * (retry + 1), cancellationToken);
+            }
+        }
+    }
+
+    private static bool IsSqliteBusy(Exception ex)
+    {
+        return ex is Microsoft.Data.Sqlite.SqliteException sex &&
+               (sex.SqliteErrorCode == 5 /* SQLITE_BUSY */ || sex.SqliteErrorCode == 6 /* SQLITE_LOCKED */);
     }
 }
+
