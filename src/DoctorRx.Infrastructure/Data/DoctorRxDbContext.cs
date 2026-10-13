@@ -88,6 +88,7 @@ public class DoctorRxDbContext : DbContext
             entity.Property(e => e.GenericName).HasMaxLength(150).UseCollation("NOCASE");
             entity.Property(e => e.Form).IsRequired().HasMaxLength(50);
             entity.Property(e => e.Strength).HasMaxLength(50);
+            entity.Property(e => e.Description).HasMaxLength(500);
 
             entity.Property(e => e.UsageCount).HasDefaultValue(0);
             entity.HasIndex(e => e.Name).HasDatabaseName("IX_Medicines_Name");

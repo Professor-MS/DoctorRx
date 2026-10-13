@@ -28,10 +28,19 @@
                                    Style="{StaticResource BodyMuted}" Margin="0,4,0,0" />
                     </StackPanel>
 
-                    <!-- Add Medicine Primary Action Button -->
+                    <!-- Action Buttons -->
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <Button Style="{StaticResource SecondaryButton}" Command="{Binding ImportCsvCommand}" 
+                                Margin="0,0,10,0" Padding="12,7" ToolTip="Import medicines from pakistan_medicine_master.csv"
+                                AutomationProperties.Name="Import CSV Button">
+                            <StackPanel Orientation="Horizontal">
+                                <Path Data="{StaticResource IconDownload}" Width="13" Height="13" Stretch="Uniform" Fill="{StaticResource SlateDarkBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Import CSV" FontWeight="SemiBold" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Button>
+
                         <Button Style="{StaticResource GhostButton}" Command="{Binding RefreshCommand}" 
-                                Margin="0,0,12,0" Padding="8,6" ToolTip="Refresh Catalog">
+                                Margin="0,0,10,0" Padding="8,6" ToolTip="Refresh Catalog">
                             <StackPanel Orientation="Horizontal">
                                 <Path Data="{StaticResource IconRefresh}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
                                 <TextBlock Text="Refresh" Style="{StaticResource CaptionMuted}" VerticalAlignment="Center" />
@@ -103,20 +112,30 @@
                         <Border Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="20,12" CornerRadius="8,8,0,0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="3*" MinWidth="180" />
-                                    <ColumnDefinition Width="2.5*" MinWidth="140" />
-                                    <ColumnDefinition Width="1.5*" MinWidth="100" />
-                                    <ColumnDefinition Width="1.5*" MinWidth="90" />
-                                    <ColumnDefinition Width="1.2*" MinWidth="90" />
-                                    <ColumnDefinition Width="2.2*" MinWidth="160" />
+                                    <ColumnDefinition Width="3.2*" MinWidth="180" />
+                                    <ColumnDefinition Width="1.2*" MinWidth="85" />
+                                    <ColumnDefinition Width="1.3*" MinWidth="95" />
+                                    <ColumnDefinition Width="4*" MinWidth="220" />
+                                    <ColumnDefinition Width="2*" MinWidth="150" />
                                 </Grid.ColumnDefinitions>
 
-                                <TextBlock Grid.Column="0" Text="BRAND / TRADE NAME" Style="{StaticResource CaptionMuted}" FontWeight="Bold" />
-                                <TextBlock Grid.Column="1" Text="GENERIC FORMULA" Style="{StaticResource CaptionMuted}" FontWeight="Bold" />
-                                <TextBlock Grid.Column="2" Text="FORM" Style="{StaticResource CaptionMuted}" FontWeight="Bold" />
-                                <TextBlock Grid.Column="3" Text="STRENGTH" Style="{StaticResource CaptionMuted}" FontWeight="Bold" />
-                                <TextBlock Grid.Column="4" Text="FREQUENCY" Style="{StaticResource CaptionMuted}" FontWeight="Bold" />
-                                <TextBlock Grid.Column="5" Text="ACTIONS" Style="{StaticResource CaptionMuted}" FontWeight="Bold" HorizontalAlignment="Right" />
+                                <!-- Sortable Medicine Name Header -->
+                                <Button Grid.Column="0" 
+                                        Command="{Binding ToggleSortByNameCommand}"
+                                        Style="{StaticResource GhostButton}"
+                                        Padding="0" HorizontalAlignment="Left" VerticalAlignment="Center"
+                                        Cursor="Hand" ToolTip="Click to sort by medicine name"
+                                        AutomationProperties.Name="Sort Medicines by Name Header Button">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="MEDICINE NAME" Style="{StaticResource CaptionMuted}" FontWeight="Bold" />
+                                        <TextBlock Text="{Binding SortIndicator}" Style="{StaticResource CaptionMuted}" FontWeight="Bold" Foreground="{StaticResource PrimaryTealBrush}" Margin="2,0,0,0" />
+                                    </StackPanel>
+                                </Button>
+
+                                <TextBlock Grid.Column="1" Text="STRENGTH" Style="{StaticResource CaptionMuted}" FontWeight="Bold" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="2" Text="FORM" Style="{StaticResource CaptionMuted}" FontWeight="Bold" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="3" Text="DESCRIPTION" Style="{StaticResource CaptionMuted}" FontWeight="Bold" VerticalAlignment="Center" />
+                                <TextBlock Grid.Column="4" Text="ACTIONS" Style="{StaticResource CaptionMuted}" FontWeight="Bold" HorizontalAlignment="Right" VerticalAlignment="Center" />
                             </Grid>
                         </Border>
 
@@ -125,58 +144,111 @@
                                       Visibility="{Binding HasMedicines, Converter={StaticResource BoolToVisConverter}}">
                             <ItemsControl.ItemTemplate>
                                 <DataTemplate>
-                                    <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="20,14" Background="White">
+                                    <Border BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" Padding="20,13" Background="White">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
-                                                <ColumnDefinition Width="3*" MinWidth="180" />
-                                                <ColumnDefinition Width="2.5*" MinWidth="140" />
-                                                <ColumnDefinition Width="1.5*" MinWidth="100" />
-                                                <ColumnDefinition Width="1.5*" MinWidth="90" />
-                                                <ColumnDefinition Width="1.2*" MinWidth="90" />
-                                                <ColumnDefinition Width="2.2*" MinWidth="160" />
+                                                <ColumnDefinition Width="3.2*" MinWidth="180" />
+                                                <ColumnDefinition Width="1.2*" MinWidth="85" />
+                                                <ColumnDefinition Width="1.3*" MinWidth="95" />
+                                                <ColumnDefinition Width="4*" MinWidth="220" />
+                                                <ColumnDefinition Width="2*" MinWidth="150" />
                                             </Grid.ColumnDefinitions>
 
-                                            <!-- Brand Name with status indicator -->
-                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="14" Foreground="{StaticResource SlateDarkestBrush}" TextTrimming="CharacterEllipsis" />
-                                                <TextBlock Text="Active in formulary" FontSize="10" Foreground="{StaticResource SuccessGreenBrush}" Margin="0,2,0,0"
-                                                           Visibility="{Binding IsActive, Converter={StaticResource BoolToVisConverter}}" />
-                                                <TextBlock Text="Inactive / Deactivated" FontSize="10" Foreground="{StaticResource SlateLightBrush}" Margin="0,2,0,0"
-                                                           Visibility="{Binding IsActive, Converter={StaticResource InverseBoolToVisConverter}}" />
-                                            </StackPanel>
-
-                                            <!-- Generic Name -->
-                                            <TextBlock Grid.Column="1" Text="{Binding GenericName}" 
-                                                       FontSize="{StaticResource FontSizeBodyMuted}" Foreground="{StaticResource SlateMutedBrush}" 
-                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-
-                                            <!-- Form Badge -->
-                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Left">
-                                                <Border Background="#F0FDFA" BorderBrush="{StaticResource PrimaryTealLightBrush}" BorderThickness="1" CornerRadius="4" Padding="8,3">
-                                                    <TextBlock Text="{Binding Form}" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource PrimaryTealDarkBrush}" />
-                                                </Border>
+                                            <!-- Medicine Name with Generic Formula and status indicator -->
+                                            <StackPanel Grid.Column="0" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                <TextBlock Text="{Binding Name}" FontWeight="Bold" FontSize="13.5" Foreground="{StaticResource SlateDarkestBrush}" TextTrimming="CharacterEllipsis" />
+                                                <TextBlock Text="{Binding GenericFormulaDisplay}" FontSize="11" Foreground="{StaticResource SlateMediumBrush}" TextTrimming="CharacterEllipsis" Margin="0,2,0,0" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                                                    <TextBlock Text="Active in formulary" FontSize="10" Foreground="{StaticResource SuccessGreenBrush}"
+                                                               Visibility="{Binding IsActive, Converter={StaticResource BoolToVisConverter}}" />
+                                                    <TextBlock Text="Inactive / Deactivated" FontSize="10" Foreground="{StaticResource SlateLightBrush}"
+                                                               Visibility="{Binding IsActive, Converter={StaticResource InverseBoolToVisConverter}}" />
+                                                </StackPanel>
                                             </StackPanel>
 
                                             <!-- Strength -->
-                                            <StackPanel Grid.Column="3" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left">
                                                 <Border Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="6,2">
                                                     <TextBlock Text="{Binding Strength}" FontSize="11.5" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkBrush}" FontFamily="Consolas, Segoe UI" />
                                                 </Border>
                                             </StackPanel>
 
-                                            <!-- Usage Count -->
-                                            <StackPanel Grid.Column="4" VerticalAlignment="Center">
-                                                <TextBlock Text="{Binding UsageCount, StringFormat='{}{0} rx'}" FontSize="12" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkBrush}" />
-                                                <TextBlock Text="prescriptions" FontSize="9" Foreground="{StaticResource SlateLightBrush}" />
+                                            <!-- Form Badge (Differentiable color per form) -->
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center" HorizontalAlignment="Left">
+                                                <Border Background="{Binding FormBadgeBackground}" BorderBrush="{Binding FormBadgeBorder}" BorderThickness="1" CornerRadius="4" Padding="7,3">
+                                                    <TextBlock Text="{Binding Form}" FontSize="11" FontWeight="SemiBold" Foreground="{Binding FormBadgeForeground}" />
+                                                </Border>
+                                            </StackPanel>
+
+                                            <!-- Description (Indications & Therapeutic Category) with Double-line display & View More option -->
+                                            <StackPanel Grid.Column="3" VerticalAlignment="Center" Margin="0,0,10,0">
+                                                <TextBlock x:Name="DescriptionTextBlock"
+                                                           Text="{Binding DescriptionDisplay}" 
+                                                           FontSize="11.5" 
+                                                           Foreground="{StaticResource SlateMediumBrush}" 
+                                                           TextWrapping="Wrap" 
+                                                           LineHeight="16"
+                                                           ToolTipService.InitialShowDelay="150"
+                                                           ToolTipService.BetweenShowDelay="100">
+                                                    <TextBlock.ToolTip>
+                                                        <ToolTip Background="#0F172A" Foreground="White" BorderBrush="#334155" BorderThickness="1" Padding="12,8">
+                                                            <StackPanel MaxWidth="360">
+                                                                <TextBlock Text="CLINICAL INDICATION &amp; USES" FontSize="9.5" FontWeight="Bold" Foreground="#94A3B8" Margin="0,0,0,4" />
+                                                                <TextBlock Text="{Binding DescriptionDisplay}" FontSize="11.5" Foreground="White" TextWrapping="Wrap" LineHeight="16" />
+                                                            </StackPanel>
+                                                        </ToolTip>
+                                                    </TextBlock.ToolTip>
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="MaxHeight" Value="36" />
+                                                            <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsChecked, ElementName=ViewMoreToggle}" Value="True">
+                                                                    <Setter Property="MaxHeight" Value="500" />
+                                                                    <Setter Property="TextTrimming" Value="None" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+
+                                                <!-- View more / Show less toggle option -->
+                                                <ToggleButton x:Name="ViewMoreToggle"
+                                                              Visibility="{Binding HasLongDescription, Converter={StaticResource BoolToVisConverter}}"
+                                                              Cursor="Hand"
+                                                              HorizontalAlignment="Left"
+                                                              Margin="0,2,0,0"
+                                                              AutomationProperties.Name="View More Description Toggle">
+                                                    <ToggleButton.Template>
+                                                        <ControlTemplate TargetType="ToggleButton">
+                                                            <Border Background="Transparent" Padding="0,1">
+                                                                <TextBlock x:Name="ToggleText" 
+                                                                           Text="View more" 
+                                                                           FontSize="10" 
+                                                                           FontWeight="SemiBold" 
+                                                                           Foreground="{StaticResource PrimaryTealBrush}" />
+                                                            </Border>
+                                                            <ControlTemplate.Triggers>
+                                                                <Trigger Property="IsChecked" Value="True">
+                                                                    <Setter TargetName="ToggleText" Property="Text" Value="Show less" />
+                                                                    <Setter TargetName="ToggleText" Property="Foreground" Value="{StaticResource SlateMediumBrush}" />
+                                                                </Trigger>
+                                                                <Trigger Property="IsMouseOver" Value="True">
+                                                                    <Setter TargetName="ToggleText" Property="TextDecorations" Value="Underline" />
+                                                                </Trigger>
+                                                            </ControlTemplate.Triggers>
+                                                        </ControlTemplate>
+                                                    </ToggleButton.Template>
+                                                </ToggleButton>
                                             </StackPanel>
 
                                             <!-- Action Buttons -->
-                                            <StackPanel Grid.Column="5" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                            <StackPanel Grid.Column="4" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
                                                 <!-- Prescribe Now Button -->
                                                 <Button Style="{StaticResource SecondaryButton}" 
                                                         Command="{Binding DataContext.PrescribeNowCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
-                                                        Padding="10,5" Margin="0,0,6,0"
+                                                        Padding="9,5" Margin="0,0,5,0"
                                                         ToolTip="Open New Prescription with this medicine"
                                                         AutomationProperties.Name="Prescribe Now Button">
                                                     <StackPanel Orientation="Horizontal">
@@ -189,7 +261,7 @@
                                                 <Button Style="{StaticResource GhostButton}" 
                                                         Command="{Binding DataContext.OpenEditDrawerCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
-                                                        Padding="8,5" Margin="0,0,4,0"
+                                                        Padding="7,5" Margin="0,0,4,0"
                                                         ToolTip="Edit Formulation"
                                                         AutomationProperties.Name="Edit Medicine Button">
                                                     <Path Data="{StaticResource IconEdit}" Width="13" Height="13" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" />
@@ -199,7 +271,7 @@
                                                 <Button Style="{StaticResource DangerOutlineButton}" 
                                                         Command="{Binding DataContext.DeleteMedicineCommand, RelativeSource={RelativeSource AncestorType=ItemsControl}}"
                                                         CommandParameter="{Binding}"
-                                                        Padding="8,5"
+                                                        Padding="7,5"
                                                         ToolTip="Deactivate Medicine"
                                                         AutomationProperties.Name="Deactivate Medicine Button">
                                                     <Path Data="{StaticResource IconTrash}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource DangerRedBrush}" />
@@ -217,15 +289,88 @@
                             <StackPanel HorizontalAlignment="Center">
                                 <Path Data="{StaticResource IconPill}" Width="36" Height="36" Stretch="Uniform" Fill="{StaticResource SlateLightBrush}" HorizontalAlignment="Center" Margin="0,0,0,12" />
                                 <TextBlock Text="No medicines found in catalog" FontSize="16" FontWeight="SemiBold" Foreground="{StaticResource SlateDarkestBrush}" HorizontalAlignment="Center" />
-                                <TextBlock Text="Try adjusting your search query or dosage form filter, or add a new medicine formulation to your clinic catalog."
+                                <TextBlock Text="Try adjusting your search query or dosage form filter, import records from pakistan_medicine_master.csv, or add a new medicine formulation to your clinic catalog."
                                            Style="{StaticResource BodyMuted}" HorizontalAlignment="Center" TextAlignment="Center" Margin="0,4,0,16" MaxWidth="440" TextWrapping="Wrap" />
-                                <Button Style="{StaticResource PrimaryButton}" Command="{Binding OpenAddDrawerCommand}" HorizontalAlignment="Center" Padding="16,7">
-                                    <StackPanel Orientation="Horizontal">
-                                        <Path Data="{StaticResource IconPlus}" Width="12" Height="12" Stretch="Uniform" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
-                                        <TextBlock Text="Add New Medicine" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                    </StackPanel>
-                                </Button>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                                    <Button Style="{StaticResource SecondaryButton}" Command="{Binding ImportCsvCommand}" Margin="0,0,10,0" Padding="14,7">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconDownload}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateDarkBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Import CSV" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                    <Button Style="{StaticResource PrimaryButton}" Command="{Binding OpenAddDrawerCommand}" Padding="16,7">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="{StaticResource IconPlus}" Width="12" Height="12" Stretch="Uniform" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Add New Medicine" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
                             </StackPanel>
+                        </Border>
+
+                        <!-- Pagination Footer Bar -->
+                        <Border Background="{StaticResource SlateBackgroundBrush}" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,1,0,0" Padding="16,10" CornerRadius="0,0,8,8"
+                                Visibility="{Binding HasMedicines, Converter={StaticResource BoolToVisConverter}}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <!-- Left: Showing X–Y of Z medicines -->
+                                    <ColumnDefinition Width="*" />
+                                    <!-- Center: [Previous] Page X of Y [Next] -->
+                                    <ColumnDefinition Width="Auto" />
+                                    <!-- Right: Medicines per page: [10 v] -->
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <!-- Left: Range Summary -->
+                                <TextBlock Grid.Column="0" 
+                                           Text="{Binding RangeSummaryText}" 
+                                           Style="{StaticResource CaptionMuted}" 
+                                           FontWeight="SemiBold" 
+                                           VerticalAlignment="Center" />
+
+                                <!-- Center: Pagination Controls -->
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Command="{Binding PreviousPageCommand}"
+                                            Padding="10,5" Margin="0,0,10,0"
+                                            AutomationProperties.Name="Previous Page Button"
+                                            ToolTip="Previous Page">
+                                        <StackPanel Orientation="Horizontal">
+                                            <Path Data="M 7,3 L 3,7 L 7,11" Stroke="{StaticResource SlateDarkBrush}" StrokeThickness="1.5" Width="10" Height="10" Stretch="Uniform" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                            <TextBlock Text="Previous" FontSize="11.5" FontWeight="Medium" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+
+                                    <Border Background="White" BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="1" CornerRadius="4" Padding="12,5" Margin="0,0,10,0">
+                                        <TextBlock Text="{Binding PageIndicatorText}" 
+                                                   FontSize="12" FontWeight="SemiBold" 
+                                                   Foreground="{StaticResource SlateDarkBrush}" 
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Command="{Binding NextPageCommand}"
+                                            Padding="10,5"
+                                            AutomationProperties.Name="Next Page Button"
+                                            ToolTip="Next Page">
+                                        <StackPanel Orientation="Horizontal">
+                                            <TextBlock Text="Next" FontSize="11.5" FontWeight="Medium" Margin="0,0,4,0" VerticalAlignment="Center" />
+                                            <Path Data="M 3,3 L 7,7 L 3,11" Stroke="{StaticResource SlateDarkBrush}" StrokeThickness="1.5" Width="10" Height="10" Stretch="Uniform" VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Button>
+                                </StackPanel>
+
+                                <!-- Right: Page Size Selector -->
+                                <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                    <TextBlock Text="Medicines per page:" Style="{StaticResource CaptionMuted}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                    <ComboBox ItemsSource="{Binding AvailablePageSizes}"
+                                              SelectedItem="{Binding SelectedPageSize}"
+                                              Style="{StaticResource ModernComboBox}"
+                                              Width="70"
+                                              Padding="8,4"
+                                              AutomationProperties.Name="Page Size Selector Dropdown" />
+                                </StackPanel>
+                            </Grid>
                         </Border>
                     </StackPanel>
                 </Border>
@@ -346,6 +491,12 @@
                                 </ItemsControl.ItemTemplate>
                             </ItemsControl>
                         </WrapPanel>
+
+                        <!-- Description / Category / Indications -->
+                        <TextBlock Text="Description / Category / Indications (Optional)" Style="{StaticResource BodyMuted}" FontWeight="SemiBold" Margin="0,0,0,4" />
+                        <TextBox Text="{Binding FormDescription, UpdateSourceTrigger=PropertyChanged}" 
+                                 Style="{StaticResource ModernTextBox}" Height="55" TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto" Margin="0,0,0,16"
+                                 AutomationProperties.Name="Description Input" />
 
                         <!-- Active in Formulary Toggle (If Editing) -->
                         <CheckBox Content="Active in Clinic Formulary (Available for prescription search)" 

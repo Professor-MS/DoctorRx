@@ -14,6 +14,7 @@ public class Medicine : AuditableEntity
     public string? GenericName { get; set; }
     public string Form { get; set; } = string.Empty;
     public string Strength { get; set; } = string.Empty;
+    public string? Description { get; set; }
     public bool IsActive { get; set; } = true;
     public int UsageCount { get; set; } = 0;
     public System.DateTime? LastUsedAtUtc { get; set; }

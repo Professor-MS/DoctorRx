@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using DoctorRx.Application.Common;
 using DoctorRx.Application.Interfaces;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
 namespace DoctorRx.Infrastructure.Data;
@@ -104,6 +105,9 @@ public class DatabaseInitializer : IDatabaseInitializer
 
             _logger.LogInformation("Verifying search index integrity...");
             await _searchIndexRepairService.RepairIndexAsync(cancellationToken);
+
+            // 5. Backfill clinical indications for catalog medicines with empty descriptions
+            await BackfillMedicineDescriptionsAsync(cancellationToken);
         }
         catch (DoctorRxStartupException)
         {
@@ -122,6 +126,48 @@ public class DatabaseInitializer : IDatabaseInitializer
         {
             _logger.LogError(ex, "An error occurred while initializing the SQLite database.");
             throw;
+        }
+    }
+
+    private async Task BackfillMedicineDescriptionsAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dbPath = _appPaths.DatabasePath;
+            if (!System.IO.File.Exists(dbPath)) return;
+
+            var options = new DbContextOptionsBuilder<DoctorRxDbContext>()
+                .UseSqlite($"Data Source={dbPath}")
+                .Options;
+
+            await using var ctx = new DoctorRxDbContext(options);
+            var medicinesWithoutDesc = await ctx.Medicines
+                .Where(m => m.Description == null || m.Description == "")
+                .ToListAsync(cancellationToken);
+
+            if (medicinesWithoutDesc.Count > 0)
+            {
+                int updatedCount = 0;
+                foreach (var m in medicinesWithoutDesc)
+                {
+                    var indication = MedicineClinicalKnowledge.GetClinicalIndication(m.Name, m.GenericName);
+                    if (!string.IsNullOrWhiteSpace(indication))
+                    {
+                        m.Description = indication;
+                        updatedCount++;
+                    }
+                }
+
+                if (updatedCount > 0)
+                {
+                    await ctx.SaveChangesAsync(cancellationToken);
+                    _logger.LogInformation("Backfilled disease indications for {Count} medicines in catalog database.", updatedCount);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Non-fatal: could not backfill medicine descriptions during initialization.");
         }
     }
 }

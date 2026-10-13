@@ -12,4 +12,5 @@ public interface IMedicineRepository : IRepository<Medicine>
     Task<IReadOnlyList<Medicine>> FindPotentialDuplicatesAsync(string name, string form, string? strength, int? excludeId = null, CancellationToken cancellationToken = default);
     Task<int> GetPrescriptionReferenceCountAsync(int medicineId, CancellationToken cancellationToken = default);
     Task<int> GetDraftReferenceCountAsync(int medicineId, CancellationToken cancellationToken = default);
+    Task<(IReadOnlyList<Medicine> Items, int TotalCount)> GetPagedAsync(string? searchText, string? dosageForm, bool includeInactive, int pageNumber, int pageSize, string? sortOrder = null, CancellationToken cancellationToken = default);
 }

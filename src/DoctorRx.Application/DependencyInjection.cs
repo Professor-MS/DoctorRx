@@ -13,6 +13,7 @@ public static class DependencyInjection
         services.AddSingleton<IPrescriptionService, PrescriptionService>();
         services.AddSingleton<IMedicineSearchService, MedicineSearchService>();
         services.AddSingleton<IMedicineService, MedicineService>();
+        services.AddSingleton<IMedicineCsvImportService, MedicineCsvImportService>();
         services.AddSingleton<IDoctorService, DoctorService>();
         services.AddSingleton<IDashboardService, DashboardService>();
         services.AddSingleton<IDraftService, DraftService>();

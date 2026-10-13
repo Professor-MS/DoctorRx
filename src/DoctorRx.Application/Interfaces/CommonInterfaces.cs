@@ -15,6 +15,7 @@ public interface IMedicineSearchService
 public interface IMedicineService
 {
     Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default);
+    Task<PagedResult<MedicineDto>> GetMedicinesPagedAsync(string? searchText, string? dosageForm, bool includeInactive, int pageNumber, int pageSize, string? sortOrder = null, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(MedicineSearchCriteria criteria, CancellationToken cancellationToken = default);
     Task<MedicineDto?> GetMedicineByIdAsync(int id, CancellationToken cancellationToken = default);

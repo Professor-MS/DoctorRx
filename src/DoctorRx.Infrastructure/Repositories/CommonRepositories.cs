@@ -218,6 +218,61 @@ public class MedicineRepository : Repository<Medicine>, IMedicineRepository
         return count;
     }
 
+    public async Task<(IReadOnlyList<Medicine> Items, int TotalCount)> GetPagedAsync(
+        string? searchText,
+        string? dosageForm,
+        bool includeInactive,
+        int pageNumber,
+        int pageSize,
+        string? sortOrder = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (pageNumber < 1) pageNumber = 1;
+        if (pageSize < 1) pageSize = 10;
+
+        IQueryable<Medicine> query = DbSet.AsNoTracking();
+
+        if (!includeInactive)
+        {
+            query = query.Where(m => m.IsActive);
+        }
+
+        if (!string.IsNullOrWhiteSpace(dosageForm) && !dosageForm.Equals("All Forms", System.StringComparison.OrdinalIgnoreCase))
+        {
+            var cleanForm = dosageForm.Trim();
+            if (cleanForm.Equals("Drops", System.StringComparison.OrdinalIgnoreCase))
+                query = query.Where(m => EF.Functions.Like(m.Form, "%Drop%"));
+            else if (cleanForm.Equals("Cream / Ointment", System.StringComparison.OrdinalIgnoreCase))
+                query = query.Where(m => EF.Functions.Like(m.Form, "%Cream%") || EF.Functions.Like(m.Form, "%Ointment%"));
+            else
+                query = query.Where(m => m.Form.ToLower() == cleanForm.ToLower());
+        }
+
+        if (!string.IsNullOrWhiteSpace(searchText))
+        {
+            var clean = SearchNormalizer.Normalize(searchText);
+            var contains = $"%{clean}%";
+            query = query.Where(m => EF.Functions.Like(m.NormalizedName, contains) ||
+                                     (m.GenericName != null && EF.Functions.Like(m.GenericName, contains)));
+        }
+
+        int totalCount = await query.CountAsync(cancellationToken);
+
+        query = sortOrder switch
+        {
+            "name_asc" => query.OrderBy(m => m.Name),
+            "name_desc" => query.OrderByDescending(m => m.Name),
+            _ => query.OrderByDescending(m => m.UsageCount).ThenBy(m => m.Name)
+        };
+
+        var items = await query
+            .Skip((pageNumber - 1) * pageSize)
+            .Take(pageSize)
+            .ToListAsync(cancellationToken);
+
+        return (items, totalCount);
+    }
+
     private static bool IsStrengthMatch(string? dbStrength, string inputStrength)
     {
         var s1 = System.Text.RegularExpressions.Regex.Replace((dbStrength ?? string.Empty).Trim(), @"\s+", "").ToLowerInvariant();

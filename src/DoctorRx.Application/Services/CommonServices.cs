@@ -33,16 +33,37 @@ public class MedicineService : IMedicineService
 
     public async Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default)
     {
+        var result = await GetMedicinesPagedAsync(null, null, false, pageNumber, pageSize, null, cancellationToken);
+        return result.Items;
+    }
+
+    public async Task<PagedResult<MedicineDto>> GetMedicinesPagedAsync(
+        string? searchText,
+        string? dosageForm,
+        bool includeInactive,
+        int pageNumber,
+        int pageSize,
+        string? sortOrder = null,
+        CancellationToken cancellationToken = default)
+    {
         if (pageNumber < 1) pageNumber = 1;
-        if (pageSize < 1) pageSize = 50;
+        if (pageSize < 1) pageSize = 10;
 
         await using var uow = _uowFactory.Create();
-        var list = await uow.Medicines.FindAsync(m => m.IsActive, cancellationToken);
-        return list.OrderBy(m => m.Name)
-                   .Skip((pageNumber - 1) * pageSize)
-                   .Take(pageSize)
-                   .Select(MapToDto)
-                   .ToList();
+        var (items, totalCount) = await uow.Medicines.GetPagedAsync(
+            searchText,
+            dosageForm,
+            includeInactive,
+            pageNumber,
+            pageSize,
+            sortOrder,
+            cancellationToken);
+
+        return new PagedResult<MedicineDto>(
+            items.Select(MapToDto).ToList(),
+            totalCount,
+            pageNumber,
+            pageSize);
     }
 
     public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
@@ -130,6 +151,7 @@ public class MedicineService : IMedicineService
                 GenericName = dto.GenericName?.Trim(),
                 Form = dto.Form.Trim(),
                 Strength = dto.Strength?.Trim() ?? string.Empty,
+                Description = dto.Description?.Trim(),
                 IsActive = true,
                 CreatedAtUtc = _clock.UtcNow
             };
@@ -213,6 +235,7 @@ public class MedicineService : IMedicineService
             medicine.GenericName = dto.GenericName?.Trim();
             medicine.Form = dto.Form.Trim();
             medicine.Strength = dto.Strength?.Trim() ?? string.Empty;
+            medicine.Description = dto.Description?.Trim();
             medicine.IsActive = dto.IsActive;
             medicine.UpdatedAtUtc = _clock.UtcNow;
             medicine.RefreshSearchFields();
@@ -322,7 +345,17 @@ public class MedicineService : IMedicineService
     }
 
     private static MedicineDto MapToDto(Medicine m) =>
-        new(m.Id, m.Name, m.GenericName, m.Form, m.Strength, m.IsActive, m.UsageCount);
+        new(
+            m.Id,
+            m.Name,
+            m.GenericName,
+            m.Form,
+            m.Strength,
+            m.IsActive,
+            m.UsageCount,
+            !string.IsNullOrWhiteSpace(m.Description)
+                ? m.Description
+                : DoctorRx.Application.Common.MedicineClinicalKnowledge.GetClinicalIndication(m.Name, m.GenericName));
 }
 
 public class DoctorService : IDoctorService

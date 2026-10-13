@@ -334,6 +334,9 @@ public class ClinicalActionsAndReplacementTests
         public Task<IReadOnlyList<MedicineDto>> GetMedicinesPagedAsync(int pageNumber, int pageSize = 50, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<MedicineDto>>(Array.Empty<MedicineDto>());
 
+        public Task<PagedResult<MedicineDto>> GetMedicinesPagedAsync(string? searchText, string? dosageForm, bool includeInactive, int pageNumber, int pageSize, string? sortOrder = null, CancellationToken cancellationToken = default) =>
+            Task.FromResult(new PagedResult<MedicineDto>(Array.Empty<MedicineDto>(), 0, pageNumber, pageSize));
+
         public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default) =>
             Task.FromResult<IReadOnlyList<MedicineDto>>(Array.Empty<MedicineDto>());
 

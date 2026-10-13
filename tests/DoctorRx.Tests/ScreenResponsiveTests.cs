@@ -686,6 +686,11 @@ public class ScreenResponsiveTests
             return Task.FromResult<IReadOnlyList<MedicineDto>>(new List<MedicineDto>());
         }
 
+        public Task<PagedResult<MedicineDto>> GetMedicinesPagedAsync(string? searchText, string? dosageForm, bool includeInactive, int pageNumber, int pageSize, string? sortOrder = null, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new PagedResult<MedicineDto>(new List<MedicineDto>(), 0, pageNumber, pageSize));
+        }
+
         public Task<IReadOnlyList<MedicineDto>> SearchMedicinesAsync(string query, int maxResults = 50, CancellationToken cancellationToken = default)
         {
             return Task.FromResult<IReadOnlyList<MedicineDto>>(new List<MedicineDto>());

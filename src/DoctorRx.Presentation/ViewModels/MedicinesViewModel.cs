@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -19,12 +20,12 @@ public class MedicinesViewModel : ViewModelBase
 
     private readonly IMedicineService _medicineService;
     private readonly IMedicineSearchService? _medicineSearchService;
+    private readonly IMedicineCsvImportService? _csvImportService;
     private readonly IDialogService _dialogService;
     private readonly INavigationService _navigationService;
     private readonly ILogger<MedicinesViewModel>? _logger;
 
     private CancellationTokenSource? _searchCts;
-    private List<MedicineDto> _allLoadedMedicines = new();
 
     // Search and Filtering
     private string _searchQuery = string.Empty;
@@ -32,6 +33,11 @@ public class MedicinesViewModel : ViewModelBase
     private bool _showInactive;
     private int _totalMedicinesCount;
     private int _filteredMedicinesCount;
+    private string? _sortOrder;
+
+    // Pagination
+    private int _selectedPageSize = 10;
+    private int _currentPage = 1;
 
     // Selection
     private MedicineDto? _selectedMedicine;
@@ -44,6 +50,7 @@ public class MedicinesViewModel : ViewModelBase
     private string? _formGenericName;
     private string _formDosageForm = "Tablet";
     private string _formStrength = string.Empty;
+    private string? _formDescription;
     private bool _formIsActive = true;
     private string? _formErrorMessage;
 
@@ -64,6 +71,8 @@ public class MedicinesViewModel : ViewModelBase
     {
         "250 mg", "500 mg", "625 mg", "1 g", "120 mg/5ml", "250 mg/5ml", "0.5%", "1%", "5 ml", "100 ml"
     };
+
+    public ObservableCollection<int> AvailablePageSizes { get; } = new() { 10, 20, 30 };
 
     public ObservableCollection<MedicineDto> Medicines { get; } = new();
 
@@ -105,10 +114,35 @@ public class MedicinesViewModel : ViewModelBase
         }
     }
 
+    public string? SortOrder
+    {
+        get => _sortOrder;
+        set
+        {
+            if (SetProperty(ref _sortOrder, value))
+            {
+                OnPropertyChanged(nameof(SortIndicator));
+            }
+        }
+    }
+
+    public string SortIndicator => _sortOrder switch
+    {
+        "name_asc" => " ▲",
+        "name_desc" => " ▼",
+        _ => " ⇅"
+    };
+
     public int TotalMedicinesCount
     {
         get => _totalMedicinesCount;
-        private set => SetProperty(ref _totalMedicinesCount, value);
+        private set
+        {
+            if (SetProperty(ref _totalMedicinesCount, value))
+            {
+                NotifyPaginationState();
+            }
+        }
     }
 
     public int FilteredMedicinesCount
@@ -118,23 +152,56 @@ public class MedicinesViewModel : ViewModelBase
         {
             if (SetProperty(ref _filteredMedicinesCount, value))
             {
-                OnPropertyChanged(nameof(FilterSummaryText));
-                OnPropertyChanged(nameof(HasMedicines));
-                OnPropertyChanged(nameof(NoMedicinesFound));
+                NotifyPaginationState();
             }
         }
     }
 
-    public string FilterSummaryText
+    public int SelectedPageSize
+    {
+        get => _selectedPageSize;
+        set
+        {
+            if (SetProperty(ref _selectedPageSize, value))
+            {
+                CurrentPage = 1;
+                _ = LoadMedicinesPagedAsync();
+            }
+        }
+    }
+
+    public int CurrentPage
+    {
+        get => _currentPage;
+        set
+        {
+            if (SetProperty(ref _currentPage, value))
+            {
+                NotifyPaginationState();
+            }
+        }
+    }
+
+    public int TotalPages => Math.Max(1, (int)Math.Ceiling((double)TotalMedicinesCount / Math.Max(1, SelectedPageSize)));
+
+    public bool HasPreviousPage => CurrentPage > 1 && !IsBusy;
+
+    public bool HasNextPage => CurrentPage < TotalPages && !IsBusy;
+
+    public string PageIndicatorText => $"Page {CurrentPage} of {TotalPages}";
+
+    public string RangeSummaryText
     {
         get
         {
-            if (TotalMedicinesCount == 0) return "Catalog is empty";
-            if (FilteredMedicinesCount == TotalMedicinesCount)
-                return $"Showing all {TotalMedicinesCount} medicines";
-            return $"Showing {FilteredMedicinesCount} of {TotalMedicinesCount} medicines";
+            if (TotalMedicinesCount == 0) return "Showing 0 medicines";
+            var start = (CurrentPage - 1) * SelectedPageSize + 1;
+            var end = Math.Min(CurrentPage * SelectedPageSize, TotalMedicinesCount);
+            return $"Showing {start}–{end} of {TotalMedicinesCount:N0} medicines";
         }
     }
+
+    public string FilterSummaryText => RangeSummaryText;
 
     public bool HasMedicines => FilteredMedicinesCount > 0;
     public bool NoMedicinesFound => FilteredMedicinesCount == 0 && !IsBusy;
@@ -204,6 +271,12 @@ public class MedicinesViewModel : ViewModelBase
         set => SetProperty(ref _formStrength, value);
     }
 
+    public string? FormDescription
+    {
+        get => _formDescription;
+        set => SetProperty(ref _formDescription, value);
+    }
+
     public bool FormIsActive
     {
         get => _formIsActive;
@@ -226,17 +299,16 @@ public class MedicinesViewModel : ViewModelBase
 
     public double DrawerWidth => IsCompact ? 320 : 420;
 
-    private const int PageSize = 50;
-    private int _currentLimit = PageSize;
-    private List<MedicineDto> _filteredSortedMedicines = new();
-
-    public bool CanLoadMore => Medicines.Count < _filteredSortedMedicines.Count;
+    public bool CanLoadMore => HasNextPage;
 
     #endregion
 
     #region Commands
 
     public ICommand RefreshCommand { get; }
+    public ICommand PreviousPageCommand { get; }
+    public ICommand NextPageCommand { get; }
+    public ICommand ImportCsvCommand { get; }
     public ICommand OpenAddDrawerCommand { get; }
     public ICommand OpenEditDrawerCommand { get; }
     public ICommand CloseDrawerCommand { get; }
@@ -247,6 +319,7 @@ public class MedicinesViewModel : ViewModelBase
     public ICommand SelectFormChipCommand { get; }
     public ICommand SelectStrengthChipCommand { get; }
     public ICommand LoadMoreCommand { get; }
+    public ICommand ToggleSortByNameCommand { get; }
 
     #endregion
 
@@ -258,6 +331,9 @@ public class MedicinesViewModel : ViewModelBase
         _navigationService = null!;
 
         RefreshCommand = new RelayCommand(() => { });
+        PreviousPageCommand = new RelayCommand(() => { });
+        NextPageCommand = new RelayCommand(() => { });
+        ImportCsvCommand = new RelayCommand(() => { });
         OpenAddDrawerCommand = new RelayCommand(() => { });
         OpenEditDrawerCommand = new RelayCommand<MedicineDto>(_ => { });
         CloseDrawerCommand = new RelayCommand(() => { });
@@ -268,6 +344,7 @@ public class MedicinesViewModel : ViewModelBase
         SelectFormChipCommand = new RelayCommand<string>(_ => { });
         SelectStrengthChipCommand = new RelayCommand<string>(_ => { });
         LoadMoreCommand = new RelayCommand(() => { });
+        ToggleSortByNameCommand = new RelayCommand(() => { });
     }
 
     public MedicinesViewModel(
@@ -275,15 +352,20 @@ public class MedicinesViewModel : ViewModelBase
         IDialogService dialogService,
         INavigationService navigationService,
         ILogger<MedicinesViewModel>? logger = null,
-        IMedicineSearchService? medicineSearchService = null)
+        IMedicineSearchService? medicineSearchService = null,
+        IMedicineCsvImportService? csvImportService = null)
     {
         _medicineService = medicineService;
         _dialogService = dialogService;
         _navigationService = navigationService;
         _logger = logger;
         _medicineSearchService = medicineSearchService;
+        _csvImportService = csvImportService;
 
-        RefreshCommand = new AsyncRelayCommand(() => LoadMedicinesAsync());
+        RefreshCommand = new AsyncRelayCommand(() => LoadMedicinesPagedAsync());
+        PreviousPageCommand = new AsyncRelayCommand(PreviousPageAsync, () => HasPreviousPage);
+        NextPageCommand = new AsyncRelayCommand(NextPageAsync, () => HasNextPage);
+        ImportCsvCommand = new AsyncRelayCommand<string?>(ImportCsvAsync);
         OpenAddDrawerCommand = new RelayCommand(OpenAddDrawer);
         OpenEditDrawerCommand = new RelayCommand<MedicineDto>(OpenEditDrawer);
         CloseDrawerCommand = new RelayCommand(CloseDrawer);
@@ -308,12 +390,13 @@ public class MedicinesViewModel : ViewModelBase
             }
         });
 
-        LoadMoreCommand = new RelayCommand(LoadMore);
+        LoadMoreCommand = NextPageCommand;
+        ToggleSortByNameCommand = new AsyncRelayCommand(ToggleSortByNameAsync);
     }
 
     public override async Task InitializeAsync(object? parameter = null)
     {
-        await LoadMedicinesAsync();
+        await LoadMedicinesPagedAsync();
     }
 
     protected override void OnLayoutModeChanged(LayoutMode newMode)
@@ -321,7 +404,24 @@ public class MedicinesViewModel : ViewModelBase
         OnPropertyChanged(nameof(DrawerWidth));
     }
 
-    public async Task LoadMedicinesAsync()
+    public Task LoadMedicinesAsync() => LoadMedicinesPagedAsync();
+
+    public async Task ToggleSortByNameAsync()
+    {
+        if (SortOrder == "name_asc")
+        {
+            SortOrder = "name_desc";
+        }
+        else
+        {
+            SortOrder = "name_asc";
+        }
+
+        CurrentPage = 1;
+        await LoadMedicinesPagedAsync();
+    }
+
+    public async Task LoadMedicinesPagedAsync()
     {
         if (_medicineService == null) return;
 
@@ -330,11 +430,40 @@ public class MedicinesViewModel : ViewModelBase
             IsBusy = true;
             BusyMessage = "Loading medicines catalog...";
 
-            var list = await _medicineService.GetMedicinesPagedAsync(1, 2000);
-            _allLoadedMedicines = list.ToList();
-            TotalMedicinesCount = _allLoadedMedicines.Count;
+            var result = await _medicineService.GetMedicinesPagedAsync(
+                _searchQuery,
+                _selectedFormFilter,
+                _showInactive,
+                CurrentPage,
+                SelectedPageSize,
+                SortOrder);
 
-            ApplyFilters();
+            int total = result.TotalCount;
+            TotalMedicinesCount = total;
+            FilteredMedicinesCount = total;
+
+            int calculatedTotalPages = Math.Max(1, (int)Math.Ceiling((double)total / Math.Max(1, SelectedPageSize)));
+            if (CurrentPage > calculatedTotalPages && total > 0)
+            {
+                CurrentPage = calculatedTotalPages;
+                result = await _medicineService.GetMedicinesPagedAsync(
+                    _searchQuery,
+                    _selectedFormFilter,
+                    _showInactive,
+                    CurrentPage,
+                    SelectedPageSize,
+                    SortOrder);
+                TotalMedicinesCount = result.TotalCount;
+                FilteredMedicinesCount = result.TotalCount;
+            }
+
+            Medicines.Clear();
+            foreach (var item in result.Items)
+            {
+                Medicines.Add(item);
+            }
+
+            NotifyPaginationState();
         }
         catch (Exception ex)
         {
@@ -344,6 +473,40 @@ public class MedicinesViewModel : ViewModelBase
         finally
         {
             IsBusy = false;
+            NotifyPaginationState();
+        }
+    }
+
+    private void NotifyPaginationState()
+    {
+        OnPropertyChanged(nameof(TotalPages));
+        OnPropertyChanged(nameof(HasPreviousPage));
+        OnPropertyChanged(nameof(HasNextPage));
+        OnPropertyChanged(nameof(PageIndicatorText));
+        OnPropertyChanged(nameof(RangeSummaryText));
+        OnPropertyChanged(nameof(FilterSummaryText));
+        OnPropertyChanged(nameof(HasMedicines));
+        OnPropertyChanged(nameof(NoMedicinesFound));
+        OnPropertyChanged(nameof(CanLoadMore));
+        (PreviousPageCommand as IRelayCommand)?.NotifyCanExecuteChanged();
+        (NextPageCommand as IRelayCommand)?.NotifyCanExecuteChanged();
+    }
+
+    private async Task PreviousPageAsync()
+    {
+        if (CurrentPage > 1)
+        {
+            CurrentPage--;
+            await LoadMedicinesPagedAsync();
+        }
+    }
+
+    private async Task NextPageAsync()
+    {
+        if (CurrentPage < TotalPages)
+        {
+            CurrentPage++;
+            await LoadMedicinesPagedAsync();
         }
     }
 
@@ -379,61 +542,118 @@ public class MedicinesViewModel : ViewModelBase
 
     public void ApplyFilters()
     {
-        var filtered = _allLoadedMedicines.AsEnumerable();
-
-        // 1. Status Filter
-        if (!ShowInactive)
-        {
-            filtered = filtered.Where(m => m.IsActive);
-        }
-
-        // 2. Dosage Form Filter
-        if (!string.IsNullOrWhiteSpace(SelectedFormFilter) && SelectedFormFilter != "All Forms")
-        {
-            filtered = SelectedFormFilter switch
-            {
-                "Drops" => filtered.Where(m => m.Form.Contains("Drop", StringComparison.OrdinalIgnoreCase)),
-                "Cream / Ointment" => filtered.Where(m => m.Form.Contains("Cream", StringComparison.OrdinalIgnoreCase) || m.Form.Contains("Ointment", StringComparison.OrdinalIgnoreCase)),
-                _ => filtered.Where(m => m.Form.Equals(SelectedFormFilter, StringComparison.OrdinalIgnoreCase))
-            };
-        }
-
-        // 3. Search Query
-        if (!string.IsNullOrWhiteSpace(SearchQuery))
-        {
-            var q = SearchQuery.Trim();
-            filtered = filtered.Where(m =>
-                m.Name.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                (!string.IsNullOrWhiteSpace(m.GenericName) && m.GenericName.Contains(q, StringComparison.OrdinalIgnoreCase)) ||
-                m.Strength.Contains(q, StringComparison.OrdinalIgnoreCase) ||
-                m.Form.Contains(q, StringComparison.OrdinalIgnoreCase));
-        }
-
-        // Sort by UsageCount desc, then Name asc
-        _filteredSortedMedicines = filtered.OrderByDescending(m => m.UsageCount)
-                                          .ThenBy(m => m.Name)
-                                          .ToList();
-
-        _currentLimit = PageSize;
-        Medicines.Clear();
-        foreach (var item in _filteredSortedMedicines.Take(_currentLimit))
-        {
-            Medicines.Add(item);
-        }
-
-        FilteredMedicinesCount = _filteredSortedMedicines.Count;
-        OnPropertyChanged(nameof(CanLoadMore));
+        _searchCts?.Cancel();
+        CurrentPage = 1;
+        _ = LoadMedicinesPagedAsync();
     }
 
-    public void LoadMore()
+    public async Task ImportCsvAsync(string? explicitPath = null)
     {
-        if (!CanLoadMore) return;
-        var nextBatch = _filteredSortedMedicines.Skip(Medicines.Count).Take(PageSize).ToList();
-        foreach (var item in nextBatch)
+        if (_csvImportService == null)
         {
-            Medicines.Add(item);
+            _dialogService?.ShowError("Import Error", "CSV Import service is not configured.");
+            return;
         }
-        OnPropertyChanged(nameof(CanLoadMore));
+
+        string? filePath = explicitPath;
+        if (string.IsNullOrWhiteSpace(filePath))
+        {
+            filePath = FindPakistanMedicineMasterCsv();
+
+            if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+            {
+                try
+                {
+                    var openDialog = new Microsoft.Win32.OpenFileDialog
+                    {
+                        Title = "Select Pakistan Medicine Master CSV",
+                        Filter = "CSV Files (*.csv)|*.csv|All Files (*.*)|*.*",
+                        FileName = "pakistan_medicine_master.csv",
+                        InitialDirectory = AppDomain.CurrentDomain.BaseDirectory
+                    };
+
+                    if (openDialog.ShowDialog() == true)
+                    {
+                        filePath = openDialog.FileName;
+                    }
+                }
+                catch
+                {
+                    // Headless or UI thread limitation fallback
+                }
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(filePath) || !File.Exists(filePath))
+        {
+            _dialogService?.ShowWarning(
+                "CSV File Missing",
+                "Could not find 'pakistan_medicine_master.csv'.\n\nPlease place the file in the application directory, or select it using the file dialog.");
+            return;
+        }
+
+        try
+        {
+            IsBusy = true;
+            BusyMessage = "Importing medicines from CSV...";
+
+            var result = await _csvImportService.ImportFromCsvAsync(filePath);
+
+            var summary = $"Import completed.\n\n" +
+                          $"• Successfully Imported: {result.ImportedCount:N0}\n" +
+                          $"• Skipped (Duplicates): {result.SkippedCount:N0}\n" +
+                          $"• Rejected (Invalid): {result.RejectedCount:N0}\n" +
+                          $"• Total Processed: {result.TotalProcessed:N0}";
+
+            if (result.ErrorMessages.Count > 0)
+            {
+                summary += "\n\nSample errors / warnings:\n" +
+                           string.Join("\n", result.ErrorMessages.Take(5));
+                if (result.ErrorMessages.Count > 5)
+                {
+                    summary += $"\n...and {result.ErrorMessages.Count - 5} more issues.";
+                }
+            }
+
+            _dialogService?.ShowInformation("Medicine Import Summary", summary);
+
+            CurrentPage = 1;
+            await LoadMedicinesPagedAsync();
+        }
+        catch (Exception ex)
+        {
+            _logger?.LogError(ex, "Failed to import medicines CSV from {FilePath}", filePath);
+            _dialogService?.ShowError("Import Failed", $"An unexpected error occurred during import: {ex.Message}");
+        }
+        finally
+        {
+            IsBusy = false;
+            NotifyPaginationState();
+        }
+    }
+
+    private static string? FindPakistanMedicineMasterCsv()
+    {
+        const string fileName = "pakistan_medicine_master.csv";
+
+        var current = Directory.GetCurrentDirectory();
+        if (File.Exists(Path.Combine(current, fileName)))
+            return Path.Combine(current, fileName);
+
+        var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (File.Exists(Path.Combine(baseDir, fileName)))
+            return Path.Combine(baseDir, fileName);
+
+        var dir = new DirectoryInfo(baseDir);
+        for (int i = 0; i < 5 && dir != null; i++)
+        {
+            var candidate = Path.Combine(dir.FullName, fileName);
+            if (File.Exists(candidate))
+                return candidate;
+            dir = dir.Parent;
+        }
+
+        return null;
     }
 
     private void OpenAddDrawer()
@@ -444,6 +664,7 @@ public class MedicinesViewModel : ViewModelBase
         FormGenericName = string.Empty;
         FormDosageForm = "Tablet";
         FormStrength = string.Empty;
+        FormDescription = string.Empty;
         FormIsActive = true;
         FormErrorMessage = null;
         IsDrawerOpen = true;
@@ -459,6 +680,7 @@ public class MedicinesViewModel : ViewModelBase
         FormGenericName = dto.GenericName ?? string.Empty;
         FormDosageForm = dto.Form;
         FormStrength = dto.Strength;
+        FormDescription = dto.Description ?? string.Empty;
         FormIsActive = dto.IsActive;
         FormErrorMessage = null;
         IsDrawerOpen = true;
@@ -470,32 +692,31 @@ public class MedicinesViewModel : ViewModelBase
         FormErrorMessage = null;
     }
 
-    private bool ValidateForm()
+    private void ValidateForm()
     {
         if (string.IsNullOrWhiteSpace(FormName))
         {
             FormErrorMessage = "Medicine brand or name is required.";
-            return false;
+            return;
         }
 
         if (string.IsNullOrWhiteSpace(FormDosageForm))
         {
-            FormErrorMessage = "Dosage form (e.g. Tablet, Syrup, Injection) is required.";
-            return false;
+            FormErrorMessage = "Dosage form is required.";
+            return;
         }
 
         FormErrorMessage = null;
-        return true;
     }
 
     private async Task SaveMedicineAsync()
     {
-        if (!ValidateForm() || _medicineService == null) return;
+        ValidateForm();
+        if (HasFormError) return;
 
         try
         {
             IsBusy = true;
-            BusyMessage = IsEditing ? "Updating medicine..." : "Saving new medicine...";
 
             if (IsEditing)
             {
@@ -506,6 +727,7 @@ public class MedicinesViewModel : ViewModelBase
                     GenericName = string.IsNullOrWhiteSpace(FormGenericName) ? null : FormGenericName.Trim(),
                     Form = FormDosageForm.Trim(),
                     Strength = FormStrength?.Trim() ?? string.Empty,
+                    Description = string.IsNullOrWhiteSpace(FormDescription) ? null : FormDescription.Trim(),
                     IsActive = FormIsActive
                 };
 
@@ -514,7 +736,7 @@ public class MedicinesViewModel : ViewModelBase
                 {
                     _dialogService?.ShowInformation("Medicine Updated", $"'{FormName}' has been updated in the catalog.");
                     CloseDrawer();
-                    await LoadMedicinesAsync();
+                    await LoadMedicinesPagedAsync();
                 }
                 else if (result.ErrorCode == DoctorRx.Application.Common.ResultErrorCode.DuplicateWarning)
                 {
@@ -530,7 +752,7 @@ public class MedicinesViewModel : ViewModelBase
                         {
                             _dialogService?.ShowInformation("Medicine Updated", $"'{FormName}' has been updated in the catalog.");
                             CloseDrawer();
-                            await LoadMedicinesAsync();
+                            await LoadMedicinesPagedAsync();
                         }
                         else
                         {
@@ -550,7 +772,8 @@ public class MedicinesViewModel : ViewModelBase
                     Name = FormName.Trim(),
                     GenericName = string.IsNullOrWhiteSpace(FormGenericName) ? null : FormGenericName.Trim(),
                     Form = FormDosageForm.Trim(),
-                    Strength = FormStrength?.Trim() ?? string.Empty
+                    Strength = FormStrength?.Trim() ?? string.Empty,
+                    Description = string.IsNullOrWhiteSpace(FormDescription) ? null : FormDescription.Trim()
                 };
 
                 var result = await _medicineService.CreateMedicineAsync(createDto);
@@ -558,7 +781,7 @@ public class MedicinesViewModel : ViewModelBase
                 {
                     _dialogService?.ShowInformation("Medicine Added", $"'{FormName}' is now available for prescribing.");
                     CloseDrawer();
-                    await LoadMedicinesAsync();
+                    await LoadMedicinesPagedAsync();
                 }
                 else if (result.ErrorCode == DoctorRx.Application.Common.ResultErrorCode.DuplicateWarning)
                 {
@@ -574,7 +797,7 @@ public class MedicinesViewModel : ViewModelBase
                         {
                             _dialogService?.ShowInformation("Medicine Added", $"'{FormName}' is now available for prescribing.");
                             CloseDrawer();
-                            await LoadMedicinesAsync();
+                            await LoadMedicinesPagedAsync();
                         }
                         else
                         {
@@ -618,7 +841,7 @@ public class MedicinesViewModel : ViewModelBase
             var result = await _medicineService.UpdateMedicineAsync(updateDto, allowDuplicate: true);
             if (result.IsSuccess)
             {
-                await LoadMedicinesAsync();
+                await LoadMedicinesPagedAsync();
             }
             else
             {
@@ -652,7 +875,7 @@ public class MedicinesViewModel : ViewModelBase
 
             if (result.IsSuccess)
             {
-                await LoadMedicinesAsync();
+                await LoadMedicinesPagedAsync();
             }
             else
             {
