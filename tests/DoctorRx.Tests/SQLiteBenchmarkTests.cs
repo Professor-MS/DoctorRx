@@ -436,9 +436,83 @@ public class SQLiteBenchmarkTests : IDisposable
 
         sw.Stop();
         var ingestionTimeMs = sw.ElapsedMilliseconds;
-        var fileSizeBytes = new FileInfo(_appPaths.DatabasePath).Length;
-        var fileSizeMb = fileSizeBytes / (1024.0 * 1024.0);
-        _output.WriteLine($"Ingested {recordCount:N0} prescriptions + items in {ingestionTimeMs:N0} ms. DB Size: {fileSizeMb:F2} MB");
+        var fileSizeBytesBefore = new FileInfo(_appPaths.DatabasePath).Length;
+        var fileSizeMbBefore = fileSizeBytesBefore / (1024.0 * 1024.0);
+        _output.WriteLine($"[Benchmark Result] Database size BEFORE token table: {fileSizeMbBefore:F2} MB (Ingested {recordCount:N0} prescriptions + items in {ingestionTimeMs:N0} ms)");
+
+        // Now populate tokens for the 500,000 records
+        _output.WriteLine($"Generating and inserting search tokens for {recordCount:N0} prescriptions...");
+        sw.Restart();
+        await using (var context = await _factory.CreateDbContextAsync())
+        {
+            var conn = (SqliteConnection)context.Database.GetDbConnection();
+            if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+
+            using (var pragmaCmd = conn.CreateCommand())
+            {
+                pragmaCmd.CommandText = "PRAGMA synchronous = OFF;";
+                pragmaCmd.ExecuteNonQuery();
+            }
+
+            using var tokenCmd = conn.CreateCommand();
+            tokenCmd.CommandText = @"
+                INSERT INTO PrescriptionSearchTokens (PrescriptionId, TokenType, Token)
+                VALUES ($rxId, $type, $tok);";
+            var pTokenRxId = tokenCmd.Parameters.Add("$rxId", SqliteType.Integer);
+            var pTokenType = tokenCmd.Parameters.Add("$type", SqliteType.Integer);
+            var pTokenVal = tokenCmd.Parameters.Add("$tok", SqliteType.Text);
+
+            for (int batch = 0; batch < recordCount / batchSize; batch++)
+            {
+                using var tx = conn.BeginTransaction();
+                tokenCmd.Transaction = tx;
+                for (int i = 0; i < batchSize; i++)
+                {
+                    int id = (batch * batchSize) + i + 1;
+                    pTokenRxId.Value = id;
+
+                    // 1. PrescriptionNumber parts
+                    pTokenType.Value = 0; // PrescriptionNumberPart
+                    pTokenVal.Value = "20261001";
+                    tokenCmd.ExecuteNonQuery();
+
+                    pTokenType.Value = 0;
+                    pTokenVal.Value = $"{id:D6}";
+                    tokenCmd.ExecuteNonQuery();
+
+                    // 2. PatientName words
+                    pTokenType.Value = 1; // PatientNameWord
+                    pTokenVal.Value = "benchmark";
+                    tokenCmd.ExecuteNonQuery();
+
+                    pTokenType.Value = 1;
+                    pTokenVal.Value = "patient";
+                    tokenCmd.ExecuteNonQuery();
+
+                    // 3. Medicine name
+                    pTokenType.Value = 2; // MedicineName
+                    pTokenVal.Value = "amoxicillin";
+                    tokenCmd.ExecuteNonQuery();
+                }
+                tx.Commit();
+            }
+
+            using var metaCmd = conn.CreateCommand();
+            metaCmd.CommandText = @"
+                INSERT INTO AppMetas (Key, Value, UpdatedAtUtc) VALUES ('SearchIndexVersion', '2', CURRENT_TIMESTAMP)
+                ON CONFLICT(Key) DO UPDATE SET Value = '2', UpdatedAtUtc = CURRENT_TIMESTAMP;
+                INSERT INTO AppMetas (Key, Value, UpdatedAtUtc) VALUES ('PrescriptionSearchIndexVersion', '1', CURRENT_TIMESTAMP)
+                ON CONFLICT(Key) DO UPDATE SET Value = '1', UpdatedAtUtc = CURRENT_TIMESTAMP;
+                PRAGMA synchronous = FULL;
+                ANALYZE;";
+            metaCmd.ExecuteNonQuery();
+        }
+        sw.Stop();
+        var tokenIngestionTimeMs = sw.ElapsedMilliseconds;
+
+        var fileSizeBytesAfter = new FileInfo(_appPaths.DatabasePath).Length;
+        var fileSizeMbAfter = fileSizeBytesAfter / (1024.0 * 1024.0);
+        _output.WriteLine($"[Benchmark Result] Database size AFTER token table: {fileSizeMbAfter:F2} MB (Token table + indices added in {tokenIngestionTimeMs:N0} ms, delta: +{fileSizeMbAfter - fileSizeMbBefore:F2} MB)");
 
         // Service under test
         var uowFactory = new UnitOfWorkFactory(_factory);
@@ -464,7 +538,7 @@ public class SQLiteBenchmarkTests : IDisposable
         var firstPage = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(PageSize: 50));
         sw.Stop();
         var firstPageTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Prescription History first-page query (50 across 500,000 records): {firstPageTimeMs} ms (returned {firstPage.Items.Count} records, TotalCount: {firstPage.TotalCount})");
+        _output.WriteLine($"[Benchmark Result] First-page time: {firstPageTimeMs} ms (returned {firstPage.Items.Count} records, TotalCount: {firstPage.TotalCount})");
         Assert.Equal(50, firstPage.Items.Count);
         Assert.True(firstPageTimeMs < 100, $"First-page history load took {firstPageTimeMs}ms, expected < 100ms");
 
@@ -477,8 +551,29 @@ public class SQLiteBenchmarkTests : IDisposable
         ));
         sw.Stop();
         var filterTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Prescription History worst-case filter (Issued + Today across 500k): {filterTimeMs} ms");
+        _output.WriteLine($"[Benchmark Result] Worst-case filter time: {filterTimeMs} ms (returned {filterResult.Items.Count} records)");
         Assert.True(filterTimeMs < 200, $"Worst-case filter took {filterTimeMs}ms, expected < 200ms");
+
+        // 1d. Token search time ('20261001')
+        sw.Restart();
+        var tokenResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "20261001", PageSize: 50));
+        sw.Stop();
+        var tokenSearchTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] Token search time ('20261001'): {tokenSearchTimeMs} ms (returned {tokenResult.Items.Count} records, TotalCount: {tokenResult.TotalCount})");
+
+        // 1e. Medicine name search time ('amoxicillin')
+        sw.Restart();
+        var medResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "amoxicillin", PageSize: 50));
+        sw.Stop();
+        var medSearchTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] Medicine-name search time ('amoxicillin'): {medSearchTimeMs} ms (returned {medResult.Items.Count} records, TotalCount: {medResult.TotalCount})");
+
+        // 1f. Sort by patient name
+        sw.Restart();
+        var nameSortResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SortOption: PrescriptionSortOption.PatientName, PageSize: 50));
+        sw.Stop();
+        var nameSortTimeMs = sw.ElapsedMilliseconds;
+        _output.WriteLine($"[Benchmark Result] Sort by patient name time: {nameSortTimeMs} ms (returned {nameSortResult.Items.Count} records)");
 
         // 2. Open one prescription timing (detailed lookup with items snapshot)
         sw.Restart();
@@ -518,7 +613,7 @@ public class SQLiteBenchmarkTests : IDisposable
         sw.Stop();
         var finalizeTimeMs = sw.ElapsedMilliseconds;
 
-        _output.WriteLine($"[Benchmark Result] Finalize new prescription into 500,000 database: {finalizeTimeMs} ms");
+        _output.WriteLine($"[Benchmark Result] Finalize time: {finalizeTimeMs} ms");
         Assert.True(finalizeResult.IsSuccess, finalizeResult.ErrorMessage);
         Assert.NotNull(finalizeResult.Value);
         Assert.True(finalizeTimeMs < 1000, $"Finalize prescription took {finalizeTimeMs}ms, expected < 1000ms");
@@ -562,6 +657,34 @@ public class SQLiteBenchmarkTests : IDisposable
         var repairReport = await repairService.RepairIndexAsync();
         sw.Stop();
         var repairTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Repair job duration: {repairTimeMs} ms (Prescriptions repaired: {repairReport.PrescriptionsRepaired})");
+        _output.WriteLine($"[Benchmark Result] Repair-job duration: {repairTimeMs} ms (Prescriptions repaired: {repairReport.PrescriptionsRepaired})");
+
+        // 6. Dump EXPLAIN QUERY PLAN for all 7 required cases
+        await using (var context = await _factory.CreateDbContextAsync())
+        {
+            var conn = (SqliteConnection)context.Database.GetDbConnection();
+            if (conn.State != System.Data.ConnectionState.Open) await conn.OpenAsync();
+
+            async Task DumpPlan(string name, string querySql)
+            {
+                using var planCmd = conn.CreateCommand();
+                planCmd.CommandText = $"EXPLAIN QUERY PLAN {querySql}";
+                using var reader = await planCmd.ExecuteReaderAsync();
+                var lines = new List<string>();
+                while (await reader.ReadAsync())
+                {
+                    lines.Add(reader.GetString(reader.GetOrdinal("detail")));
+                }
+                _output.WriteLine($"[EXPLAIN QUERY PLAN: {name}]\n  {string.Join("\n  ", lines)}");
+            }
+
+            await DumpPlan("1. Default View", "SELECT Id, PrescriptionNumber, PrescriptionDate, Status, Patient_Name FROM Prescriptions ORDER BY PrescriptionDate DESC, Id DESC LIMIT 50;");
+            await DumpPlan("2. Status Filter", "SELECT Id, PrescriptionNumber, PrescriptionDate, Status, Patient_Name FROM Prescriptions WHERE Status = 1 ORDER BY PrescriptionDate DESC, Id DESC LIMIT 50;");
+            await DumpPlan("3. Date Range", "SELECT Id, PrescriptionNumber, PrescriptionDate, Status, Patient_Name FROM Prescriptions WHERE PrescriptionDate >= '2026-10-01' AND PrescriptionDate <= '2026-10-13' ORDER BY PrescriptionDate DESC, Id DESC LIMIT 50;");
+            await DumpPlan("4. Patient Filter", "SELECT Id, PrescriptionNumber, PrescriptionDate, Status, Patient_Name FROM Prescriptions WHERE PatientId = 1 ORDER BY PrescriptionDate DESC, Id DESC LIMIT 50;");
+            await DumpPlan("5. Sort by Patient Name", "SELECT Id, PrescriptionNumber, PrescriptionDate, Status, Patient_Name FROM Prescriptions ORDER BY Patient_Name COLLATE NOCASE ASC, Id ASC LIMIT 50;");
+            await DumpPlan("6. Token Search", "SELECT PrescriptionId FROM PrescriptionSearchTokens WHERE Token = '20261001';");
+            await DumpPlan("7. Medicine-Name Search", "SELECT PrescriptionId FROM PrescriptionSearchTokens WHERE TokenType IN (2, 3) AND Token = 'amoxicillin';");
+        }
     }
 }

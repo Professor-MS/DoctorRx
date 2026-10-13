@@ -133,7 +133,7 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
         {
             PrescriptionSortOption.NewestFirst => dbQuery.OrderByDescending(p => p.PrescriptionDate).ThenByDescending(p => p.Id),
             PrescriptionSortOption.OldestFirst => dbQuery.OrderBy(p => p.PrescriptionDate).ThenBy(p => p.Id),
-            PrescriptionSortOption.PatientName => dbQuery.OrderBy(p => p.PatientSnapshot.Name).ThenBy(p => p.Id),
+            PrescriptionSortOption.PatientName => dbQuery.OrderBy(p => EF.Functions.Collate(p.PatientSnapshot.Name, "NOCASE")).ThenBy(p => p.Id),
             PrescriptionSortOption.PrescriptionNumber => dbQuery.OrderByDescending(p => p.PrescriptionNumber).ThenByDescending(p => p.Id),
             _ => dbQuery.OrderByDescending(p => p.PrescriptionDate).ThenByDescending(p => p.Id)
         };

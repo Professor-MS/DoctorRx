@@ -44,3 +44,8 @@ public interface IDialogService
     bool ShowConfirmation(string title, string message, string confirmText, string cancelText) => ShowConfirmation(title, message);
     bool? ShowConfirmationWithCancel(string title, string message, string yesText = "Yes", string noText = "No", string cancelText = "Cancel");
 }
+
+public interface IPrintPreviewLauncher
+{
+    void Launch(DoctorRx.Application.DTOs.PrescriptionDetailDto prescription);
+}

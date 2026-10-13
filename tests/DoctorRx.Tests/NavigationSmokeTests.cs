@@ -133,6 +133,9 @@ public class NavigationSmokeTests : IDisposable
             var prescriptionDetailView = new PrescriptionDetailView();
             Assert.NotNull(prescriptionDetailView);
 
+            var prescriptionHistoryView = new PrescriptionHistoryView();
+            Assert.NotNull(prescriptionHistoryView);
+
             var scaffoldedFeatureView = new ScaffoldedFeatureView();
             Assert.NotNull(scaffoldedFeatureView);
 
@@ -255,6 +258,8 @@ public class NavigationSmokeTests : IDisposable
         services.AddSingleton<IWindowPlacementService, StubWindowPlacementService>();
         services.AddSingleton<IClock>(_clock);
         services.AddSingleton<IPatientsFilterSessionService, PatientsFilterSessionService>();
+        services.AddSingleton<IPrescriptionHistoryFilterSessionService, PrescriptionHistoryFilterSessionService>();
+        services.AddSingleton<IPrintPreviewLauncher, PrintPreviewLauncher>();
         services.AddSingleton<IQuickPhrasesService, StubQuickPhrasesService>();
         services.AddSingleton<IPrescriptionComposerValidator>(_ => new PrescriptionComposerValidator(_clock));
 
@@ -292,7 +297,12 @@ public class NavigationSmokeTests : IDisposable
             sp.GetRequiredService<IPrescriptionComposerValidator>(),
             sp.GetRequiredService<IClock>(),
             sp.GetRequiredService<IQuickPhrasesService>()));
-        services.AddTransient<PrescriptionHistoryViewModel>();
+        services.AddTransient<PrescriptionHistoryViewModel>(sp => new PrescriptionHistoryViewModel(
+            sp.GetRequiredService<IPrescriptionService>(),
+            sp.GetRequiredService<INavigationService>(),
+            sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<IPrescriptionHistoryFilterSessionService>(),
+            sp.GetRequiredService<IPrintPreviewLauncher>()));
         services.AddTransient<MedicinesViewModel>(sp => new MedicinesViewModel(
             sp.GetRequiredService<IMedicineService>(),
             sp.GetRequiredService<IDialogService>(),
@@ -302,7 +312,8 @@ public class NavigationSmokeTests : IDisposable
         services.AddTransient<PrescriptionDetailViewModel>(sp => new PrescriptionDetailViewModel(
             sp.GetRequiredService<IPrescriptionService>(),
             sp.GetRequiredService<INavigationService>(),
-            sp.GetRequiredService<IDialogService>()));
+            sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<IPrintPreviewLauncher>()));
     }
 
     private class StubDialogService : IDialogService

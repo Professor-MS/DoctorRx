@@ -15,6 +15,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
     private readonly IPrescriptionService _prescriptionService;
     private readonly INavigationService _navigationService;
     private readonly IDialogService _dialogService;
+    private readonly IPrintPreviewLauncher _printPreviewLauncher;
     private PrescriptionDetailDto? _prescription;
     private PrescriptionSummaryDto? _replacementPrescription;
 
@@ -76,11 +77,13 @@ public class PrescriptionDetailViewModel : ViewModelBase
     public PrescriptionDetailViewModel(
         IPrescriptionService prescriptionService,
         INavigationService navigationService,
-        IDialogService dialogService)
+        IDialogService dialogService,
+        IPrintPreviewLauncher? printPreviewLauncher = null)
     {
         _prescriptionService = prescriptionService;
         _navigationService = navigationService;
         _dialogService = dialogService;
+        _printPreviewLauncher = printPreviewLauncher ?? new PrintPreviewLauncher(dialogService);
 
         BackCommand = new RelayCommand(() => _navigationService.NavigateTo(ReturnDestination));
         PrintCommand = new RelayCommand(PrintPrescription);
@@ -132,26 +135,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
     private void PrintPrescription()
     {
         if (Prescription == null) return;
-
-        var app = System.Windows.Application.Current;
-        if (app != null)
-        {
-            if (!app.Dispatcher.CheckAccess())
-            {
-                app.Dispatcher.Invoke(() =>
-                {
-                    var preview = new Views.PrintPreviewWindow(Prescription);
-                    preview.ShowDialog();
-                });
-                return;
-            }
-
-            var window = new Views.PrintPreviewWindow(Prescription);
-            window.ShowDialog();
-            return;
-        }
-
-        _dialogService.ShowInformation("Print Prescription", $"Prescription print preview initialized for {Prescription.PrescriptionNumber}.");
+        _printPreviewLauncher.Launch(Prescription);
     }
 
     private async Task CancelPrescriptionAsync()

@@ -178,3 +178,36 @@ public class DialogService : IDialogService
         });
     }
 }
+
+public class PrintPreviewLauncher : IPrintPreviewLauncher
+{
+    private readonly IDialogService _dialogService;
+
+    public PrintPreviewLauncher(IDialogService dialogService)
+    {
+        _dialogService = dialogService;
+    }
+
+    public void Launch(DoctorRx.Application.DTOs.PrescriptionDetailDto prescription)
+    {
+        var app = System.Windows.Application.Current;
+        if (app != null)
+        {
+            if (!app.Dispatcher.CheckAccess())
+            {
+                app.Dispatcher.Invoke(() =>
+                {
+                    var preview = new Views.PrintPreviewWindow(prescription);
+                    preview.ShowDialog();
+                });
+                return;
+            }
+
+            var window = new Views.PrintPreviewWindow(prescription);
+            window.ShowDialog();
+            return;
+        }
+
+        _dialogService.ShowInformation("Print Prescription", $"Prescription print preview initialized for {prescription.PrescriptionNumber}.");
+    }
+}

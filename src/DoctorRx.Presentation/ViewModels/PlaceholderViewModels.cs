@@ -26,24 +26,3 @@ public abstract class ScaffoldedFeatureViewModel : ViewModelBase
         }
     }
 }
-
-
-public class PrescriptionHistoryViewModel : ScaffoldedFeatureViewModel
-{
-    public override NavigationSection NavigationSection => NavigationSection.PrescriptionHistory;
-
-    public PrescriptionHistoryViewModel() : base(
-        "Prescription Archive",
-        "Search, filter, inspect, and reprint past prescriptions with immutable historical medicine records.",
-        "Phase 2 Prescription Management",
-        new[]
-        {
-            "Date range filtering & patient MRN search",
-            "View historical prescriptions with exact medicine snapshots",
-            "Re-issue or duplicate previous prescription as a new draft",
-            "Export past prescription records to PDF",
-            "Audit trail tracking changes and issuance dates"
-        })
-    {
-    }
-}

@@ -3,6 +3,7 @@ using System.Linq;
 using DoctorRx.Application.Common;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.Models;
 using Xunit;
 
 namespace DoctorRx.Tests;
@@ -88,6 +89,54 @@ public class EnumDisplayCompletenessTests
 
             // Multi-word / abbreviation values differ from raw
             if (val is RouteOfAdministration.Intravenous or RouteOfAdministration.Intramuscular or RouteOfAdministration.Subcutaneous or RouteOfAdministration.Ophthalmic or RouteOfAdministration.Otic)
+            {
+                Assert.NotEqual(val.ToString(), text);
+            }
+        }
+    }
+
+    [Fact]
+    public void PrescriptionDatePreset_AllValuesHandled_AndMultiWordValuesDifferFromRaw()
+    {
+        var values = Enum.GetValues<PrescriptionDatePreset>();
+        foreach (var val in values)
+        {
+            var text = EnumDisplayFormatter.GetDisplayName(val);
+            Assert.False(string.IsNullOrWhiteSpace(text));
+
+            if (val is PrescriptionDatePreset.All or PrescriptionDatePreset.Last7Days or PrescriptionDatePreset.ThisMonth or PrescriptionDatePreset.Custom)
+            {
+                Assert.NotEqual(val.ToString(), text);
+            }
+        }
+    }
+
+    [Fact]
+    public void PrescriptionStatusSearchFilter_AllValuesHandled_AndMultiWordValuesDifferFromRaw()
+    {
+        var values = Enum.GetValues<PrescriptionStatusSearchFilter>();
+        foreach (var val in values)
+        {
+            var text = EnumDisplayFormatter.GetDisplayName(val);
+            Assert.False(string.IsNullOrWhiteSpace(text));
+
+            if (val is PrescriptionStatusSearchFilter.Default or PrescriptionStatusSearchFilter.All)
+            {
+                Assert.NotEqual(val.ToString(), text);
+            }
+        }
+    }
+
+    [Fact]
+    public void PrescriptionSortOption_AllValuesHandled_AndMultiWordValuesDifferFromRaw()
+    {
+        var values = Enum.GetValues<PrescriptionSortOption>();
+        foreach (var val in values)
+        {
+            var text = EnumDisplayFormatter.GetDisplayName(val);
+            Assert.False(string.IsNullOrWhiteSpace(text));
+
+            if (val is PrescriptionSortOption.NewestFirst or PrescriptionSortOption.OldestFirst or PrescriptionSortOption.PatientName or PrescriptionSortOption.PrescriptionNumber)
             {
                 Assert.NotEqual(val.ToString(), text);
             }

@@ -17,6 +17,7 @@
             <converters:InverseBoolConverter x:Key="InverseBoolConverter" />
             <converters:FileSizeConverter x:Key="FileSizeConverter" />
             <converters:InverseBoolToVisibilityConverter x:Key="CountToZeroVisConverter" />
+            <converters:EnumDisplayConverter x:Key="EnumDisplayConverter" />
         </ResourceDictionary>
     </Application.Resources>
 </Application>

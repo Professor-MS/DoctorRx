@@ -397,6 +397,45 @@ public class ScreenResponsiveTests
         });
     }
 
+    [Theory]
+    [InlineData(960, 520, LayoutMode.Compact)]
+    [InlineData(1024, 600, LayoutMode.Normal)]
+    [InlineData(1280, 720, LayoutMode.Normal)]
+    [InlineData(1920, 1080, LayoutMode.Wide)]
+    public void PrescriptionHistoryView_AdaptsAcrossAllBreakpoints_NoHorizontalScroll(double width, double height, LayoutMode expectedMode)
+    {
+        StaTestRunner.Run(() =>
+        {
+            var stubPrescriptionService = new StubPrescriptionService();
+            var stubNavService = new LocalStubNavigationService();
+            var stubDialogService = new LocalStubDialogService();
+            var sessionService = new PrescriptionHistoryFilterSessionService();
+            var stubLauncher = new StubPrintPreviewLauncher();
+
+            var vm = new PrescriptionHistoryViewModel(stubPrescriptionService, stubNavService, stubDialogService, sessionService, stubLauncher);
+            vm.UpdateLayoutMode(expectedMode);
+
+            var view = new PrescriptionHistoryView { DataContext = vm, Width = width, Height = height };
+            view.Measure(new Size(width, height));
+            view.Arrange(new Rect(0, 0, width, height));
+            view.UpdateLayout();
+
+            Assert.Equal(expectedMode, vm.LayoutMode);
+
+            var grid = FindVisualChild<DataGrid>(view);
+            Assert.NotNull(grid);
+
+            if (width == 960)
+            {
+                SaveVisualToPng(view, (int)width, (int)height, "history-compact-960x520.png");
+            }
+            else if (width == 1920)
+            {
+                SaveVisualToPng(view, (int)width, (int)height, "history-wide-1920x1080.png");
+            }
+        });
+    }
+
     [Fact]
     public void CustomDialogWindow_RelativeSizingAndKeyboardSupport()
     {
@@ -662,6 +701,11 @@ public class ScreenResponsiveTests
         public Task<Result> PurgeMedicineAsync(int id, CancellationToken cancellationToken = default) => throw new NotImplementedException();
         public Task<MedicineUsageSummaryDto> GetMedicineUsageSummaryAsync(int id, CancellationToken cancellationToken = default) =>
             Task.FromResult(new MedicineUsageSummaryDto(id, string.Empty, false, 0, true));
+    }
+
+    private class StubPrintPreviewLauncher : IPrintPreviewLauncher
+    {
+        public void Launch(PrescriptionDetailDto prescription) { }
     }
 
     #endregion

@@ -37,16 +37,18 @@ public class SearchIndexRepairService : ISearchIndexRepairService
         int medicinesRepaired = 0;
         int prescriptionsChecked = 0;
         int prescriptionsRepaired = 0;
+        string? rxMetaVersion = null;
 
         await using (var context = await _contextFactory.CreateDbContextAsync(cancellationToken))
         {
             var meta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "SearchIndexVersion", cancellationToken);
             var rxMeta = await context.AppMetas.FirstOrDefaultAsync(m => m.Key == "PrescriptionSearchIndexVersion", cancellationToken);
+            rxMetaVersion = rxMeta?.Value;
 
             if (meta?.Value == CurrentIndexVersion && rxMeta?.Value == CurrentPrescriptionIndexVersion)
             {
-                var anyUnindexedPatients = await context.Patients.AnyAsync(p => p.NormalizedName == "" || (p.SearchTokens.Count == 0 && p.Name != ""), cancellationToken);
-                var anyUnindexedPrescriptions = await context.Prescriptions.AnyAsync(p => p.SearchTokens.Count == 0 && p.PrescriptionNumber != "", cancellationToken);
+                var anyUnindexedPatients = await context.Patients.AnyAsync(p => p.NormalizedName == "" || (!p.SearchTokens.Any() && p.Name != ""), cancellationToken);
+                var anyUnindexedPrescriptions = await context.Prescriptions.AnyAsync(p => !p.SearchTokens.Any() && p.PrescriptionNumber != "", cancellationToken);
 
                 if (!anyUnindexedPatients && !anyUnindexedPrescriptions)
                 {
@@ -175,9 +177,17 @@ public class SearchIndexRepairService : ISearchIndexRepairService
         while (!cancellationToken.IsCancellationRequested)
         {
             await using var context = await _contextFactory.CreateDbContextAsync(cancellationToken);
-            var batch = await context.Prescriptions
+            var query = context.Prescriptions
                 .Include(p => p.SearchTokens)
                 .Include(p => p.Items)
+                .AsQueryable();
+
+            if (rxMetaVersion == CurrentPrescriptionIndexVersion)
+            {
+                query = query.Where(p => !p.SearchTokens.Any());
+            }
+
+            var batch = await query
                 .Where(p => p.Id > lastPrescriptionId)
                 .OrderBy(p => p.Id)
                 .Take(BatchSize)

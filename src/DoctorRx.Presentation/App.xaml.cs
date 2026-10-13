@@ -119,6 +119,8 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<IDialogService, DialogService>();
                     services.AddSingleton<IWindowPlacementService, WindowPlacementService>();
                     services.AddSingleton<IPatientsFilterSessionService, PatientsFilterSessionService>();
+                    services.AddSingleton<IPrescriptionHistoryFilterSessionService, PrescriptionHistoryFilterSessionService>();
+                    services.AddSingleton<IPrintPreviewLauncher, PrintPreviewLauncher>();
 
                     // Register ViewModels
                     services.AddSingleton<MainWindowViewModel>();

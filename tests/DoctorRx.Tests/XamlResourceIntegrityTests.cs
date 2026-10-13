@@ -70,6 +70,7 @@ public class XamlResourceIntegrityTests
         globalKeys.Add("InverseBoolConverter");
         globalKeys.Add("FileSizeConverter");
         globalKeys.Add("CountToZeroVisConverter");
+        globalKeys.Add("EnumDisplayConverter");
 
         // Parse App.xaml, Colors.xaml, Icons.xaml, Styles.xaml for defined keys
         string[] themeFiles = ["Colors.xaml", "Icons.xaml", "Styles.xaml", "App.xaml"];

@@ -54,7 +54,18 @@ public record PrescriptionHistoryItemDto(
     PrescriptionStatus Status,
     string? ReplacedByNumber,
     DateTime FinalizedAtUtc
-);
+)
+{
+    public string StatusDisplayText => Status switch
+    {
+        PrescriptionStatus.Finalized => "Issued (locked)",
+        PrescriptionStatus.Cancelled => "Cancelled",
+        PrescriptionStatus.Superseded => !string.IsNullOrEmpty(ReplacedByNumber)
+            ? $"Replaced by {ReplacedByNumber}"
+            : "Replaced",
+        _ => Status.ToString()
+    };
+}
 
 public record PrescriptionHistoryPagedResult(
     IReadOnlyList<PrescriptionHistoryItemDto> Items,

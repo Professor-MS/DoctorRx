@@ -68,6 +68,7 @@ public static class StaTestRunner
                 app.Resources.Add("InverseBoolConverter", new InverseBoolConverter());
                 app.Resources.Add("FileSizeConverter", new FileSizeConverter());
                 app.Resources.Add("CountToZeroVisConverter", new InverseBoolToVisibilityConverter());
+                app.Resources.Add("EnumDisplayConverter", new EnumDisplayConverter());
             }
         }
     }

@@ -218,6 +218,86 @@ public class SearchQueryPlanTests : IDisposable
     }
 
     [Fact]
+    public async Task ExplainQueryPlan_SortByPatientName_UsesSnapshotNameIndex_WithNocaseCollation()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var query = context.Prescriptions
+            .AsNoTracking()
+            .OrderBy(p => EF.Functions.Collate(p.PatientSnapshot.Name, "NOCASE"))
+            .ThenBy(p => p.Id)
+            .Take(50);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.Contains("USING INDEX IX_Prescriptions_SnapshotName_Id", planText);
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_PrescriptionDateRange_UsesDateIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var fromDate = DateOnly.FromDateTime(DateTime.Today.AddDays(-7));
+        var toDate = DateOnly.FromDateTime(DateTime.Today);
+
+        var query = context.Prescriptions
+            .AsNoTracking()
+            .Where(p => p.PrescriptionDate >= fromDate && p.PrescriptionDate <= toDate)
+            .OrderByDescending(p => p.PrescriptionDate)
+            .ThenByDescending(p => p.Id)
+            .Take(50);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date"));
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_PrescriptionPatientFilter_UsesPatientIdDateIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var query = context.Prescriptions
+            .AsNoTracking()
+            .Where(p => p.PatientId == 123)
+            .OrderByDescending(p => p.PrescriptionDate)
+            .ThenByDescending(p => p.Id)
+            .Take(50);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.Contains("USING INDEX IX_Prescriptions_PatientId_Date", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_MedicineNameSearch_UsesTokenPrescriptionIdIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+
+        var query = context.PrescriptionSearchTokens
+            .AsNoTracking()
+            .Where(t => (t.TokenType == PrescriptionSearchTokenType.MedicineName || t.TokenType == PrescriptionSearchTokenType.MedicineGeneric) && t.Token == "amoxicillin")
+            .Select(t => t.PrescriptionId);
+
+        var realEfSql = query.ToQueryString();
+        var queryPlan = await ExplainQueryPlanAsync(realEfSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.Contains("USING INDEX IX_PrescriptionSearchTokens_Token_PrescriptionId", planText);
+    }
+
+    [Fact]
     public async Task MedicineValidation_FormIsRequired_And_UpdateValidationRejectsEmptyName()
     {
         // Arrange
