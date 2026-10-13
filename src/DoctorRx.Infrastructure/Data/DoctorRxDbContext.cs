@@ -24,6 +24,9 @@ public class DoctorRxDbContext : DbContext
     public DbSet<MedicineSearchToken> MedicineSearchTokens => Set<MedicineSearchToken>();
     public DbSet<PrescriptionSearchToken> PrescriptionSearchTokens => Set<PrescriptionSearchToken>();
     public DbSet<AppMeta> AppMetas => Set<AppMeta>();
+    public DbSet<InvestigationCatalogItem> InvestigationCatalogItems => Set<InvestigationCatalogItem>();
+    public DbSet<InvestigationRequest> InvestigationRequests => Set<InvestigationRequest>();
+    public DbSet<InvestigationRequestItem> InvestigationRequestItems => Set<InvestigationRequestItem>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -280,6 +283,76 @@ public class DoctorRxDbContext : DbContext
             entity.HasKey(e => e.Key);
             entity.Property(e => e.Key).IsRequired().HasMaxLength(100);
             entity.Property(e => e.Value).IsRequired().HasMaxLength(500);
+        });
+
+        // Investigation Catalogue configuration
+        modelBuilder.Entity<InvestigationCatalogItem>(entity =>
+        {
+            entity.ToTable("InvestigationCatalogItems");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.NormalizedName).IsRequired().HasMaxLength(200).UseCollation("NOCASE");
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Subcategory).HasMaxLength(100);
+            entity.Property(e => e.CommonAbbreviation).HasMaxLength(50);
+            entity.Property(e => e.SampleTypeOrModality).HasMaxLength(150);
+            entity.Property(e => e.DefaultInstructions).HasMaxLength(500);
+            entity.Property(e => e.UsageCount).HasDefaultValue(0);
+
+            entity.HasIndex(e => e.Name).HasDatabaseName("IX_InvestigationCatalogItems_Name");
+            entity.HasIndex(e => e.NormalizedName).HasDatabaseName("IX_InvestigationCatalogItems_NormalizedName");
+            entity.HasIndex(e => e.Category).HasDatabaseName("IX_InvestigationCatalogItems_Category");
+            entity.HasIndex(e => e.CommonAbbreviation).HasDatabaseName("IX_InvestigationCatalogItems_CommonAbbreviation");
+            entity.HasIndex(e => e.IsActive).HasDatabaseName("IX_InvestigationCatalogItems_IsActive");
+            entity.HasIndex(e => e.UsageCount).HasDatabaseName("IX_InvestigationCatalogItems_UsageCount");
+        });
+
+        // Investigation Request configuration
+        modelBuilder.Entity<InvestigationRequest>(entity =>
+        {
+            entity.ToTable("InvestigationRequests");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.RequestNumber).IsRequired().HasMaxLength(50);
+            entity.HasIndex(e => e.RequestNumber).IsUnique().HasDatabaseName("IX_InvestigationRequests_RequestNumber");
+
+            entity.Property(e => e.ClinicalNotes).HasMaxLength(2000);
+            entity.Property(e => e.Instructions).HasMaxLength(1000);
+            entity.Property(e => e.Status).IsRequired().HasMaxLength(30).HasDefaultValue("Active");
+
+            entity.HasIndex(e => e.PatientId).HasDatabaseName("IX_InvestigationRequests_PatientId");
+            entity.HasIndex(e => e.RequestDate).HasDatabaseName("IX_InvestigationRequests_RequestDate");
+            entity.HasIndex(e => e.CreatedAtUtc).HasDatabaseName("IX_InvestigationRequests_CreatedAtUtc");
+
+            entity.HasOne(e => e.Patient)
+                  .WithMany(p => p.InvestigationRequests)
+                  .HasForeignKey(e => e.PatientId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasMany(e => e.Items)
+                  .WithOne(i => i.Request)
+                  .HasForeignKey(i => i.RequestId)
+                  .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // Investigation Request Item configuration
+        modelBuilder.Entity<InvestigationRequestItem>(entity =>
+        {
+            entity.ToTable("InvestigationRequestItems");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.InvestigationName).IsRequired().HasMaxLength(200);
+            entity.Property(e => e.Category).IsRequired().HasMaxLength(100);
+            entity.Property(e => e.Subcategory).HasMaxLength(100);
+            entity.Property(e => e.BodyPartOrSite).HasMaxLength(150);
+            entity.Property(e => e.ViewOrProtocol).HasMaxLength(150);
+            entity.Property(e => e.SpecificInstructions).HasMaxLength(500);
+
+            entity.HasIndex(e => e.RequestId).HasDatabaseName("IX_InvestigationRequestItems_RequestId");
+            entity.HasIndex(e => e.CatalogItemId).HasDatabaseName("IX_InvestigationRequestItems_CatalogItemId");
+
+            entity.HasOne(e => e.CatalogItem)
+                  .WithMany()
+                  .HasForeignKey(e => e.CatalogItemId)
+                  .OnDelete(DeleteBehavior.SetNull);
         });
     }
 

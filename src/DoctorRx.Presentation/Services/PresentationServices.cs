@@ -40,6 +40,7 @@ public class NavigationService : INavigationService
             NavigationDestination.NewPrescription => _serviceProvider.GetRequiredService<NewPrescriptionViewModel>(),
             NavigationDestination.PrescriptionHistory => _serviceProvider.GetRequiredService<PrescriptionHistoryViewModel>(),
             NavigationDestination.Medicines => _serviceProvider.GetRequiredService<MedicinesViewModel>(),
+            NavigationDestination.Investigations => _serviceProvider.GetRequiredService<InvestigationsViewModel>(),
             NavigationDestination.Settings => _serviceProvider.GetRequiredService<SettingsViewModel>(),
             NavigationDestination.PrescriptionDetail => _serviceProvider.GetRequiredService<PrescriptionDetailViewModel>(),
             _ => throw new ArgumentOutOfRangeException(nameof(destination), destination, null)
@@ -65,6 +66,7 @@ public class NavigationService : INavigationService
                 NavigationDestination.NewPrescription => _serviceProvider.GetRequiredService<NewPrescriptionViewModel>(),
                 NavigationDestination.PrescriptionHistory => _serviceProvider.GetRequiredService<PrescriptionHistoryViewModel>(),
                 NavigationDestination.Medicines => _serviceProvider.GetRequiredService<MedicinesViewModel>(),
+                NavigationDestination.Investigations => _serviceProvider.GetRequiredService<InvestigationsViewModel>(),
                 NavigationDestination.Settings => _serviceProvider.GetRequiredService<SettingsViewModel>(),
                 NavigationDestination.PrescriptionDetail => _serviceProvider.GetRequiredService<PrescriptionDetailViewModel>(),
                 _ => throw new ArgumentOutOfRangeException(nameof(prev), prev, null)
@@ -209,5 +211,38 @@ public class PrintPreviewLauncher : IPrintPreviewLauncher
         }
 
         _dialogService.ShowInformation("Print Prescription", $"Prescription print preview initialized for {prescription.PrescriptionNumber}.");
+    }
+}
+
+public class InvestigationPrintLauncher : IInvestigationPrintLauncher
+{
+    private readonly IDialogService _dialogService;
+
+    public InvestigationPrintLauncher(IDialogService dialogService)
+    {
+        _dialogService = dialogService;
+    }
+
+    public void Launch(DoctorRx.Application.DTOs.InvestigationRequestDetailDto request)
+    {
+        var app = System.Windows.Application.Current;
+        if (app != null)
+        {
+            if (!app.Dispatcher.CheckAccess())
+            {
+                app.Dispatcher.Invoke(() =>
+                {
+                    var preview = new Views.InvestigationPrintPreviewWindow(request);
+                    preview.ShowDialog();
+                });
+                return;
+            }
+
+            var window = new Views.InvestigationPrintPreviewWindow(request);
+            window.ShowDialog();
+            return;
+        }
+
+        _dialogService.ShowInformation("Print Investigation", $"Investigation request print preview initialized for {request.RequestNumber}.");
     }
 }

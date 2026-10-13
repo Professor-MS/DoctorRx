@@ -1,0 +1,116 @@
+<Window x:Class="DoctorRx.Presentation.Views.InvestigationPrintPreviewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:DoctorRx.Presentation.Views"
+        mc:Ignorable="d"
+        Title="DoctorRx - Diagnostic Investigation Print Preview"
+        MinWidth="700" MinHeight="480"
+        Width="920" Height="680"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource SlateBackgroundBrush}"
+        FontFamily="{StaticResource AppFont}"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <!-- Top Preview Toolbar -->
+            <RowDefinition Height="Auto" />
+            <!-- Document Viewport -->
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- ================= PREVIEW TOOLBAR ================= -->
+        <Border Grid.Row="0" Background="{StaticResource SurfaceWhiteBrush}" 
+                BorderBrush="{StaticResource SlateBorderBrush}" BorderThickness="0,0,0,1" 
+                Padding="16,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Path Data="{StaticResource IconPrint}" Width="18" Height="18" Stretch="Uniform" Fill="{StaticResource PrimaryTealDarkBrush}" Margin="0,0,10,0" VerticalAlignment="Center" />
+                    <TextBlock Text="Print Preview - Diagnostic Investigation Request" FontWeight="Bold" FontSize="{StaticResource FontSizeH3}" Foreground="{StaticResource SlateDarkestBrush}" VerticalAlignment="Center" />
+                    <ComboBox x:Name="PaperSizeSelector" SelectionChanged="OnPaperSizeChanged" SelectedIndex="0" Margin="14,0,0,0" VerticalAlignment="Center" Padding="8,4" FontSize="{StaticResource FontSizeCaption}">
+                        <ComboBoxItem Content="A4 Portrait (210 × 297 mm)" Tag="A4" />
+                        <ComboBoxItem Content="A5 Portrait (148 × 210 mm)" Tag="A5" />
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Zoom and Print Actions -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Fit Width -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnFitWidthClicked" Padding="10,6" Margin="0,0,6,0"
+                            ToolTip="Fit Width to Viewport" AutomationProperties.Name="Fit Width">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconZoomWidth}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Fit Width" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Zoom To Fit -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnZoomToFitClicked" Padding="10,6" Margin="0,0,6,0"
+                            ToolTip="Zoom to Fit Full Page" AutomationProperties.Name="Zoom to Fit">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconZoomFit}" Width="14" Height="14" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Zoom to Fit" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Zoom In -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnZoomInClicked" Padding="8,4" Margin="0,0,4,0"
+                            ToolTip="Zoom In" AutomationProperties.Name="Zoom In">
+                        <TextBlock Text="+" FontSize="14" FontWeight="Bold" />
+                    </Button>
+
+                    <!-- Zoom Out -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnZoomOutClicked" Padding="8,4" Margin="0,0,10,0"
+                            ToolTip="Zoom Out" AutomationProperties.Name="Zoom Out">
+                        <TextBlock Text="−" FontSize="14" FontWeight="Bold" />
+                    </Button>
+
+                    <!-- Print Now Button -->
+                    <Button Style="{StaticResource PrimaryButton}" Click="OnPrintClicked" Padding="16,7" Margin="0,0,8,0"
+                            ToolTip="Send to System Printer" AutomationProperties.Name="Send to Printer">
+                        <StackPanel Orientation="Horizontal">
+                            <Path Data="{StaticResource IconPrint}" Width="14" Height="14" Stretch="Uniform" Fill="White" Margin="0,0,6,0" VerticalAlignment="Center" />
+                            <TextBlock Text="Print" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        </StackPanel>
+                    </Button>
+
+                    <!-- Close Window -->
+                    <Button Style="{StaticResource SecondaryButton}" Click="OnCloseClicked" Padding="12,7"
+                            ToolTip="Close Preview" AutomationProperties.Name="Close Preview Window">
+                        <TextBlock Text="Close" VerticalAlignment="Center" />
+                    </Button>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- ================= DOCUMENT VIEWPORT ================= -->
+        <ScrollViewer x:Name="DocumentScrollViewer" Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto"
+                      Padding="24,20" Background="#475569">
+            <Border x:Name="PaperContainer"
+                    Background="White" 
+                    BorderBrush="#CBD5E1" 
+                    BorderThickness="1" 
+                    CornerRadius="2" 
+                    Width="793.7" Height="1122.5"
+                    HorizontalAlignment="Center" VerticalAlignment="Top">
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="16" Direction="270" ShadowDepth="4" Opacity="0.25" Color="#000000" />
+                </Border.Effect>
+                <Border.LayoutTransform>
+                    <ScaleTransform x:Name="DocumentScaleTransform" ScaleX="1.0" ScaleY="1.0" />
+                </Border.LayoutTransform>
+
+                <local:InvestigationPaperView x:Name="PaperView" />
+            </Border>
+        </ScrollViewer>
+    </Grid>
+</Window>

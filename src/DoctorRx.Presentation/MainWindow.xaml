@@ -55,6 +55,10 @@
             <views:MedicinesView />
         </DataTemplate>
 
+        <DataTemplate DataType="{x:Type vm:InvestigationsViewModel}">
+            <views:InvestigationsView />
+        </DataTemplate>
+
         <DataTemplate DataType="{x:Type vm:SettingsViewModel}">
             <views:SettingsView />
         </DataTemplate>
@@ -212,6 +216,23 @@
                                 </Grid.ColumnDefinitions>
                                 <Path Grid.Column="0" Data="{StaticResource IconMedicines}" Style="{StaticResource SidebarIcon}" />
                                 <TextBlock Grid.Column="1" Text="Medicines" VerticalAlignment="Center" Margin="6,0,0,0"
+                                           Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
+                            </Grid>
+                        </Button>
+
+                        <!-- Investigations Button -->
+                        <Button Style="{StaticResource NavButton}"
+                                behaviors:NavProperties.IsActive="{Binding IsInvestigationsSection}"
+                                Command="{Binding NavigateToInvestigationsCommand}"
+                                ToolTip="Investigations"
+                                AutomationProperties.Name="Investigations">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="38" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Path Grid.Column="0" Data="{StaticResource IconInvestigation}" Style="{StaticResource SidebarIcon}" />
+                                <TextBlock Grid.Column="1" Text="Investigations" VerticalAlignment="Center" Margin="6,0,0,0"
                                            Visibility="{Binding IsSidebarCollapsed, Converter={StaticResource InverseBoolToVisConverter}}" />
                             </Grid>
                         </Button>

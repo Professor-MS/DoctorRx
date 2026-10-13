@@ -121,6 +121,7 @@ public partial class App : System.Windows.Application
                     services.AddSingleton<IPatientsFilterSessionService, PatientsFilterSessionService>();
                     services.AddSingleton<IPrescriptionHistoryFilterSessionService, PrescriptionHistoryFilterSessionService>();
                     services.AddSingleton<IPrintPreviewLauncher, PrintPreviewLauncher>();
+                    services.AddSingleton<IInvestigationPrintLauncher, InvestigationPrintLauncher>();
 
                     // Register ViewModels
                     services.AddSingleton<MainWindowViewModel>();
@@ -129,6 +130,7 @@ public partial class App : System.Windows.Application
                     services.AddTransient<NewPrescriptionViewModel>();
                     services.AddTransient<PrescriptionHistoryViewModel>();
                     services.AddTransient<MedicinesViewModel>();
+                    services.AddTransient<InvestigationsViewModel>();
                     services.AddTransient<SettingsViewModel>();
                     services.AddTransient<PrescriptionDetailViewModel>();
 

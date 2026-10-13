@@ -17,6 +17,7 @@ public class UnitOfWork : IUnitOfWork
     public IMedicineRepository Medicines { get; }
     public IDoctorRepository Doctors { get; }
     public IDraftRepository Drafts { get; }
+    public IInvestigationRepository Investigations { get; }
 
     public UnitOfWork(
         DoctorRxDbContext context,
@@ -24,7 +25,8 @@ public class UnitOfWork : IUnitOfWork
         IPrescriptionRepository prescriptions,
         IMedicineRepository medicines,
         IDoctorRepository doctors,
-        IDraftRepository drafts)
+        IDraftRepository drafts,
+        IInvestigationRepository? investigations = null)
     {
         _context = context;
         Patients = patients;
@@ -32,6 +34,7 @@ public class UnitOfWork : IUnitOfWork
         Medicines = medicines;
         Doctors = doctors;
         Drafts = drafts;
+        Investigations = investigations ?? new InvestigationRepository(context);
     }
 
     public async Task<int> CommitAsync(CancellationToken cancellationToken = default)

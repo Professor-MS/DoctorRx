@@ -29,6 +29,7 @@ public class Patient : AuditableEntity
 
     // Navigation properties
     public ICollection<Prescription> Prescriptions { get; set; } = new List<Prescription>();
+    public ICollection<InvestigationRequest> InvestigationRequests { get; set; } = new List<InvestigationRequest>();
     public ICollection<PatientSearchToken> SearchTokens { get; set; } = new List<PatientSearchToken>();
 
     /// <summary>

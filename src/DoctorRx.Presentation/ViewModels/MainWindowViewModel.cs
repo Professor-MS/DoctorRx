@@ -105,6 +105,7 @@ public class MainWindowViewModel : ViewModelBase
     public bool IsPatientsSection => CurrentSection == NavigationSection.Patients;
     public bool IsPrescriptionHistorySection => CurrentSection == NavigationSection.PrescriptionHistory;
     public bool IsMedicinesSection => CurrentSection == NavigationSection.Medicines;
+    public bool IsInvestigationsSection => CurrentSection == NavigationSection.Investigations;
     public bool IsSettingsSection => CurrentSection == NavigationSection.Settings;
 
     public string CurrentDateFormatted => DateTime.Today.ToString("dddd, dd MMMM yyyy");
@@ -213,6 +214,7 @@ public class MainWindowViewModel : ViewModelBase
     public ICommand NavigateToPatientsCommand { get; }
     public ICommand NavigateToHistoryCommand { get; }
     public ICommand NavigateToMedicinesCommand { get; }
+    public ICommand NavigateToInvestigationsCommand { get; }
     public ICommand NavigateToSettingsCommand { get; }
 
     public ICommand OpenDoctorSetupCommand { get; }
@@ -259,6 +261,7 @@ public class MainWindowViewModel : ViewModelBase
         NavigateToPatientsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Patients));
         NavigateToHistoryCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.PrescriptionHistory));
         NavigateToMedicinesCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Medicines));
+        NavigateToInvestigationsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Investigations));
         NavigateToSettingsCommand = new RelayCommand(() => _navigationService.NavigateTo(NavigationDestination.Settings));
 
         OpenDoctorSetupCommand = new RelayCommand(OpenDoctorSetup);
@@ -538,6 +541,7 @@ public class MainWindowViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsPatientsSection));
         OnPropertyChanged(nameof(IsPrescriptionHistorySection));
         OnPropertyChanged(nameof(IsMedicinesSection));
+        OnPropertyChanged(nameof(IsInvestigationsSection));
         OnPropertyChanged(nameof(IsSettingsSection));
 
         if (viewModel is PrescriptionDetailViewModel detailVm)
@@ -560,6 +564,7 @@ public class MainWindowViewModel : ViewModelBase
                 NavigationDestination.Patients => "Patient Directory & Records",
                 NavigationDestination.PrescriptionHistory => "Prescription Archive & History",
                 NavigationDestination.Medicines => "Medicine Catalog & Formulations",
+                NavigationDestination.Investigations => "Diagnostic Investigations & Lab Orders",
                 NavigationDestination.Settings => "Clinic & Application Settings",
                 _ => "DoctorRx"
             };

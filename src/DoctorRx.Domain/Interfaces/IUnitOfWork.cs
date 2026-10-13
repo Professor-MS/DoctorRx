@@ -11,6 +11,7 @@ public interface IUnitOfWork : IAsyncDisposable, IDisposable
     IMedicineRepository Medicines { get; }
     IDoctorRepository Doctors { get; }
     IDraftRepository Drafts { get; }
+    IInvestigationRepository Investigations { get; }
 
     Task<int> CommitAsync(CancellationToken cancellationToken = default);
     Task<IDbTransactionScope> BeginWriteTransactionAsync(CancellationToken cancellationToken = default);

@@ -10,6 +10,7 @@ public enum NavigationDestination
     Patients,
     PrescriptionHistory,
     Medicines,
+    Investigations,
     Settings,
     PrescriptionDetail
 }
@@ -21,6 +22,7 @@ public enum NavigationSection
     Patients,
     PrescriptionHistory,
     Medicines,
+    Investigations,
     Settings
 }
 
@@ -48,4 +50,9 @@ public interface IDialogService
 public interface IPrintPreviewLauncher
 {
     void Launch(DoctorRx.Application.DTOs.PrescriptionDetailDto prescription);
+}
+
+public interface IInvestigationPrintLauncher
+{
+    void Launch(DoctorRx.Application.DTOs.InvestigationRequestDetailDto request);
 }

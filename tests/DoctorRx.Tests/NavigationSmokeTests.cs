@@ -147,6 +147,15 @@ public class NavigationSmokeTests : IDisposable
 
             var printPreviewWindow = new PrintPreviewWindow(null);
             Assert.NotNull(printPreviewWindow);
+
+            var investigationsView = new InvestigationsView();
+            Assert.NotNull(investigationsView);
+
+            var investigationPaperView = new InvestigationPaperView();
+            Assert.NotNull(investigationPaperView);
+
+            var investigationPrintPreviewWindow = new InvestigationPrintPreviewWindow(null);
+            Assert.NotNull(investigationPrintPreviewWindow);
         });
     }
 
@@ -270,6 +279,7 @@ public class NavigationSmokeTests : IDisposable
         var medicineService = new MedicineService(_uowFactory, _clock, NullLogger<MedicineService>.Instance);
         var doctorService = new DoctorService(_uowFactory, _clock, NullLogger<DoctorService>.Instance);
         var dashboardService = new DashboardService(_uowFactory, _clock);
+        var investigationService = new InvestigationService(_uowFactory, doctorService, NullLogger<InvestigationService>.Instance);
 
         services.AddSingleton<IDraftService>(draftService);
         services.AddSingleton<IPrescriptionService>(prescriptionService);
@@ -277,6 +287,8 @@ public class NavigationSmokeTests : IDisposable
         services.AddSingleton<IMedicineService>(medicineService);
         services.AddSingleton<IDoctorService>(doctorService);
         services.AddSingleton<IDashboardService>(dashboardService);
+        services.AddSingleton<IInvestigationService>(investigationService);
+        services.AddSingleton<IInvestigationPrintLauncher, InvestigationPrintLauncher>();
 
         // ViewModels
         services.AddSingleton<MainWindowViewModel>();
@@ -308,6 +320,13 @@ public class NavigationSmokeTests : IDisposable
             sp.GetRequiredService<IDialogService>(),
             sp.GetRequiredService<INavigationService>(),
             NullLogger<MedicinesViewModel>.Instance));
+        services.AddTransient<InvestigationsViewModel>(sp => new InvestigationsViewModel(
+            sp.GetRequiredService<IInvestigationService>(),
+            sp.GetRequiredService<IPatientService>(),
+            sp.GetRequiredService<IDialogService>(),
+            sp.GetRequiredService<INavigationService>(),
+            sp.GetService<IInvestigationPrintLauncher>(),
+            NullLogger<InvestigationsViewModel>.Instance));
         services.AddTransient<SettingsViewModel>();
         services.AddTransient<PrescriptionDetailViewModel>(sp => new PrescriptionDetailViewModel(
             sp.GetRequiredService<IPrescriptionService>(),

@@ -17,6 +17,7 @@ public class DatabaseInitializer : IDatabaseInitializer
     private readonly IDatabaseHealthService _databaseHealthService;
     private readonly IAppPaths _appPaths;
     private readonly ILogger<DatabaseInitializer> _logger;
+    private readonly IInvestigationService? _investigationService;
 
     public DatabaseInitializer(
         IDatabaseMigrator databaseMigrator,
@@ -24,7 +25,8 @@ public class DatabaseInitializer : IDatabaseInitializer
         ISearchIndexRepairService searchIndexRepairService,
         IDatabaseHealthService databaseHealthService,
         IAppPaths appPaths,
-        ILogger<DatabaseInitializer> logger)
+        ILogger<DatabaseInitializer> logger,
+        IInvestigationService? investigationService = null)
     {
         _databaseMigrator = databaseMigrator;
         _demoDataSeeder = demoDataSeeder;
@@ -32,6 +34,7 @@ public class DatabaseInitializer : IDatabaseInitializer
         _databaseHealthService = databaseHealthService;
         _appPaths = appPaths;
         _logger = logger;
+        _investigationService = investigationService;
     }
 
     public static bool ShouldSeedDemoData(string[]? args = null)
@@ -108,6 +111,12 @@ public class DatabaseInitializer : IDatabaseInitializer
 
             // 5. Backfill clinical indications for catalog medicines with empty descriptions
             await BackfillMedicineDescriptionsAsync(cancellationToken);
+
+            // 6. Seed diagnostic investigations catalogue if empty
+            if (_investigationService != null)
+            {
+                await _investigationService.EnsureDefaultCatalogueSeededAsync(cancellationToken);
+            }
         }
         catch (DoctorRxStartupException)
         {
