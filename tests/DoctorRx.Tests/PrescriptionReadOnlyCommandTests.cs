@@ -25,50 +25,88 @@ using Xunit;
 
 namespace DoctorRx.Tests;
 
-public class CommandLoggingInterceptor : DbCommandInterceptor
+/// <summary>
+/// Intercepts ALL three DbCommand execution paths (Reader, NonQuery, Scalar)
+/// and counts SaveChanges invocations. A read-only operation must produce zero
+/// NonSelectCommands and zero SaveChanges calls.
+/// </summary>
+public class CommandLoggingInterceptor : DbCommandInterceptor, ISaveChangesInterceptor
 {
     public List<string> ExecutedCommands { get; } = new();
     public List<string> NonSelectCommands { get; } = new();
+    public List<string> ScalarCommands { get; } = new();
+    public int SaveChangesCount { get; private set; }
 
+    // --- Reader (SELECT) ---
     public override InterceptionResult<DbDataReader> ReaderExecuting(
-        DbCommand command,
-        CommandEventData eventData,
-        InterceptionResult<DbDataReader> result)
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result)
     {
-        RecordCommand(command.CommandText);
+        RecordCommand(command.CommandText, isMutation: false);
         return base.ReaderExecuting(command, eventData, result);
     }
 
     public override ValueTask<InterceptionResult<DbDataReader>> ReaderExecutingAsync(
-        DbCommand command,
-        CommandEventData eventData,
-        InterceptionResult<DbDataReader> result,
+        DbCommand command, CommandEventData eventData, InterceptionResult<DbDataReader> result,
         CancellationToken cancellationToken = default)
     {
-        RecordCommand(command.CommandText);
+        RecordCommand(command.CommandText, isMutation: false);
         return base.ReaderExecutingAsync(command, eventData, result, cancellationToken);
     }
 
-    public override InterceptionResult<int> NonQueryExecuting(
-        DbCommand command,
-        CommandEventData eventData,
-        InterceptionResult<int> result)
+    // --- Scalar (SELECT ... returning single value, e.g. last_insert_rowid()) ---
+    public override InterceptionResult<object> ScalarExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<object> result)
     {
-        RecordCommand(command.CommandText);
+        RecordCommand(command.CommandText, isMutation: false);
+        ScalarCommands.Add(command.CommandText.Trim());
+        return base.ScalarExecuting(command, eventData, result);
+    }
+
+    public override ValueTask<InterceptionResult<object>> ScalarExecutingAsync(
+        DbCommand command, CommandEventData eventData, InterceptionResult<object> result,
+        CancellationToken cancellationToken = default)
+    {
+        RecordCommand(command.CommandText, isMutation: false);
+        ScalarCommands.Add(command.CommandText.Trim());
+        return base.ScalarExecutingAsync(command, eventData, result, cancellationToken);
+    }
+
+    // --- NonQuery (INSERT / UPDATE / DELETE) ---
+    public override InterceptionResult<int> NonQueryExecuting(
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result)
+    {
+        RecordCommand(command.CommandText, isMutation: true);
         return base.NonQueryExecuting(command, eventData, result);
     }
 
     public override ValueTask<InterceptionResult<int>> NonQueryExecutingAsync(
-        DbCommand command,
-        CommandEventData eventData,
-        InterceptionResult<int> result,
+        DbCommand command, CommandEventData eventData, InterceptionResult<int> result,
         CancellationToken cancellationToken = default)
     {
-        RecordCommand(command.CommandText);
+        RecordCommand(command.CommandText, isMutation: true);
         return base.NonQueryExecutingAsync(command, eventData, result, cancellationToken);
     }
 
-    private void RecordCommand(string sql)
+    // --- SaveChanges tracking ---
+    public InterceptionResult<int> SavingChanges(DbContextEventData eventData, InterceptionResult<int> result)
+    {
+        SaveChangesCount++;
+        return result;
+    }
+
+    public ValueTask<InterceptionResult<int>> SavingChangesAsync(DbContextEventData eventData, InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        SaveChangesCount++;
+        return ValueTask.FromResult(result);
+    }
+
+    public void SavedChanges(SaveChangesCompletedEventData eventData, int result) { }
+    public ValueTask SavedChangesAsync(SaveChangesCompletedEventData eventData, int result, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+    public void SaveChangesFailed(DbContextErrorEventData eventData) { }
+    public ValueTask SaveChangesFailedAsync(DbContextErrorEventData eventData, CancellationToken cancellationToken = default) => ValueTask.CompletedTask;
+
+    private void RecordCommand(string sql, bool isMutation)
     {
         if (string.IsNullOrWhiteSpace(sql)) return;
         var trimmed = sql.Trim();
@@ -86,7 +124,14 @@ public class CommandLoggingInterceptor : DbCommandInterceptor
     {
         ExecutedCommands.Clear();
         NonSelectCommands.Clear();
+        ScalarCommands.Clear();
+        SaveChangesCount = 0;
     }
+
+    // Summarizes all mutation evidence for assert failure messages
+    public string MutationSummary() =>
+        $"NonSelect: {NonSelectCommands.Count}, SaveChanges: {SaveChangesCount}\n" +
+        string.Join("\n", NonSelectCommands.Select(c => $"  NONSELECT: {c.Substring(0, Math.Min(120, c.Length))}"));
 }
 
 public class PrescriptionReadOnlyCommandTests : IDisposable
@@ -267,32 +312,38 @@ public class PrescriptionReadOnlyCommandTests : IDisposable
         // 1. Open Prescription History
         await historyVm.InitializeAsync();
         Assert.NotEmpty(historyVm.Prescriptions);
-        Assert.Empty(_interceptor.NonSelectCommands);
+        // Assert zero mutations across all three paths (NonQuery + Scalar writes + SaveChanges)
+        Assert.True(_interceptor.NonSelectCommands.Count == 0, $"Step 1: {_interceptor.MutationSummary()}");
+        Assert.Equal(0, _interceptor.SaveChangesCount);
 
         // 2. Perform Search
         historyVm.SearchText = "aspirin";
         await historyVm.LoadPrescriptionsAsync(resetPage: true);
         Assert.NotEmpty(historyVm.Prescriptions);
-        Assert.Empty(_interceptor.NonSelectCommands);
+        Assert.True(_interceptor.NonSelectCommands.Count == 0, $"Step 2: {_interceptor.MutationSummary()}");
+        Assert.Equal(0, _interceptor.SaveChangesCount);
 
-        // 3. Page navigation
+        // 3. Page navigation (load more pages without resetting)
         historyVm.SearchText = string.Empty;
         await historyVm.LoadPrescriptionsAsync(resetPage: true);
         await historyVm.LoadPrescriptionsAsync(resetPage: false);
-        Assert.Empty(_interceptor.NonSelectCommands);
+        Assert.True(_interceptor.NonSelectCommands.Count == 0, $"Step 3: {_interceptor.MutationSummary()}");
+        Assert.Equal(0, _interceptor.SaveChangesCount);
 
         // 4. Open Prescription Detail
         var detailVm = new PrescriptionDetailViewModel(rxService, stubNav, stubDialog, stubLauncher);
         await detailVm.InitializeAsync(_finalizedRxId);
         Assert.NotNull(detailVm.Prescription);
-        Assert.Empty(_interceptor.NonSelectCommands);
+        Assert.True(_interceptor.NonSelectCommands.Count == 0, $"Step 4: {_interceptor.MutationSummary()}");
+        Assert.Equal(0, _interceptor.SaveChangesCount);
 
         // 5. Open Superseded Prescription Detail (loads replacement prescription)
         await detailVm.InitializeAsync(_supersededRxId);
         Assert.NotNull(detailVm.Prescription);
         Assert.NotNull(detailVm.ReplacementPrescription);
         Assert.Equal("RX-20261013-000002-A1", detailVm.ReplacementPrescription.PrescriptionNumber);
-        Assert.Empty(_interceptor.NonSelectCommands);
+        Assert.True(_interceptor.NonSelectCommands.Count == 0, $"Step 5: {_interceptor.MutationSummary()}");
+        Assert.Equal(0, _interceptor.SaveChangesCount);
     }
 
     [Fact]

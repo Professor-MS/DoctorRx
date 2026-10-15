@@ -244,11 +244,11 @@
                                             </StackPanel>
                                         </Button>
 
-                                        <!-- Save as PDF Button (Disabled per Gate 1 spec) -->
+                                        <!-- Save as PDF Button (Disabled until printing update) -->
                                         <Button Style="{StaticResource SecondaryButton}"
                                                 IsEnabled="False"
                                                 Padding="8,4"
-                                                ToolTip="Export to PDF will be available once document rendering is finalized (Gate 1)."
+                                                ToolTip="PDF export arrives with the printing update"
                                                 AutomationProperties.Name="Save Prescription As PDF Button">
                                             <TextBlock Text="PDF" FontSize="{StaticResource FontSizeCaption}" Foreground="{StaticResource SlateLightBrush}" />
                                         </Button>

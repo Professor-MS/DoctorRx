@@ -219,7 +219,7 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
             case PrescriptionStatusSearchFilter.Default:
                 if (!criteria.IncludeReplaced)
                 {
-                    dbQuery = dbQuery.Where(p => p.Status == PrescriptionStatus.Finalized || p.Status == PrescriptionStatus.Cancelled);
+                    dbQuery = dbQuery.Where(p => p.Status != PrescriptionStatus.Superseded);
                 }
                 break;
             case PrescriptionStatusSearchFilter.Issued:
@@ -252,112 +252,65 @@ public class PrescriptionRepository : Repository<Prescription>, IPrescriptionRep
 
                 if (isIndexAvailable)
                 {
-                    IQueryable<int>? matchingRxIdsQuery = null;
-
                     foreach (var token in parsedTokens)
                     {
-                        // (a) Match prescription search tokens directly
-                        IQueryable<int> directRxTokensQuery;
-
                         if (token.IsRxNumberPrefix && token.RxNumberWithoutPrefix != null)
                         {
                             var fullNorm = token.NormalizedToken;
                             var withoutPrefix = token.RxNumberWithoutPrefix;
-                            directRxTokensQuery = Context.PrescriptionSearchTokens
-                                .Where(x => x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
-                                           (x.Token == fullNorm || x.Token == withoutPrefix))
-                                .Select(x => x.PrescriptionId);
+                            dbQuery = dbQuery.Where(p => Context.PrescriptionSearchTokens.Any(x =>
+                                x.PrescriptionId == p.Id &&
+                                x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
+                                (x.Token == fullNorm || x.Token == withoutPrefix)));
                         }
                         else if (token.IsAmendment)
                         {
                             var norm = token.NormalizedToken;
                             var withHyphen = norm.StartsWith('-') ? norm : $"-{norm}";
                             var withoutHyphen = norm.StartsWith('-') ? norm[1..] : norm;
-                            directRxTokensQuery = Context.PrescriptionSearchTokens
-                                .Where(x => x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
-                                           (x.Token == withHyphen || x.Token == withoutHyphen))
-                                .Select(x => x.PrescriptionId);
+                            dbQuery = dbQuery.Where(p => Context.PrescriptionSearchTokens.Any(x =>
+                                x.PrescriptionId == p.Id &&
+                                x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
+                                (x.Token == withHyphen || x.Token == withoutHyphen)));
                         }
-                        else if (token.IsDigitsOnly)
-                        {
-                            var digits = token.StrippedDigits;
-                            var norm = token.NormalizedToken;
-                            directRxTokensQuery = Context.PrescriptionSearchTokens
-                                .Where(x => x.TokenType == PrescriptionSearchTokenType.PrescriptionNumberPart &&
-                                           (x.Token == digits || x.Token == norm))
-                                .Select(x => x.PrescriptionId);
-                        }
-                        else
-                        {
-                            var prefix = $"{token.NormalizedToken}%";
-                            directRxTokensQuery = Context.PrescriptionSearchTokens
-                                .Where(x => EF.Functions.Like(x.Token, prefix))
-                                .Select(x => x.PrescriptionId);
-                        }
-
-                        // (b) Match patients through PatientSearchTokens (current patient data)
-                        IQueryable<int> patientIdsQuery;
-                        if (token.IsRecordNumberPrefix && token.RecordNumberDigits != null)
+                        else if (token.IsRecordNumberPrefix && token.RecordNumberDigits != null)
                         {
                             var recDigits = token.RecordNumberDigits;
                             var recNorm = token.NormalizedToken;
-                            patientIdsQuery = Context.PatientSearchTokens
-                                .Where(x => x.TokenType == SearchTokenType.RecordNumber &&
-                                           (x.Token == recDigits || x.Token == recNorm))
-                                .Select(x => x.PatientId);
+                            dbQuery = dbQuery.Where(p =>
+                                Context.PrescriptionSearchTokens.Any(x => x.PrescriptionId == p.Id && (x.Token == recDigits || x.Token == recNorm)) ||
+                                Context.PatientSearchTokens.Any(x => x.PatientId == p.PatientId && x.TokenType == SearchTokenType.RecordNumber && (x.Token == recDigits || x.Token == recNorm)));
                         }
                         else if (token.IsDigitsOnly)
                         {
                             var digits = token.StrippedDigits;
+                            var norm = token.NormalizedToken;
                             if (digits.Length >= 3)
                             {
                                 var prefix = $"{digits}%";
-                                patientIdsQuery = Context.PatientSearchTokens
-                                    .Where(x => (x.TokenType == SearchTokenType.PhoneSuffix && EF.Functions.Like(x.Token, prefix)) ||
-                                               (x.TokenType == SearchTokenType.RecordNumber && x.Token == digits))
-                                    .Select(x => x.PatientId);
+                                dbQuery = dbQuery.Where(p =>
+                                    Context.PrescriptionSearchTokens.Any(x => x.PrescriptionId == p.Id && (x.Token == digits || x.Token == norm)) ||
+                                    Context.PatientSearchTokens.Any(x => x.PatientId == p.PatientId &&
+                                        ((x.TokenType == SearchTokenType.PhoneSuffix && EF.Functions.Like(x.Token, prefix)) ||
+                                         (x.TokenType == SearchTokenType.RecordNumber && x.Token == digits))));
                             }
                             else
                             {
-                                patientIdsQuery = Context.PatientSearchTokens
-                                    .Where(x => x.TokenType == SearchTokenType.RecordNumber && x.Token == digits)
-                                    .Select(x => x.PatientId);
+                                dbQuery = dbQuery.Where(p =>
+                                    Context.PrescriptionSearchTokens.Any(x => x.PrescriptionId == p.Id && (x.Token == digits || x.Token == norm)) ||
+                                    Context.PatientSearchTokens.Any(x => x.PatientId == p.PatientId && x.TokenType == SearchTokenType.RecordNumber && x.Token == digits));
                             }
                         }
                         else
                         {
                             var prefix = $"{token.NormalizedToken}%";
                             var norm = token.NormalizedToken;
-                            patientIdsQuery = Context.PatientSearchTokens
-                                .Where(x => (x.TokenType == SearchTokenType.NameWord && EF.Functions.Like(x.Token, prefix)) ||
-                                           (x.TokenType == SearchTokenType.RecordNumber && x.Token == norm))
-                                .Select(x => x.PatientId);
+                            dbQuery = dbQuery.Where(p =>
+                                Context.PrescriptionSearchTokens.Any(x => x.PrescriptionId == p.Id && (x.Token == norm || EF.Functions.Like(x.Token, prefix))) ||
+                                Context.PatientSearchTokens.Any(x => x.PatientId == p.PatientId &&
+                                    ((x.TokenType == SearchTokenType.NameWord && EF.Functions.Like(x.Token, prefix)) ||
+                                     (x.TokenType == SearchTokenType.RecordNumber && x.Token == norm))));
                         }
-
-                        // Union with direct patient matches
-                        var directPatientMatches = Context.Patients
-                            .Where(pt => EF.Functions.Like(pt.RecordNumber, $"{token.NormalizedToken}%") ||
-                                         EF.Functions.Like(pt.NormalizedName, $"{token.NormalizedToken}%"))
-                            .Select(pt => pt.Id);
-
-                        var combinedPatientIds = patientIdsQuery.Union(directPatientMatches);
-
-                        var rxFromPatientsQuery = Context.Prescriptions
-                            .Where(p => combinedPatientIds.Contains(p.PatientId))
-                            .Select(p => p.Id);
-
-                        // UNION (a) and (b) for this token
-                        var tokenRxCandidates = directRxTokensQuery.Union(rxFromPatientsQuery);
-
-                        // INTERSECT across all query tokens
-                        matchingRxIdsQuery = matchingRxIdsQuery == null
-                            ? tokenRxCandidates
-                            : matchingRxIdsQuery.Intersect(tokenRxCandidates);
-                    }
-
-                    if (matchingRxIdsQuery != null)
-                    {
-                        dbQuery = dbQuery.Where(p => matchingRxIdsQuery.Contains(p.Id));
                     }
                 }
                 else

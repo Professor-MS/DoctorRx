@@ -16,6 +16,13 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- xunit.runner.json disables cross-collection parallelism to prevent
+         SqliteConnection.ClearAllPools() in one test's Dispose from
+         closing connections used by concurrently-running database tests. -->
+    <Content Include="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Using Include="Xunit" />
   </ItemGroup>
 

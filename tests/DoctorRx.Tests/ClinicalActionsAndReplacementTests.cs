@@ -187,6 +187,33 @@ public class ClinicalActionsAndReplacementTests
         Assert.Equal("You are correcting RX-20261009-0025. The original stays on record.", composerVm.CorrectionBannerText);
     }
 
+    [Theory]
+    [InlineData(PrescriptionStatus.Cancelled)]
+    [InlineData(PrescriptionStatus.Superseded)]
+    public async Task EditAndCancel_Disabled_ForCancelledAndReplacedRows(PrescriptionStatus nonFinalizedStatus)
+    {
+        var stubPrescriptionService = new StubReplacementPrescriptionService();
+        var navTracker = new TestNavigationTracker();
+        var dialogService = new TestDialogTracker();
+
+        var detailVm = new PrescriptionDetailViewModel(stubPrescriptionService, navTracker, dialogService);
+        var rx = CreatePrescriptionDetail(10, "RX-20261009-0010", nonFinalizedStatus);
+
+        await detailVm.InitializeAsync(rx);
+
+        // CanAmendOrCancel must be false for both Cancelled and Superseded (replaced) prescriptions
+        Assert.False(detailVm.CanAmendOrCancel);
+
+        // Edit command execution should not prompt dialog or navigate
+        detailVm.EditPrescriptionCommand.Execute(null);
+        Assert.False(dialogService.WasConfirmationShown);
+        Assert.Null(navTracker.LastNavigatedDestination);
+
+        // Cancel command execution should not prompt dialog
+        detailVm.CancelPrescriptionCommand.Execute(null);
+        Assert.False(dialogService.WasConfirmationShown);
+    }
+
     private static PrescriptionDetailDto CreatePrescriptionDetail(int id, string number, PrescriptionStatus status)
     {
         return new PrescriptionDetailDto(

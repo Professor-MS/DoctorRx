@@ -16,6 +16,8 @@ public interface IPrescriptionHistoryFilterSessionService
     int PageSize { get; set; }
     double ScrollPosition { get; set; }
     int? SelectedPrescriptionId { get; set; }
+    int? PatientId { get; set; }
+    string? PatientName { get; set; }
 
     bool HasActiveFilters { get; }
     void Reset();
@@ -34,6 +36,8 @@ public class PrescriptionHistoryFilterSessionService : IPrescriptionHistoryFilte
     public int PageSize { get; set; } = 50;
     public double ScrollPosition { get; set; } = 0;
     public int? SelectedPrescriptionId { get; set; }
+    public int? PatientId { get; set; }
+    public string? PatientName { get; set; }
 
     public bool HasActiveFilters =>
         !string.IsNullOrWhiteSpace(SearchText) ||
@@ -42,6 +46,7 @@ public class PrescriptionHistoryFilterSessionService : IPrescriptionHistoryFilte
         ToDate.HasValue ||
         StatusFilter != PrescriptionStatusSearchFilter.Default ||
         IncludeReplaced ||
+        PatientId.HasValue ||
         SortOption != PrescriptionSortOption.NewestFirst;
 
     public void Reset()
@@ -57,5 +62,7 @@ public class PrescriptionHistoryFilterSessionService : IPrescriptionHistoryFilte
         PageSize = 50;
         ScrollPosition = 0;
         SelectedPrescriptionId = null;
+        PatientId = null;
+        PatientName = null;
     }
 }

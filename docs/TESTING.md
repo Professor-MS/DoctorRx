@@ -157,3 +157,60 @@ DoctorRx is designed for efficient keyboard-driven clinical entry:
    $env:DOCTORRX_DATA_DIR = $null
    ```
 
+---
+
+## 5. Gate H1 Prescription History & Read-Only Audit Verification Protocols
+
+### Protocol A: Navigating to Prescription History & Default State
+1. Launch DoctorRx:
+   ```bash
+   dotnet run --project src/DoctorRx.Presentation/DoctorRx.Presentation.csproj
+   ```
+2. Click **"Prescription History"** (or clipboard icon) in the primary left navigation rail.
+3. Verify that the grid displays existing issued prescriptions:
+   - Status defaults to **Issued** (`PrescriptionStatus.Finalized`).
+   - Replaced prescriptions are hidden by default unless **"Include replaced"** is checked.
+   - Column headers: Date, Prescription #, Patient Name, Patient Record #, Medicines Count, Status.
+   - Header shows total prescription count badge (e.g., `50` or capped `10,000+`).
+
+### Protocol B: Read-Only Audit & Invariant Guarantees
+1. Double-click or click **"View Details"** on any finalized prescription row.
+2. In the Prescription Detail view:
+   - Confirm that all medicine items, dosages, instructions, vitals, and physician notes are in a pure read-only view.
+   - Hover over the disabled PDF export button: verify tooltip reads exactly `"PDF export arrives with the printing update"`.
+   - Observe that neither the view nor any background operations issue `UPDATE`, `INSERT`, `DELETE`, or `SaveChanges` against the database (verified automatically by `PrescriptionReadOnlyCommandTests`).
+
+### Protocol C: Replaced & Cancelled Action Guarding
+1. Find a prescription with status `Cancelled` or `Replaced by RX-...`.
+2. Open its detail view.
+3. Verify that both **"Amend / Replace"** and **"Cancel Prescription"** buttons are visually disabled (`IsEnabled="False"`).
+4. Verify that pressing hotkeys or attempting programmatic execution is blocked by command `CanExecute` guard.
+
+### Protocol D: Search & Filter Verification
+1. **Prescription Number Formats**:
+   - In the search box, enter a full number: `RX-20261009-000012` -> verifies single match.
+   - Enter partial format: `P-000012` or `000012` -> verifies match.
+   - Enter raw sequence: `12` or `0012` -> verifies match.
+   - Enter date token: `20261009` -> verifies all prescriptions issued on that date.
+2. **Patient Name & Renamed Patient Discovery**:
+   - Search by snapshot patient name.
+   - If a patient was renamed in the database after the prescription was issued, search by both the original snapshot name and the new patient name: verify the prescription is discovered under both queries.
+3. **Medicine Search**:
+   - Type a brand or generic medicine name (e.g., `Amoxicillin`): verify all prescriptions containing this medicine appear.
+4. **Status & Date Presets**:
+   - Select Date Presets: `Today`, `Last 7 Days`, `This Month`, `Custom`.
+   - Check **"Include replaced"**: verify superseded prescriptions appear marked with `"Replaced by RX-..."`.
+5. **Patient Filter Chip**:
+   - Navigate to Prescription History from a specific Patient Detail page: verify patient chip appears (e.g. `Patient: Muhammad Ali [x]`).
+   - Click `[x]` on the chip: verify filter clears and shows all patients.
+
+### Protocol E: Audit Pagination vs "Load More"
+1. Verify the pager controls at the bottom of the grid:
+   - `First Page (<<)`, `Previous (<)`, `Page N of M`, `Next (>)`, `Last Page (>>)`.
+   - Verify that clicking `Next` loads Page 2 deterministically.
+   - Open a prescription from Page 2, then click **"Back to History"**: verify that Page 2, active filters, and scroll position are completely preserved.
+
+### Protocol F: Stale Query & Network/Error State Protection
+1. Type rapidly into the search box: verify previous in-flight queries are cancelled and the list never flickers or empties while typing.
+2. If an error occurs or connection is dropped: verify error banner appears with a **"Retry"** button; verify existing list is not cleared.
+

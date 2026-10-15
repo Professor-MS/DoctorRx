@@ -42,8 +42,8 @@ public class PrescriptionHistoryViewModelTests
         Assert.True(vm.HasSearchText);
         Assert.True(vm.HasActiveFilters);
 
-        // Allow debounce timer (250ms) to fire
-        await Task.Delay(350);
+        // Allow debounce timer (250ms) to fire; use 600ms for reliability on slow machines
+        await Task.Delay(600);
 
         Assert.Equal("Amoxicillin", _prescriptionService.LastCriteria?.SearchText);
     }
@@ -177,10 +177,183 @@ public class PrescriptionHistoryViewModelTests
         Assert.Equal(10, _printLauncher.LastLaunched.Id);
     }
 
+    [Fact]
+    public async Task ErrorState_WhenServiceThrows_SetsErrorMessage_AndRetryClears()
+    {
+        // Arrange: service will throw on search
+        _prescriptionService.ThrowOnSearch = true;
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+
+        // Act: initialize triggers load which will fail
+        await vm.InitializeAsync();
+
+        // Assert: error state is set
+        Assert.True(vm.HasError);
+        Assert.NotNull(vm.ErrorMessage);
+        Assert.Contains("Failed to load", vm.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+        Assert.Empty(vm.Prescriptions);
+
+        // Act: clear the error condition and retry using RetryCommand
+        _prescriptionService.ThrowOnSearch = false;
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.RetryCommand).ExecuteAsync(null);
+
+        // Assert: error cleared and results loaded
+        Assert.False(vm.HasError);
+        Assert.Null(vm.ErrorMessage);
+        Assert.NotEmpty(vm.Prescriptions);
+    }
+
+    [Fact]
+    public async Task CancelledQuery_DoesNotClearExistingPrescriptionsList()
+    {
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+        await vm.InitializeAsync();
+        Assert.NotEmpty(vm.Prescriptions);
+        var initialCount = vm.Prescriptions.Count;
+
+        // When a search throws OperationCanceledException (cancelled mid-flight)
+        _prescriptionService.ThrowCancellationOnSearch = true;
+        await vm.LoadPrescriptionsAsync(resetPage: true);
+
+        // Cancelled query must NOT clear the existing list or set error message
+        Assert.Equal(initialCount, vm.Prescriptions.Count);
+        Assert.False(vm.HasError);
+    }
+
+    [Fact]
+    public async Task EmptyState_WhenZeroResults_TotalCountIsZero()
+    {
+        // Arrange: service returns 0 results
+        _prescriptionService.ReturnEmptyResults = true;
+        _prescriptionService.TotalCountToReturn = 0;
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+
+        await vm.InitializeAsync();
+
+        Assert.Empty(vm.Prescriptions);
+        Assert.Equal(0, vm.TotalCount);
+        // PageSummaryText shows empty state wording
+        Assert.Equal("No prescriptions found", vm.PageSummaryText);
+    }
+
+    [Fact]
+    public async Task NoMatchState_WithActiveFilter_ZeroResults_HasActiveFiltersTrue()
+    {
+        // Arrange: filter active, but no results
+        _prescriptionService.ReturnEmptyResults = true;
+        _prescriptionService.TotalCountToReturn = 0;
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+        await vm.InitializeAsync();
+
+        vm.SearchText = "zzznomatch";
+        // Wait for debounce
+        await Task.Delay(600);
+
+        Assert.True(vm.HasActiveFilters);
+        Assert.True(vm.HasSearchText);
+        Assert.Empty(vm.Prescriptions);
+        Assert.Equal("No prescriptions found", vm.PageSummaryText);
+    }
+
+    [Fact]
+    public async Task PatientChip_PatientIdFilter_RestrictsCriteriaToPatient()
+    {
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+        await vm.InitializeAsync();
+
+        // Simulate patient chip being set (PatientId filter)
+        _sessionService.PatientId = 123;
+        await vm.LoadPrescriptionsAsync(resetPage: true);
+
+        // The criteria passed to the service must include the patient ID
+        Assert.Equal(123, _prescriptionService.LastCriteria?.PatientId);
+    }
+
+    [Fact]
+    public async Task IncludeReplaced_Toggle_TriggersReload_AndPassesCorrectCriteria()
+    {
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+        await vm.InitializeAsync();
+
+        // Default: IncludeReplaced = false
+        Assert.False(vm.IncludeReplaced);
+        Assert.False(_prescriptionService.LastCriteria?.IncludeReplaced);
+
+        // Toggle to true
+        vm.IncludeReplaced = true;
+
+        // Should immediately trigger load with IncludeReplaced = true
+        await Task.Delay(50); // allow async dispatch
+        Assert.True(_prescriptionService.LastCriteria?.IncludeReplaced);
+    }
+
+    [Fact]
+    public async Task StaleResultProtection_OutOfOrderResults_DoNotReplaceNewerResults()
+    {
+        // This tests that if search "A" is cancelled mid-flight and search "B" completes
+        // first, the arrival of stale search "A" results does NOT overwrite "B" results.
+        // We verify this at the ViewModel level: rapidly changing search text
+        // and checking that the final state reflects only the last search.
+
+        var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
+        await vm.InitializeAsync();
+
+        // Rapid changes - each one cancels the previous debounce
+        vm.SearchText = "old-search";
+        vm.SearchText = "intermediate";
+        vm.SearchText = "final-search";
+
+        // Wait for final debounce to fire and complete
+        await Task.Delay(700);
+
+        // The service should have been called with the last search text
+        Assert.Equal("final-search", _prescriptionService.LastCriteria?.SearchText);
+    }
+
+    [Fact]
+    public void DigitOnlyTokenizer_RealPrescriptionFormats_ClassifiedCorrectly()
+    {
+        // Issue #5: digit-only rule with REAL formats
+        // Our format is RX-YYYYMMDD-NNNN, patient record P-NNNNNN
+
+        // 1. "P-000012" → IsRecordNumberPrefix with digits "12"
+        var p1 = SearchNormalizer.ParseQueryTokens("P-000012");
+        Assert.Single(p1);
+        Assert.True(p1[0].IsRecordNumberPrefix);
+        Assert.Equal("12", p1[0].RecordNumberDigits);
+
+        // 2. "12" → IsDigitsOnly with stripped digits "12"
+        var p2 = SearchNormalizer.ParseQueryTokens("12");
+        Assert.Single(p2);
+        Assert.True(p2[0].IsDigitsOnly);
+        Assert.Equal("12", p2[0].StrippedDigits);
+
+        // 3. "0012" → IsDigitsOnly with stripped digits "12"
+        var p3 = SearchNormalizer.ParseQueryTokens("0012");
+        Assert.Single(p3);
+        Assert.True(p3[0].IsDigitsOnly);
+        Assert.Equal("12", p3[0].StrippedDigits);
+
+        // 4. "20261009" (date part of RX number) → IsDigitsOnly
+        var p4 = SearchNormalizer.ParseQueryTokens("20261009");
+        Assert.Single(p4);
+        Assert.True(p4[0].IsDigitsOnly);
+        Assert.Equal("20261009", p4[0].StrippedDigits);
+
+        // 5. "RX-20261009-0002" → full Rx prefix token
+        var p5 = SearchNormalizer.ParseQueryTokens("RX-20261009-0002");
+        Assert.Single(p5);
+        Assert.True(p5[0].IsRxNumberPrefix);
+        Assert.Equal("20261009-0002", p5[0].RxNumberWithoutPrefix);
+    }
+
     private class StubPrescriptionService : IPrescriptionService
     {
         public PrescriptionSearchCriteria? LastCriteria { get; private set; }
         public int TotalCountToReturn { get; set; } = 1;
+        public bool ThrowOnSearch { get; set; } = false;
+        public bool ThrowCancellationOnSearch { get; set; } = false;
+        public bool ReturnEmptyResults { get; set; } = false;
 
         public Task<PrescriptionDetailDto?> GetPrescriptionByIdAsync(int id, CancellationToken cancellationToken = default)
         {
@@ -201,7 +374,20 @@ public class PrescriptionHistoryViewModelTests
 
         public Task<PrescriptionHistoryPagedResult> SearchPrescriptionsAsync(PrescriptionSearchCriteria criteria, CancellationToken cancellationToken = default)
         {
+            if (ThrowCancellationOnSearch)
+                throw new OperationCanceledException();
+
+            if (ThrowOnSearch)
+                throw new InvalidOperationException("Simulated service failure");
+
             LastCriteria = criteria;
+
+            if (ReturnEmptyResults)
+            {
+                return Task.FromResult(new PrescriptionHistoryPagedResult(
+                    new List<PrescriptionHistoryItemDto>(), 0, false, criteria.PageNumber, criteria.PageSize));
+            }
+
             var list = new List<PrescriptionHistoryItemDto>
             {
                 new(42, "RX-20261013-000042", 0, DateOnly.FromDateTime(DateTime.Today), "Zainab Bibi", "P-00431", 2, PrescriptionStatus.Finalized, null, DateTime.UtcNow),

@@ -519,9 +519,11 @@ public class SQLiteBenchmarkTests : IDisposable
         var clock = new SystemClock();
         var rxService = new PrescriptionService(uowFactory, clock, NullLogger<PrescriptionService>.Instance);
 
-        // Warm-up query execution (EF query compilation)
+        // Warm-up query execution (EF query compilation + JIT)
         _ = await rxService.GetRecentPrescriptionsAsync(count: 1);
         _ = await rxService.GetPrescriptionByIdAsync(id: 1);
+        _ = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(PageSize: 1));
+        _ = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "warmup", PageSize: 1));
 
         // 1. History load timing (top 20 recent prescriptions)
         sw.Restart();
@@ -533,47 +535,72 @@ public class SQLiteBenchmarkTests : IDisposable
         Assert.Equal(20, recent.Count);
         Assert.True(historyLoadTimeMs < 100, $"History load took {historyLoadTimeMs}ms, expected < 100ms");
 
+        // Benchmark measurement helper
+        async Task<(double median, double p95, List<long> runs)> MeasureMultiRunAsync(Func<Task> action, int count = 5)
+        {
+            var runs = new List<long>();
+            for (int i = 0; i < count; i++)
+            {
+                var s = Stopwatch.StartNew();
+                await action();
+                s.Stop();
+                runs.Add(s.ElapsedMilliseconds);
+            }
+            var sorted = runs.OrderBy(r => r).ToList();
+            double med = sorted[sorted.Count / 2];
+            int p95Idx = (int)Math.Ceiling(sorted.Count * 0.95) - 1;
+            p95Idx = Math.Clamp(p95Idx, 0, sorted.Count - 1);
+            double p95Val = sorted[p95Idx];
+            return (med, p95Val, runs);
+        }
+
         // 1b. SearchPrescriptionsAsync first-page load (50 items across 500,000 records)
-        sw.Restart();
-        var firstPage = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(PageSize: 50));
-        sw.Stop();
-        var firstPageTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] First-page time: {firstPageTimeMs} ms (returned {firstPage.Items.Count} records, TotalCount: {firstPage.TotalCount})");
-        Assert.Equal(50, firstPage.Items.Count);
-        Assert.True(firstPageTimeMs < 100, $"First-page history load took {firstPageTimeMs}ms, expected < 100ms");
+        var (firstPageMed, firstPageP95, _) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(PageSize: 50));
+            Assert.Equal(50, res.Items.Count);
+        });
+        _output.WriteLine($"[Benchmark Result] First-page time: Median = {firstPageMed:F1} ms, p95 = {firstPageP95:F1} ms");
+        Assert.True(firstPageP95 < 100, $"First-page p95 was {firstPageP95}ms, expected < 100ms");
 
         // 1c. SearchPrescriptionsAsync worst-case filter (Issued + Today across 500,000 records)
-        sw.Restart();
-        var filterResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(
-            StatusFilter: PrescriptionStatusSearchFilter.Issued,
-            DatePreset: PrescriptionDatePreset.Today,
-            PageSize: 50
-        ));
-        sw.Stop();
-        var filterTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Worst-case filter time: {filterTimeMs} ms (returned {filterResult.Items.Count} records)");
-        Assert.True(filterTimeMs < 200, $"Worst-case filter took {filterTimeMs}ms, expected < 200ms");
+        var (filterMed, filterP95, _) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(
+                StatusFilter: PrescriptionStatusSearchFilter.Issued,
+                DatePreset: PrescriptionDatePreset.Today,
+                PageSize: 50
+            ));
+            Assert.NotNull(res);
+        });
+        _output.WriteLine($"[Benchmark Result] Worst-case filter time: Median = {filterMed:F1} ms, p95 = {filterP95:F1} ms");
+        Assert.True(filterP95 < 200, $"Worst-case filter p95 was {filterP95}ms, expected < 200ms");
 
-        // 1d. Token search time ('20261001')
-        sw.Restart();
-        var tokenResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "20261001", PageSize: 50));
-        sw.Stop();
-        var tokenSearchTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Token search time ('20261001'): {tokenSearchTimeMs} ms (returned {tokenResult.Items.Count} records, TotalCount: {tokenResult.TotalCount})");
+        // 1d. Token search time ('20261001') - Skewed: 500,000 prescriptions share this token
+        var (tokenMed, tokenP95, tokenRuns) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "20261001", PageSize: 50));
+            Assert.Equal(50, res.Items.Count);
+        });
+        _output.WriteLine($"[Benchmark Result] Token search ('20261001' on 500k skewed records): Median = {tokenMed:F1} ms, p95 = {tokenP95:F1} ms (Runs: {string.Join(", ", tokenRuns)} ms)");
+        Assert.True(tokenMed < 200, $"Token search median took {tokenMed}ms, expected < 200ms");
 
-        // 1e. Medicine name search time ('amoxicillin')
-        sw.Restart();
-        var medResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "amoxicillin", PageSize: 50));
-        sw.Stop();
-        var medSearchTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Medicine-name search time ('amoxicillin'): {medSearchTimeMs} ms (returned {medResult.Items.Count} records, TotalCount: {medResult.TotalCount})");
+        // 1e. Medicine name search time ('amoxicillin') - Skewed: 500,000 prescriptions share this token
+        var (medMed, medP95, medRuns) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "amoxicillin", PageSize: 50));
+            Assert.Equal(50, res.Items.Count);
+        });
+        _output.WriteLine($"[Benchmark Result] Medicine-name search ('amoxicillin' on 500k skewed records): Median = {medMed:F1} ms, p95 = {medP95:F1} ms (Runs: {string.Join(", ", medRuns)} ms)");
+        Assert.True(medMed < 200, $"Medicine search median took {medMed}ms, expected < 200ms");
 
         // 1f. Sort by patient name
-        sw.Restart();
-        var nameSortResult = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SortOption: PrescriptionSortOption.PatientName, PageSize: 50));
-        sw.Stop();
-        var nameSortTimeMs = sw.ElapsedMilliseconds;
-        _output.WriteLine($"[Benchmark Result] Sort by patient name time: {nameSortTimeMs} ms (returned {nameSortResult.Items.Count} records)");
+        var (nameSortMed, nameSortP95, _) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SortOption: PrescriptionSortOption.PatientName, PageSize: 50));
+            Assert.Equal(50, res.Items.Count);
+        });
+        _output.WriteLine($"[Benchmark Result] Sort by patient name: Median = {nameSortMed:F1} ms, p95 = {nameSortP95:F1} ms");
 
         // 2. Open one prescription timing (detailed lookup with items snapshot)
         sw.Restart();

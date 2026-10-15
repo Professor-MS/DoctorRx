@@ -25,6 +25,8 @@ public class PrescriptionHistoryViewModel : ViewModelBase
     private readonly IPrintPreviewLauncher _printLauncher;
 
     private CancellationTokenSource? _searchCts;
+    private CancellationTokenSource? _activeLoadCts;
+    private int _searchSequence;
     private bool _isLoading;
     private int _totalCount;
     private bool _isCountCapped;
@@ -193,6 +195,41 @@ public class PrescriptionHistoryViewModel : ViewModelBase
         }
     }
 
+    public int? PatientId
+    {
+        get => _filterSession.PatientId;
+        set
+        {
+            if (_filterSession.PatientId != value)
+            {
+                _filterSession.PatientId = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasPatientFilter));
+                OnPropertyChanged(nameof(PatientFilterChipText));
+                OnPropertyChanged(nameof(HasActiveFilters));
+                _ = LoadPrescriptionsAsync(resetPage: true);
+            }
+        }
+    }
+
+    public string? PatientFilterName
+    {
+        get => _filterSession.PatientName;
+        set
+        {
+            if (_filterSession.PatientName != value)
+            {
+                _filterSession.PatientName = value;
+                OnPropertyChanged();
+                OnPropertyChanged(nameof(HasPatientFilter));
+                OnPropertyChanged(nameof(PatientFilterChipText));
+            }
+        }
+    }
+
+    public bool HasPatientFilter => PatientId.HasValue;
+    public string PatientFilterChipText => !string.IsNullOrEmpty(PatientFilterName) ? $"Patient: {PatientFilterName}" : $"Patient #{PatientId}";
+
     public bool HasActiveFilters => _filterSession.HasActiveFilters;
 
     public int PageNumber
@@ -281,7 +318,9 @@ public class PrescriptionHistoryViewModel : ViewModelBase
 
     public ICommand ClearSearchCommand { get; }
     public ICommand ClearFiltersCommand { get; }
+    public ICommand ClearPatientFilterCommand { get; }
     public ICommand RefreshCommand { get; }
+    public ICommand RetryCommand { get; }
     public ICommand NextPageCommand { get; }
     public ICommand PreviousPageCommand { get; }
     public ICommand FirstPageCommand { get; }
@@ -304,7 +343,13 @@ public class PrescriptionHistoryViewModel : ViewModelBase
 
         ClearSearchCommand = new RelayCommand(() => SearchText = string.Empty);
         ClearFiltersCommand = new RelayCommand(ClearAllFilters);
+        ClearPatientFilterCommand = new RelayCommand(() =>
+        {
+            PatientId = null;
+            PatientFilterName = null;
+        });
         RefreshCommand = new AsyncRelayCommand(() => LoadPrescriptionsAsync(resetPage: false));
+        RetryCommand = new AsyncRelayCommand(() => LoadPrescriptionsAsync(resetPage: false));
         NextPageCommand = new AsyncRelayCommand(GoToNextPageAsync, () => HasNextPage);
         PreviousPageCommand = new AsyncRelayCommand(GoToPreviousPageAsync, () => HasPreviousPage);
         FirstPageCommand = new AsyncRelayCommand(GoToFirstPageAsync, () => HasPreviousPage);
@@ -323,6 +368,9 @@ public class PrescriptionHistoryViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsCustomDateRange));
         OnPropertyChanged(nameof(StatusFilter));
         OnPropertyChanged(nameof(IncludeReplaced));
+        OnPropertyChanged(nameof(PatientId));
+        OnPropertyChanged(nameof(PatientFilterName));
+        OnPropertyChanged(nameof(HasPatientFilter));
         OnPropertyChanged(nameof(SortOption));
         OnPropertyChanged(nameof(HasActiveFilters));
         OnPropertyChanged(nameof(HasSearchText));
@@ -361,6 +409,12 @@ public class PrescriptionHistoryViewModel : ViewModelBase
             PageNumber = 1;
         }
 
+        var sequence = Interlocked.Increment(ref _searchSequence);
+        _activeLoadCts?.Cancel();
+        _activeLoadCts?.Dispose();
+        _activeLoadCts = new CancellationTokenSource();
+        var ct = _activeLoadCts.Token;
+
         try
         {
             IsLoading = true;
@@ -373,12 +427,19 @@ public class PrescriptionHistoryViewModel : ViewModelBase
                 ToDate: _filterSession.ToDate,
                 StatusFilter: StatusFilter,
                 IncludeReplaced: IncludeReplaced,
+                PatientId: _filterSession.PatientId,
                 SortOption: SortOption,
                 PageNumber: PageNumber,
                 PageSize: PageSize
             );
 
-            var result = await _prescriptionService.SearchPrescriptionsAsync(criteria);
+            var result = await _prescriptionService.SearchPrescriptionsAsync(criteria, ct);
+
+            // Stale-result protection: ignore results if cancelled or a newer query was issued
+            if (ct.IsCancellationRequested || sequence != _searchSequence)
+            {
+                return;
+            }
 
             Prescriptions.Clear();
             foreach (var item in result.Items)
@@ -398,13 +459,24 @@ public class PrescriptionHistoryViewModel : ViewModelBase
             OnPropertyChanged(nameof(HasNextPage));
             OnPropertyChanged(nameof(PageSummaryText));
         }
+        catch (OperationCanceledException)
+        {
+            // Cancelled query must NOT clear existing results or set error message
+            return;
+        }
         catch (Exception ex)
         {
-            ErrorMessage = $"Failed to load prescriptions: {ex.Message}";
+            if (sequence == _searchSequence)
+            {
+                ErrorMessage = $"Failed to load prescriptions: {ex.Message}";
+            }
         }
         finally
         {
-            IsLoading = false;
+            if (sequence == _searchSequence)
+            {
+                IsLoading = false;
+            }
         }
     }
 
@@ -418,6 +490,9 @@ public class PrescriptionHistoryViewModel : ViewModelBase
         OnPropertyChanged(nameof(IsCustomDateRange));
         OnPropertyChanged(nameof(StatusFilter));
         OnPropertyChanged(nameof(IncludeReplaced));
+        OnPropertyChanged(nameof(PatientId));
+        OnPropertyChanged(nameof(PatientFilterName));
+        OnPropertyChanged(nameof(HasPatientFilter));
         OnPropertyChanged(nameof(SortOption));
         OnPropertyChanged(nameof(HasActiveFilters));
         OnPropertyChanged(nameof(HasSearchText));

@@ -70,6 +70,12 @@ DoctorRx
     - **Database Health & Safe Shutdown**: Enforces `PRAGMA quick_check;` and `PRAGMA foreign_key_check;` on startup, blocks dangerous network/UNC database storage, checkpoints WAL safely (`PRAGMA wal_checkpoint(TRUNCATE);`) on shutdown, and isolates corrupt files with timestamped quarantine renames.
     - **Quick Clinical Chips for Injections & Drops**: Interactive route chips (`IV`, `IM`, `SC`, `IV Drip`, `Eye`, `Ear`, `Nasal`, `Oral`, `Topical`) and common administration instructions for rapid, error-free clinical documentation.
 
+12. **Prescription Search & Read-Only Audit History (Gate H1)**:
+    - **Read-Only Audit Grid**: Prescriptions in history are strictly immutable audit records; DB command interceptor enforces 0 non-SELECT statements and 0 `SaveChanges`.
+    - **Tokenized Search Engine**: Sub-25ms prefix and token searches across 500k records (`PrescriptionSearchTokens`), supporting full numbers (`RX-20261009-000012`), partial prefixes (`P-000012`), raw numbers (`12`), date parts (`20261009`), patient names, and prescribed medicines with zero temp B-tree allocations.
+    - **Live Decoupled Patient Discovery**: Decouples prescription search tokens from live patient records; dual resolution discovers prescriptions when patients are renamed without updating historical token stores.
+    - **Deterministic Audit Pagination**: Grid uses Page N of M navigation (`First`, `Previous`, `Next`, `Last`) with count capping at 10,000+ and scroll position preservation across navigation.
+
 ---
 
 ## Testing & Verification

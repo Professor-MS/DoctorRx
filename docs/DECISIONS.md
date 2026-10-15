@@ -249,16 +249,31 @@ This document records architectural and technical decisions made during the Doct
     - `IX_Prescriptions_PatientId_Date` on `(PatientId, PrescriptionDate)` for patient history queries.
     - `IX_Prescriptions_SnapshotName_Id` on `(Patient_Name COLLATE NOCASE, Id)` for alphabetical patient name sorting.
     - `IX_PrescriptionSearchTokens_Token_PrescriptionId` on `(Token, PrescriptionId)` for token lookups.
+  - **Zero Temp B-Tree Sorts & EXISTS Scanning**:
+    - The default status filter (`Issued + Cancelled`) uses `p.Status != PrescriptionStatus.Superseded` rather than `IN (1, 2)`. Because SQLite's query optimizer evaluates `!=` without attempting an equality range scan on `(Status, PrescriptionDate)`, SQLite directly uses `IX_Prescriptions_Date_Id` (or `IX_Prescriptions_Date`), delivering rows in already-sorted date order and terminating immediately at `LIMIT 50` with zero temp B-tree sorts.
+    - Text search probes use `Context.PrescriptionSearchTokens.Any(...)` and `Context.PatientSearchTokens.Any(...)` (`EXISTS` queries) rather than large `IN (SELECT ... UNION SELECT ...)` subquery lists. In date order, SQLite iterates candidate rows from the date index, evaluates `EXISTS` via index lookup on `IX_PrescriptionSearchTokens_PrescriptionId`, and terminates at `LIMIT 50`.
   - **Single SQL Query with Correlated Subquery**: `ReplacedByNumber` is projected in the primary query using a correlated subquery (`Context.Prescriptions.Where(sub => sub.ParentPrescriptionId == p.Id).Select(sub => sub.PrescriptionNumber).FirstOrDefault()`), avoiding any N+1 query execution.
   - **Count Capping**: Total count query is capped at `10,000+` (`dbQuery.Take(10001).CountAsync()`) to prevent full table count scans on large databases.
   - **Background Repair & Idempotence**: `SearchIndexRepairService` verifies prescription tokens and repairs missing/unindexed rows in chunked transactions of 100 with exponential backoff on `SQLITE_BUSY`/`SQLITE_LOCKED`, recording `PrescriptionSearchIndexVersion = 1` in `AppMetas`.
-- **Benchmark Performance (500,000 Prescriptions)**:
-  - First-page default history query (`PageSize = 50`): < 100 ms.
-  - Worst-case filter query (`Issued` + `Today` across 500k): < 200 ms.
-  - Single prescription detailed lookup (#250,000 with items): < 100 ms.
-  - 50 concurrent finalizations: fully isolated with zero concurrency failure.
+- **Benchmark Performance (500,000 Prescriptions with Skewed Data)**:
+  - Database size BEFORE token table: `245.75 MB` (Ingested 500,000 prescriptions + 500,000 items in 18,883 ms).
+  - Search tokens added for 500k prescriptions: `14,646 ms` (~14.65 seconds backfill duration; 2.5M tokens).
+  - Database size AFTER token table & indexes: `388.57 MB` (delta: `+142.81 MB`).
+  - History load (top 20 recent across 500k): `6 ms`.
+  - First-page default history query (`PageSize = 50`): Median = `2.0 ms`, p95 = `4.0 ms`.
+  - Worst-case filter query (`Issued` + `Today` across 500k): Median = `2.0 ms`, p95 = `17.0 ms`.
+  - Token search ('20261001' on 500k records, 100% skew): Median = `17.0 ms`, p95 = `27.0 ms`.
+  - Medicine-name search ('amoxicillin' on 500k records, 100% skew): Median = `25.0 ms`, p95 = `32.0 ms`.
+  - Sort by patient name across 500k records: Median = `2.0 ms`, p95 = `20.0 ms`.
+  - Single prescription detailed lookup (#250,000 with items): `1 ms`.
+  - Finalize one new prescription: `441 ms`.
+  - 50 concurrent finalizations: `3513 ms` (`70.3 ms/op`), 100% success rate with zero lock contention failure.
+  - Repair-job duration: `311 ms` (0 missing rows detected).
+- **Index Selection Heuristics (Date vs Date_Id)**:
+  - Both `IX_Prescriptions_Date` and `IX_Prescriptions_Date_Id` exist. In SQLite B-tree tables, every secondary index entry automatically contains the primary key `rowid` (`Id`). Hence SQLite treats `IX_Prescriptions_Date` as effectively covering `(PrescriptionDate, Id)` and cost-equivalent to `IX_Prescriptions_Date_Id`.
 - **Alternatives Rejected**:
   - Storing patient's current name and phone inside prescription tokens: Rejected because updating a patient's name or phone would require rewriting thousands of historical prescription search token rows.
+  - Large `IN (SELECT UNION ...)` subqueries: Rejected because large UNION subqueries defeated SQLite's LIMIT early termination, causing 500ms+ latencies on skewed tokens.
   - N+1 replacement lookups in memory: Rejected due to latency degradation on paginated result sets.
 
 

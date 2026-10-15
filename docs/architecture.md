@@ -203,4 +203,40 @@ Immutability and transition state integrity are enforced at the SQLite engine le
    - Executes `PRAGMA wal_checkpoint(TRUNCATE);` to flush all write-ahead log frames into the main database file, ensuring a clean zero-byte or deleted WAL upon application exit.
    - Executes automatic shutdown backups when configured.
 
+---
+
+## 7. Prescription Search & Read-Only Audit History Architecture (Gate H1)
+
+1. **Read-Only Audit Guarantees**:
+   - Prescriptions in the history grid are immutable clinical audit records.
+   - History views execute pure read-only queries. The database interceptor asserts 0 non-SELECT statements and 0 `SaveChanges` operations during history browsing.
+   - Actions (`Edit`, `Cancel`) are permanently disabled for already `Cancelled` or `Superseded` records.
+
+2. **Token Indexing Model**:
+   - `PrescriptionSearchTokens` indexes prescription number components (raw number, stripped prefix, date component `YYYYMMDD`, sequence number with and without leading zeros, and amendment indicators), snapshot patient name tokens, and prescribed medicine brand/generic tokens.
+   - Decoupled from live patient demographics: patient name renames or phone updates do not require rewriting prescription search tokens. Dual resolution joins candidate patient IDs via indexed `PatientSearchTokens`.
+
+3. **Composite B-Tree Indexes & Zero Temp B-Tree Sorting**:
+   - Chronological sorting: uses `IX_Prescriptions_Date_Id` on `(PrescriptionDate, Id)` or `IX_Prescriptions_Date`.
+   - Status filtering: uses `IX_Prescriptions_Status_Date` on `(Status, PrescriptionDate)`.
+   - Patient filtering: uses `IX_Prescriptions_PatientId_Date` on `(PatientId, PrescriptionDate)`.
+   - Patient name sorting: uses `IX_Prescriptions_SnapshotName_Id` on `(Patient_Name COLLATE NOCASE, Id)`.
+   - Token lookup: uses covering index `IX_PrescriptionSearchTokens_Token_PrescriptionId` on `(Token, PrescriptionId)`.
+   - Default view avoids multi-value `IN (1, 2)` index sorts by filtering `Status != Superseded`, allowing SQLite to scan the date index directly and terminate at `LIMIT 50` with zero temporary B-tree allocations.
+
+4. **Pagination vs "Load More"**:
+   - The Patients list uses an infinite-scroll "Load More" append pattern suitable for directory browsing.
+   - Prescription History is a clinical audit grid requiring deterministic page navigation (`First`, `Previous`, `Next`, `Last`, `Page N of M`), page count capping at `10,000+`, and exact scroll position restoration upon navigating back from prescription detail.
+
+5. **Stale Query Protection & Cancellation**:
+   - Fast keystroke entry debounces queries and cancels in-flight tasks via `CancellationTokenSource`.
+   - A monotonic sequence token (`_searchRequestId`) ensures that out-of-order or late-returning query results are discarded.
+   - Operation cancellation does not clear the existing prescription list or flash empty states.
+
+6. **Digit-Only & Format Search Support**:
+   - Real prescription number formats are supported: full format (`RX-20261009-000012`), partial prefix (`P-000012`), raw sequence number (`12`), padded sequence (`0012`), and date part (`20261009`).
+
+7. **Placeholder UI Text**:
+   - The PDF export button in prescription detail displays the exact tooltip: `"PDF export arrives with the printing update"`.
+
 

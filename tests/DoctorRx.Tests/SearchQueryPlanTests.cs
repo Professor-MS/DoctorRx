@@ -7,6 +7,7 @@ using DoctorRx.Application.Common;
 using DoctorRx.Application.DTOs;
 using DoctorRx.Application.Services;
 using DoctorRx.Domain.Enums;
+using DoctorRx.Domain.Models;
 using DoctorRx.Infrastructure.Data;
 using DoctorRx.Infrastructure.Repositories;
 using DoctorRx.Infrastructure.Services;
@@ -14,6 +15,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit;
+using Xunit.Abstractions;
 
 namespace DoctorRx.Tests;
 
@@ -22,9 +24,13 @@ public class SearchQueryPlanTests : IDisposable
     private readonly string _testDir;
     private readonly TestAppPaths _appPaths;
     private readonly IDbContextFactory<DoctorRxDbContext> _factory;
+    private readonly CommandLoggingInterceptor _interceptor = new();
 
-    public SearchQueryPlanTests()
+    private readonly ITestOutputHelper _output;
+
+    public SearchQueryPlanTests(ITestOutputHelper output)
     {
+        _output = output;
         _testDir = Path.Combine(Path.GetTempPath(), "DoctorRx_PlanTests_" + Guid.NewGuid().ToString("N"));
         _appPaths = new TestAppPaths(_testDir);
 
@@ -36,13 +42,17 @@ public class SearchQueryPlanTests : IDisposable
 
         var options = new DbContextOptionsBuilder<DoctorRxDbContext>()
             .UseSqlite(builder.ConnectionString)
-            .AddInterceptors(new SqlitePragmaInterceptor())
+            .AddInterceptors(new SqlitePragmaInterceptor(), _interceptor)
             .Options;
 
         _factory = new TestDbContextFactory(options);
 
         var migrator = new DatabaseMigrator(_factory, _appPaths, NullLogger<DatabaseMigrator>.Instance);
         migrator.MigrateDatabaseAsync().GetAwaiter().GetResult();
+
+        using var ctx = _factory.CreateDbContext();
+        ctx.AppMetas.Add(new DoctorRx.Domain.Entities.AppMeta { Key = "PrescriptionSearchIndexVersion", Value = "1", UpdatedAtUtc = DateTime.UtcNow });
+        ctx.SaveChanges();
     }
 
     public void Dispose()
@@ -175,6 +185,7 @@ public class SearchQueryPlanTests : IDisposable
 
         Assert.NotEmpty(queryPlan);
         var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"PrescriptionDateSort Plan:\n{planText}\nSQL:\n{realEfSql}");
         Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date"));
         Assert.DoesNotContain("SCAN p\n", planText);
     }
@@ -256,6 +267,7 @@ public class SearchQueryPlanTests : IDisposable
 
         Assert.NotEmpty(queryPlan);
         var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"PrescriptionDateRange Plan:\n{planText}\nSQL:\n{realEfSql}");
         Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date"));
     }
 
@@ -344,5 +356,130 @@ public class SearchQueryPlanTests : IDisposable
         });
         Assert.False(updateResultNoForm.IsSuccess);
         Assert.Contains("Dosage form is required", updateResultNoForm.ErrorMessage);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_SearchPrescriptionsPagedAsync_RealEfQuery_DefaultView_UsesDateIdIndex_NoTempBTree()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var repo = new PrescriptionRepository(context);
+
+        _interceptor.ExecutedCommands.Clear();
+        await repo.SearchPrescriptionsPagedAsync(new PrescriptionSearchCriteria(PageSize: 50));
+
+        var efSql = _interceptor.ExecutedCommands.First(c => c.Contains("SELECT ") && c.Contains("PrescriptionDate"));
+        var queryPlan = await ExplainQueryPlanAsync(efSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"DefaultView Plan:\n{planText}\nSQL:\n{efSql}");
+        Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date") || planText.Contains("USING INDEX IX_Prescriptions_Status_Date"), $"Plan was: {planText}");
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_SearchPrescriptionsPagedAsync_RealEfQuery_StatusIssued_UsesStatusDateIndex()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var repo = new PrescriptionRepository(context);
+
+        _interceptor.ExecutedCommands.Clear();
+        await repo.SearchPrescriptionsPagedAsync(new PrescriptionSearchCriteria(
+            StatusFilter: PrescriptionStatusSearchFilter.Issued,
+            PageSize: 50));
+
+        var efSql = _interceptor.ExecutedCommands.First(c => c.Contains("SELECT ") && c.Contains("PrescriptionDate"));
+        var queryPlan = await ExplainQueryPlanAsync(efSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"StatusIssued Plan:\n{planText}\nSQL:\n{efSql}");
+        Assert.Contains("USING INDEX IX_Prescriptions_Status_Date", planText);
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_SearchPrescriptionsPagedAsync_RealEfQuery_PatientNameSort_UsesSnapshotNameIndex_NoTempBTree()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var repo = new PrescriptionRepository(context);
+
+        _interceptor.ExecutedCommands.Clear();
+        await repo.SearchPrescriptionsPagedAsync(new PrescriptionSearchCriteria(
+            SortOption: PrescriptionSortOption.PatientName,
+            PageSize: 50));
+
+        var efSql = _interceptor.ExecutedCommands.First(c => c.Contains("SELECT ") && c.Contains("PrescriptionDate"));
+        var queryPlan = await ExplainQueryPlanAsync(efSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"PatientNameSort Plan:\n{planText}\nSQL:\n{efSql}");
+        Assert.True(planText.Contains("IX_Prescriptions_SnapshotName_Id") || planText.Contains("IX_Prescriptions_Date"), $"Plan was: {planText}");
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_SearchPrescriptionsPagedAsync_RealEfQuery_TextSearch_Medicine_UsesExists_NoTempBTree()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var repo = new PrescriptionRepository(context);
+
+        _interceptor.ExecutedCommands.Clear();
+        await repo.SearchPrescriptionsPagedAsync(new PrescriptionSearchCriteria(
+            SearchText: "amoxicillin",
+            PageSize: 50));
+
+        var efSql = _interceptor.ExecutedCommands.First(c => c.Contains("SELECT ") && c.Contains("PrescriptionDate"));
+        var queryPlan = await ExplainQueryPlanAsync(efSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"MedicineText Plan:\n{planText}\nSQL:\n{efSql}");
+        Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date") || planText.Contains("USING INDEX IX_Prescriptions_Status_Date"), $"Plan was: {planText}");
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_SearchPrescriptionsPagedAsync_RealEfQuery_TextSearch_PatientUnion_UsesExists_NoTempBTree()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var repo = new PrescriptionRepository(context);
+
+        _interceptor.ExecutedCommands.Clear();
+        await repo.SearchPrescriptionsPagedAsync(new PrescriptionSearchCriteria(
+            SearchText: "bilal",
+            PageSize: 50));
+
+        var efSql = _interceptor.ExecutedCommands.First(c => c.Contains("SELECT ") && c.Contains("PrescriptionDate"));
+        var queryPlan = await ExplainQueryPlanAsync(efSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        _output.WriteLine($"PatientUnionText Plan:\n{planText}\nSQL:\n{efSql}");
+        Assert.True(planText.Contains("USING INDEX IX_Prescriptions_Date_Id") || planText.Contains("USING INDEX IX_Prescriptions_Date") || planText.Contains("USING INDEX IX_Prescriptions_Status_Date"), $"Plan was: {planText}");
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
+    }
+
+    [Fact]
+    public async Task ExplainQueryPlan_SearchPrescriptionsPagedAsync_RealEfQuery_CombinedTextDateStatus_NoTempBTree()
+    {
+        await using var context = await _factory.CreateDbContextAsync();
+        var repo = new PrescriptionRepository(context);
+
+        _interceptor.ExecutedCommands.Clear();
+        await repo.SearchPrescriptionsPagedAsync(new PrescriptionSearchCriteria(
+            SearchText: "amoxicillin",
+            StatusFilter: PrescriptionStatusSearchFilter.Issued,
+            DatePreset: PrescriptionDatePreset.Last7Days,
+            PageSize: 50));
+
+        var efSql = _interceptor.ExecutedCommands.First(c => c.Contains("SELECT ") && c.Contains("PrescriptionDate"));
+        var queryPlan = await ExplainQueryPlanAsync(efSql);
+
+        Assert.NotEmpty(queryPlan);
+        var planText = string.Join("\n", queryPlan);
+        Assert.Contains("USING INDEX IX_Prescriptions_Status_Date", planText);
+        Assert.DoesNotContain("USE TEMP B-TREE FOR ORDER BY", planText);
     }
 }

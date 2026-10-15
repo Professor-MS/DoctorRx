@@ -70,6 +70,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
     public ICommand BackCommand { get; }
     public ICommand PrintCommand { get; }
     public ICommand CancelCommand { get; }
+    public ICommand CancelPrescriptionCommand => CancelCommand;
     public ICommand EditPrescriptionCommand { get; }
     public ICommand AmendCommand => EditPrescriptionCommand;
     public ICommand OpenReplacementCommand { get; }
@@ -87,8 +88,8 @@ public class PrescriptionDetailViewModel : ViewModelBase
 
         BackCommand = new RelayCommand(() => _navigationService.NavigateTo(ReturnDestination));
         PrintCommand = new RelayCommand(PrintPrescription);
-        CancelCommand = new AsyncRelayCommand(CancelPrescriptionAsync);
-        EditPrescriptionCommand = new RelayCommand(EditPrescription);
+        CancelCommand = new AsyncRelayCommand(CancelPrescriptionAsync, () => CanAmendOrCancel);
+        EditPrescriptionCommand = new RelayCommand(EditPrescription, () => CanAmendOrCancel);
         OpenReplacementCommand = new RelayCommand(() =>
         {
             if (ReplacementPrescription != null)
@@ -130,6 +131,9 @@ public class PrescriptionDetailViewModel : ViewModelBase
         {
             ReplacementPrescription = null;
         }
+
+        ((IRelayCommand)EditPrescriptionCommand).NotifyCanExecuteChanged();
+        ((IAsyncRelayCommand)CancelCommand).NotifyCanExecuteChanged();
     }
 
     private void PrintPrescription()
@@ -140,7 +144,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
 
     private async Task CancelPrescriptionAsync()
     {
-        if (Prescription == null) return;
+        if (Prescription == null || !CanAmendOrCancel) return;
 
         var confirmed = _dialogService.ShowConfirmation(
             "Cancel Prescription",
@@ -155,6 +159,8 @@ public class PrescriptionDetailViewModel : ViewModelBase
         {
             _dialogService.ShowInformation("Prescription Cancelled", $"Prescription {Prescription.PrescriptionNumber} has been marked as Cancelled.");
             Prescription = await _prescriptionService.GetPrescriptionByIdAsync(Prescription.Id);
+            ((IRelayCommand)EditPrescriptionCommand).NotifyCanExecuteChanged();
+            ((IAsyncRelayCommand)CancelCommand).NotifyCanExecuteChanged();
         }
         else
         {
@@ -164,7 +170,7 @@ public class PrescriptionDetailViewModel : ViewModelBase
 
     private void EditPrescription()
     {
-        if (Prescription == null) return;
+        if (Prescription == null || !CanAmendOrCancel) return;
 
         var confirmed = _dialogService.ShowConfirmation(
             "Edit Prescription",
