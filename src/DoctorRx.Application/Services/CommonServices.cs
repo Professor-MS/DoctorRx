@@ -353,9 +353,7 @@ public class MedicineService : IMedicineService
             m.Strength,
             m.IsActive,
             m.UsageCount,
-            !string.IsNullOrWhiteSpace(m.Description)
-                ? m.Description
-                : DoctorRx.Application.Common.MedicineClinicalKnowledge.GetClinicalIndication(m.Name, m.GenericName));
+            m.Description);
 }
 
 public class DoctorService : IDoctorService

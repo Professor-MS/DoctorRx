@@ -60,12 +60,22 @@ public class MedicineCsvImportTests : IDisposable
         var importService = new MedicineCsvImportService(_uowFactory);
 
         // Find actual CSV file
-        var csvPath = Path.Combine(AppContext.BaseDirectory, "pakistan_medicine_master.csv");
+        var csvPath = Path.Combine(AppContext.BaseDirectory, "data", "pakistan_medicine_master.csv");
+        if (!File.Exists(csvPath))
+        {
+            csvPath = Path.Combine(AppContext.BaseDirectory, "pakistan_medicine_master.csv");
+        }
         if (!File.Exists(csvPath))
         {
             var dir = new DirectoryInfo(AppContext.BaseDirectory);
             while (dir != null && !File.Exists(csvPath))
             {
+                var candidateData = Path.Combine(dir.FullName, "data", "pakistan_medicine_master.csv");
+                if (File.Exists(candidateData))
+                {
+                    csvPath = candidateData;
+                    break;
+                }
                 var candidate = Path.Combine(dir.FullName, "pakistan_medicine_master.csv");
                 if (File.Exists(candidate))
                 {

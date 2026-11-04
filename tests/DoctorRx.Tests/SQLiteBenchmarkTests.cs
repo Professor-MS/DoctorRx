@@ -497,6 +497,13 @@ public class SQLiteBenchmarkTests : IDisposable
                 tx.Commit();
             }
 
+            // Insert rare token for prescription #42 (1 match out of 500,000)
+            tokenCmd.Transaction = null;
+            pTokenRxId.Value = 42;
+            pTokenType.Value = 2; // MedicineName
+            pTokenVal.Value = "zyxrarecase";
+            tokenCmd.ExecuteNonQuery();
+
             using var metaCmd = conn.CreateCommand();
             metaCmd.CommandText = @"
                 INSERT INTO AppMetas (Key, Value, UpdatedAtUtc) VALUES ('SearchIndexVersion', '2', CURRENT_TIMESTAMP)
@@ -601,6 +608,22 @@ public class SQLiteBenchmarkTests : IDisposable
             Assert.Equal(50, res.Items.Count);
         });
         _output.WriteLine($"[Benchmark Result] Sort by patient name: Median = {nameSortMed:F1} ms, p95 = {nameSortP95:F1} ms");
+
+        // 1g. Rare-term search ('zyxrarecase' - matches 1 out of 500,000 records)
+        var (rareMed, rareP95, rareRuns) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "zyxrarecase", PageSize: 50));
+            Assert.Single(res.Items);
+        });
+        _output.WriteLine($"[Benchmark Result] Rare-term search ('zyxrarecase' on 500k records, 1 match): Median = {rareMed:F1} ms, p95 = {rareP95:F1} ms (Runs: {string.Join(", ", rareRuns)} ms)");
+
+        // 1h. No-match search ('nomatchterm999' - matches 0 out of 500,000 records)
+        var (noMatchMed, noMatchP95, noMatchRuns) = await MeasureMultiRunAsync(async () =>
+        {
+            var res = await rxService.SearchPrescriptionsAsync(new PrescriptionSearchCriteria(SearchText: "nomatchterm999", PageSize: 50));
+            Assert.Empty(res.Items);
+        });
+        _output.WriteLine($"[Benchmark Result] No-match search ('nomatchterm999' on 500k records, 0 matches): Median = {noMatchMed:F1} ms, p95 = {noMatchP95:F1} ms (Runs: {string.Join(", ", noMatchRuns)} ms)");
 
         // 2. Open one prescription timing (detailed lookup with items snapshot)
         sw.Restart();

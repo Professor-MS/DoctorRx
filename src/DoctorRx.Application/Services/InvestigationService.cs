@@ -19,15 +19,24 @@ public class InvestigationService : IInvestigationService
     private readonly IUnitOfWorkFactory _uowFactory;
     private readonly IDoctorService? _doctorService;
     private readonly ILogger<InvestigationService> _logger;
+    private readonly IClock _clock;
 
     public InvestigationService(
         IUnitOfWorkFactory uowFactory,
         IDoctorService? doctorService,
-        ILogger<InvestigationService> logger)
+        ILogger<InvestigationService> logger,
+        IClock? clock = null)
     {
         _uowFactory = uowFactory;
         _doctorService = doctorService;
         _logger = logger;
+        _clock = clock ?? new DefaultSystemClock();
+    }
+
+    private class DefaultSystemClock : IClock
+    {
+        public DateTime UtcNow => DateTime.UtcNow;
+        public DateOnly Today => DateOnly.FromDateTime(DateTime.Today);
     }
 
     #region Catalogue Management
@@ -151,98 +160,186 @@ public class InvestigationService : IInvestigationService
             return Result<InvestigationRequestDetailDto>.Failure("Please add at least one diagnostic test or examination to the request.", ResultErrorCode.Validation);
         }
 
-        await using var uow = _uowFactory.Create();
-        var patient = await uow.Patients.GetByIdAsync(dto.PatientId, cancellationToken);
-        if (patient == null)
+        const int maxRetries = 5;
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            return Result<InvestigationRequestDetailDto>.Failure($"Patient with ID {dto.PatientId} was not found.", ResultErrorCode.NotFound);
-        }
-
-        DoctorDto? activeDoctor = null;
-        if (_doctorService != null)
-        {
-            activeDoctor = await _doctorService.GetActiveDoctorAsync(cancellationToken);
-        }
-        if (activeDoctor == null)
-        {
-            var activeDocEntity = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
-            if (activeDocEntity != null)
+            try
             {
-                activeDoctor = new DoctorDto(
-                    activeDocEntity.Id,
-                    activeDocEntity.Name,
-                    activeDocEntity.Qualification,
-                    activeDocEntity.RegistrationNumber,
-                    activeDocEntity.Specialization,
-                    activeDocEntity.Phone,
-                    activeDocEntity.Email,
-                    activeDocEntity.ClinicName,
-                    activeDocEntity.ClinicAddress,
-                    activeDocEntity.ClinicPhone,
-                    activeDocEntity.HeaderText,
-                    activeDocEntity.FooterText,
-                    activeDocEntity.TitlePrefix,
-                    activeDocEntity.RegistrationLabel
-                );
+                await using var uow = _uowFactory.Create();
+                await using var tx = await uow.BeginWriteTransactionAsync(cancellationToken);
+
+                var patient = await uow.Patients.GetByIdAsync(dto.PatientId, cancellationToken);
+                if (patient == null)
+                {
+                    return Result<InvestigationRequestDetailDto>.Failure($"Patient with ID {dto.PatientId} was not found.", ResultErrorCode.NotFound);
+                }
+
+                DoctorDto? activeDoctor = null;
+                if (_doctorService != null)
+                {
+                    activeDoctor = await _doctorService.GetActiveDoctorAsync(cancellationToken);
+                }
+                if (activeDoctor == null)
+                {
+                    var activeDocEntity = await uow.Doctors.GetActiveDoctorAsync(cancellationToken);
+                    if (activeDocEntity != null)
+                    {
+                        activeDoctor = new DoctorDto(
+                            activeDocEntity.Id,
+                            activeDocEntity.Name,
+                            activeDocEntity.Qualification,
+                            activeDocEntity.RegistrationNumber,
+                            activeDocEntity.Specialization,
+                            activeDocEntity.Phone,
+                            activeDocEntity.Email,
+                            activeDocEntity.ClinicName,
+                            activeDocEntity.ClinicAddress,
+                            activeDocEntity.ClinicPhone,
+                            activeDocEntity.HeaderText,
+                            activeDocEntity.FooterText,
+                            activeDocEntity.TitlePrefix,
+                            activeDocEntity.RegistrationLabel
+                        );
+                    }
+                }
+
+                var requestNumber = await uow.Investigations.GenerateNextRequestNumberAsync(dto.RequestDate, cancellationToken);
+
+                var request = new InvestigationRequest
+                {
+                    RequestNumber = requestNumber,
+                    PatientId = patient.Id,
+                    RequestDate = dto.RequestDate,
+                    ClinicalNotes = dto.ClinicalNotes?.Trim(),
+                    Instructions = dto.Instructions?.Trim(),
+                    Status = "Active",
+                    IsSealed = false,
+                    DoctorSnapshotJson = activeDoctor != null ? JsonSerializer.Serialize(activeDoctor) : null,
+                    PatientSnapshotJson = JsonSerializer.Serialize(new
+                    {
+                        patient.Name,
+                        patient.RecordNumber,
+                        Age = patient.FormatAgeAsOf(dto.RequestDate),
+                        Gender = patient.Gender.ToString(),
+                        patient.Phone,
+                        patient.Address
+                    })
+                };
+
+                int order = 1;
+                foreach (var itemDto in dto.Items)
+                {
+                    if (string.IsNullOrWhiteSpace(itemDto.InvestigationName)) continue;
+
+                    var requestItem = new InvestigationRequestItem
+                    {
+                        CatalogItemId = itemDto.CatalogItemId,
+                        InvestigationName = itemDto.InvestigationName.Trim(),
+                        Category = string.IsNullOrWhiteSpace(itemDto.Category) ? "General" : itemDto.Category.Trim(),
+                        Subcategory = itemDto.Subcategory?.Trim(),
+                        BodyPartOrSite = itemDto.BodyPartOrSite?.Trim(),
+                        ViewOrProtocol = itemDto.ViewOrProtocol?.Trim(),
+                        SpecificInstructions = itemDto.SpecificInstructions?.Trim(),
+                        DisplayOrder = order++
+                    };
+
+                    request.Items.Add(requestItem);
+
+                    if (itemDto.CatalogItemId.HasValue)
+                    {
+                        await uow.Investigations.IncrementCatalogUsageAsync(itemDto.CatalogItemId.Value, cancellationToken);
+                    }
+                }
+
+                await uow.Investigations.AddRequestAsync(request, cancellationToken);
+                await uow.CommitAsync(cancellationToken);
+
+                request.Seal();
+                await uow.Investigations.UpdateAsync(request, cancellationToken);
+                await uow.CommitAsync(cancellationToken);
+
+                await tx.CommitAsync(cancellationToken);
+
+                _logger.LogInformation("Saved investigation request {RequestNumber} with {Count} tests for patient {PatientId}",
+                    request.RequestNumber, request.Items.Count, patient.Id);
+
+                // Fetch full entity with populated patient navigation
+                var detailed = await uow.Investigations.GetRequestByIdWithDetailsAsync(request.Id, cancellationToken);
+                return Result<InvestigationRequestDetailDto>.Success(MapToDetailDto(detailed ?? request, activeDoctor));
+            }
+            catch (Exception ex) when (IsSqliteBusy(ex) && attempt < maxRetries)
+            {
+                await Task.Delay(50 * attempt + Random.Shared.Next(10, 50), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                var msg = ex.InnerException != null ? $"{ex.Message} -> {ex.InnerException.Message}" : ex.Message;
+                _logger.LogError(ex, "Failed to create investigation request for patient {PatientId}", dto.PatientId);
+                return Result<InvestigationRequestDetailDto>.Failure($"Failed to create investigation request: {msg}");
             }
         }
 
-        var requestNumber = await uow.Investigations.GenerateNextRequestNumberAsync(dto.RequestDate, cancellationToken);
+        return Result<InvestigationRequestDetailDto>.Failure("Database was busy. Please try again.");
+    }
 
-        var request = new InvestigationRequest
+    public async Task<Result> CancelInvestigationRequestAsync(int id, string reason, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
         {
-            RequestNumber = requestNumber,
-            PatientId = patient.Id,
-            RequestDate = dto.RequestDate,
-            ClinicalNotes = dto.ClinicalNotes?.Trim(),
-            Instructions = dto.Instructions?.Trim(),
-            Status = "Active",
-            DoctorSnapshotJson = activeDoctor != null ? JsonSerializer.Serialize(activeDoctor) : null,
-            PatientSnapshotJson = JsonSerializer.Serialize(new
-            {
-                patient.Name,
-                patient.RecordNumber,
-                Age = patient.FormatAgeAsOf(dto.RequestDate),
-                Gender = patient.Gender.ToString(),
-                patient.Phone,
-                patient.Address
-            })
-        };
+            return Result.Failure("A cancellation reason is required.");
+        }
 
-        int order = 1;
-        foreach (var itemDto in dto.Items)
+        const int maxRetries = 5;
+        for (int attempt = 1; attempt <= maxRetries; attempt++)
         {
-            if (string.IsNullOrWhiteSpace(itemDto.InvestigationName)) continue;
-
-            var requestItem = new InvestigationRequestItem
+            try
             {
-                CatalogItemId = itemDto.CatalogItemId,
-                InvestigationName = itemDto.InvestigationName.Trim(),
-                Category = string.IsNullOrWhiteSpace(itemDto.Category) ? "General" : itemDto.Category.Trim(),
-                Subcategory = itemDto.Subcategory?.Trim(),
-                BodyPartOrSite = itemDto.BodyPartOrSite?.Trim(),
-                ViewOrProtocol = itemDto.ViewOrProtocol?.Trim(),
-                SpecificInstructions = itemDto.SpecificInstructions?.Trim(),
-                DisplayOrder = order++
-            };
+                await using var uow = _uowFactory.Create();
+                await using var tx = await uow.BeginWriteTransactionAsync(cancellationToken);
 
-            request.Items.Add(requestItem);
+                var request = await uow.Investigations.GetRequestByIdWithDetailsAsync(id, cancellationToken);
+                if (request == null)
+                {
+                    return Result.Failure($"Investigation request #{id} not found.");
+                }
 
-            if (itemDto.CatalogItemId.HasValue)
+                request.Cancel(reason, _clock.UtcNow);
+                await uow.CommitAsync(cancellationToken);
+                await tx.CommitAsync(cancellationToken);
+
+                _logger.LogInformation("Cancelled investigation request {RequestNumber} (Id: {Id}). Reason: {Reason}",
+                    request.RequestNumber, id, reason);
+
+                return Result.Success();
+            }
+            catch (Exception ex) when (IsSqliteBusy(ex) && attempt < maxRetries)
             {
-                await uow.Investigations.IncrementCatalogUsageAsync(itemDto.CatalogItemId.Value, cancellationToken);
+                await Task.Delay(50 * attempt + Random.Shared.Next(10, 50), cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to cancel investigation request #{Id}", id);
+                return Result.Failure($"Failed to cancel investigation request: {ex.Message}");
             }
         }
 
-        await uow.Investigations.AddRequestAsync(request, cancellationToken);
-        await uow.CommitAsync(cancellationToken);
+        return Result.Failure("Database was busy. Please try again.");
+    }
 
-        _logger.LogInformation("Saved investigation request {RequestNumber} with {Count} tests for patient {PatientId}",
-            request.RequestNumber, request.Items.Count, patient.Id);
-
-        // Fetch full entity with populated patient navigation
-        var detailed = await uow.Investigations.GetRequestByIdWithDetailsAsync(request.Id, cancellationToken);
-        return Result<InvestigationRequestDetailDto>.Success(MapToDetailDto(detailed ?? request, activeDoctor));
+    private static bool IsSqliteBusy(Exception ex)
+    {
+        for (var current = ex; current != null; current = current.InnerException)
+        {
+            if (current.GetType().Name == "SqliteException")
+            {
+                var prop = current.GetType().GetProperty("SqliteErrorCode");
+                if (prop != null && prop.GetValue(current) is int code && (code == 5 || code == 6))
+                {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     public async Task<InvestigationRequestDetailDto?> GetRequestByIdAsync(int id, CancellationToken cancellationToken = default)
@@ -430,7 +527,9 @@ public class InvestigationService : IInvestigationService
             clinicName,
             clinicAddress,
             clinicPhone,
-            items
+            items,
+            r.IsSealed,
+            r.CancellationReason
         );
     }
 

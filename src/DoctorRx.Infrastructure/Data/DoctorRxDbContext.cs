@@ -318,6 +318,8 @@ public class DoctorRxDbContext : DbContext
             entity.Property(e => e.ClinicalNotes).HasMaxLength(2000);
             entity.Property(e => e.Instructions).HasMaxLength(1000);
             entity.Property(e => e.Status).IsRequired().HasMaxLength(30).HasDefaultValue("Active");
+            entity.Property(e => e.IsSealed);
+            entity.Property(e => e.CancellationReason).HasMaxLength(500);
 
             entity.HasIndex(e => e.PatientId).HasDatabaseName("IX_InvestigationRequests_PatientId");
             entity.HasIndex(e => e.RequestDate).HasDatabaseName("IX_InvestigationRequests_RequestDate");

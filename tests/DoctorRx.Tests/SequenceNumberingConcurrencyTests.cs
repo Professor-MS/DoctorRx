@@ -266,4 +266,61 @@ public class SequenceNumberingConcurrencyTests : IDisposable
             Assert.Null(patient!.LastVisitDate);
         }
     }
+
+    [Fact]
+    public async Task InvestigationCreate_50ConcurrentOperations_AllocatesUniqueSequentialNumbersWithoutGapsOrCollisions()
+    {
+        // Arrange
+        var (doctorId, patientId, _) = await SeedBaseEntitiesAsync();
+        var today = _clock.Today;
+        var investigationService = new InvestigationService(_uowFactory, null, NullLogger<InvestigationService>.Instance, _clock);
+
+        const int concurrentCount = 50;
+        var tasks = new List<Task<Application.Common.Result<InvestigationRequestDetailDto>>>();
+
+        for (int i = 0; i < concurrentCount; i++)
+        {
+            var dto = new CreateInvestigationRequestDto
+            {
+                PatientId = patientId,
+                RequestDate = today,
+                ClinicalNotes = $"Concurrent check #{i}",
+                Items = new List<CreateInvestigationRequestItemDto>
+                {
+                    new()
+                    {
+                        InvestigationName = "Complete Blood Count (CBC / CP)",
+                        Category = "Laboratory"
+                    }
+                }
+            };
+            tasks.Add(Task.Run(() => investigationService.CreateInvestigationRequestAsync(dto)));
+        }
+
+        // Act
+        var results = await Task.WhenAll(tasks);
+
+        // Assert
+        Assert.All(results, r => Assert.True(r.IsSuccess, r.ErrorMessage));
+
+        var numbers = results.Select(r => r.Value!.RequestNumber).ToList();
+        var distinctNumbers = numbers.Distinct().ToList();
+
+        // Exactly 50 distinct investigation request numbers
+        Assert.Equal(concurrentCount, distinctNumbers.Count);
+
+        // All numbers must match INV-yyyyMMdd-0001 through INV-yyyyMMdd-0050
+        var expectedPrefix = $"INV-{today:yyyyMMdd}-";
+        Assert.All(numbers, n => Assert.StartsWith(expectedPrefix, n));
+
+        var sequenceIntegers = numbers
+            .Select(n => int.Parse(n.Substring(expectedPrefix.Length)))
+            .OrderBy(n => n)
+            .ToList();
+
+        for (int i = 0; i < concurrentCount; i++)
+        {
+            Assert.Equal(i + 1, sequenceIntegers[i]);
+        }
+    }
 }

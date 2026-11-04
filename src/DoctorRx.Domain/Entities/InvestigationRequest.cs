@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using DoctorRx.Domain.Common;
+using DoctorRx.Domain.Exceptions;
 
 namespace DoctorRx.Domain.Entities;
 
@@ -46,6 +47,46 @@ public class InvestigationRequest : AuditableEntity
     public string Status { get; set; } = "Active";
 
     public bool IsCancelled => string.Equals(Status, "Cancelled", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Indicates whether the investigation request is finalized and tamper-sealed.
+    /// </summary>
+    public bool IsSealed { get; set; }
+
+    public void Seal()
+    {
+        IsSealed = true;
+    }
+
+    /// <summary>
+    /// Reason provided by clinician when request is cancelled.
+    /// </summary>
+    public string? CancellationReason { get; set; }
+
+    /// <summary>
+    /// UTC timestamp when request was marked cancelled.
+    /// </summary>
+    public DateTime? CancelledAtUtc { get; set; }
+
+    /// <summary>
+    /// Cancels the investigation request. Requires a non-empty cancellation reason.
+    /// </summary>
+    public void Cancel(string reason, DateTime cancelledAtUtc)
+    {
+        if (string.Equals(Status, "Cancelled", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new DomainRuleException("Investigation request is already cancelled.");
+        }
+        if (string.IsNullOrWhiteSpace(reason))
+        {
+            throw new DomainRuleException("A reason is required to cancel an investigation request.");
+        }
+
+        Status = "Cancelled";
+        CancellationReason = reason.Trim();
+        CancelledAtUtc = cancelledAtUtc;
+        UpdatedAtUtc = cancelledAtUtc;
+    }
 
     /// <summary>
     /// Collection of individual investigation items ordered in this request.

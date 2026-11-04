@@ -265,6 +265,20 @@ public class PrescriptionHistoryViewModel : ViewModelBase
         }
     }
 
+    private bool _isLoadingMore;
+    public bool IsLoadingMore
+    {
+        get => _isLoadingMore;
+        private set
+        {
+            if (SetProperty(ref _isLoadingMore, value))
+            {
+                OnPropertyChanged(nameof(CanLoadMore));
+                (LoadMoreCommand as IRelayCommand)?.NotifyCanExecuteChanged();
+            }
+        }
+    }
+
     public int TotalCount
     {
         get => _totalCount;
@@ -275,6 +289,8 @@ public class PrescriptionHistoryViewModel : ViewModelBase
                 OnPropertyChanged(nameof(TotalPages));
                 OnPropertyChanged(nameof(HasPreviousPage));
                 OnPropertyChanged(nameof(HasNextPage));
+                OnPropertyChanged(nameof(HasMorePrescriptions));
+                OnPropertyChanged(nameof(CanLoadMore));
                 OnPropertyChanged(nameof(PageSummaryText));
             }
         }
@@ -296,7 +312,11 @@ public class PrescriptionHistoryViewModel : ViewModelBase
 
     public bool HasPreviousPage => PageNumber > 1;
 
-    public bool HasNextPage => PageNumber < TotalPages;
+    public bool HasNextPage => HasMorePrescriptions;
+
+    public bool HasMorePrescriptions => Prescriptions.Count < TotalCount;
+
+    public bool CanLoadMore => HasMorePrescriptions && !IsLoading && !IsLoadingMore;
 
     public double ScrollPosition
     {
@@ -309,10 +329,8 @@ public class PrescriptionHistoryViewModel : ViewModelBase
         get
         {
             if (TotalCount == 0) return "No prescriptions found";
-            int start = ((PageNumber - 1) * PageSize) + 1;
-            int end = Math.Min(PageNumber * PageSize, TotalCount);
             string totalStr = IsCountCapped ? $"{TotalCount:N0}+" : $"{TotalCount:N0}";
-            return $"Showing {start:N0} - {end:N0} of {totalStr} prescriptions";
+            return $"Showing {Prescriptions.Count:N0} of {totalStr} prescriptions";
         }
     }
 
@@ -321,6 +339,7 @@ public class PrescriptionHistoryViewModel : ViewModelBase
     public ICommand ClearPatientFilterCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand RetryCommand { get; }
+    public ICommand LoadMoreCommand { get; }
     public ICommand NextPageCommand { get; }
     public ICommand PreviousPageCommand { get; }
     public ICommand FirstPageCommand { get; }
@@ -350,10 +369,11 @@ public class PrescriptionHistoryViewModel : ViewModelBase
         });
         RefreshCommand = new AsyncRelayCommand(() => LoadPrescriptionsAsync(resetPage: false));
         RetryCommand = new AsyncRelayCommand(() => LoadPrescriptionsAsync(resetPage: false));
-        NextPageCommand = new AsyncRelayCommand(GoToNextPageAsync, () => HasNextPage);
+        LoadMoreCommand = new AsyncRelayCommand(LoadMorePrescriptionsAsync, () => CanLoadMore);
+        NextPageCommand = LoadMoreCommand;
         PreviousPageCommand = new AsyncRelayCommand(GoToPreviousPageAsync, () => HasPreviousPage);
         FirstPageCommand = new AsyncRelayCommand(GoToFirstPageAsync, () => HasPreviousPage);
-        LastPageCommand = new AsyncRelayCommand(GoToLastPageAsync, () => HasNextPage);
+        LastPageCommand = LoadMoreCommand;
         OpenDetailCommand = new RelayCommand<PrescriptionHistoryItemDto>(OpenPrescriptionDetail);
         PrintPrescriptionCommand = new AsyncRelayCommand<PrescriptionHistoryItemDto>(PrintPrescriptionAsync);
     }
@@ -457,6 +477,9 @@ public class PrescriptionHistoryViewModel : ViewModelBase
 
             OnPropertyChanged(nameof(HasPreviousPage));
             OnPropertyChanged(nameof(HasNextPage));
+            OnPropertyChanged(nameof(HasMorePrescriptions));
+            OnPropertyChanged(nameof(CanLoadMore));
+            (LoadMoreCommand as IRelayCommand)?.NotifyCanExecuteChanged();
             OnPropertyChanged(nameof(PageSummaryText));
         }
         catch (OperationCanceledException)
@@ -477,6 +500,55 @@ public class PrescriptionHistoryViewModel : ViewModelBase
             {
                 IsLoading = false;
             }
+        }
+    }
+
+    public async Task LoadMorePrescriptionsAsync()
+    {
+        if (IsLoadingMore || !HasMorePrescriptions) return;
+
+        try
+        {
+            IsLoadingMore = true;
+            int nextPage = PageNumber + 1;
+
+            var criteria = new PrescriptionSearchCriteria(
+                SearchText: SearchText,
+                DatePreset: DatePreset,
+                FromDate: _filterSession.FromDate,
+                ToDate: _filterSession.ToDate,
+                StatusFilter: StatusFilter,
+                IncludeReplaced: IncludeReplaced,
+                PatientId: _filterSession.PatientId,
+                SortOption: SortOption,
+                PageNumber: nextPage,
+                PageSize: PageSize
+            );
+
+            var result = await _prescriptionService.SearchPrescriptionsAsync(criteria);
+            PageNumber = nextPage;
+            TotalCount = result.TotalCount;
+            IsCountCapped = result.IsCountCapped;
+
+            foreach (var item in result.Items)
+            {
+                Prescriptions.Add(item);
+            }
+
+            OnPropertyChanged(nameof(HasPreviousPage));
+            OnPropertyChanged(nameof(HasNextPage));
+            OnPropertyChanged(nameof(HasMorePrescriptions));
+            OnPropertyChanged(nameof(CanLoadMore));
+            (LoadMoreCommand as IRelayCommand)?.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(PageSummaryText));
+        }
+        catch (Exception ex)
+        {
+            ErrorMessage = $"Failed to load more prescriptions: {ex.Message}";
+        }
+        finally
+        {
+            IsLoadingMore = false;
         }
     }
 

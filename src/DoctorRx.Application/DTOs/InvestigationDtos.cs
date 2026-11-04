@@ -151,7 +151,9 @@ public record InvestigationRequestDetailDto(
     string? ClinicName,
     string? ClinicAddress,
     string? ClinicPhone,
-    IReadOnlyList<InvestigationRequestItemDto> Items
+    IReadOnlyList<InvestigationRequestItemDto> Items,
+    bool IsSealed = true,
+    string? CancellationReason = null
 )
 {
     public string FormattedDate => RequestDate.ToString("dd MMM yyyy");

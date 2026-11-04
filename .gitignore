@@ -69,6 +69,8 @@ $RECYCLE.BIN/
 *.7z
 project_tree.txt
 
-## Personal/Media Assets
+## Personal/Media Assets & Large Media
+*.gif
+wallpaper.*
 Professor_AI_JARVIS_Smooth_Infinite_Loop.gif
 wallpaper.jpg

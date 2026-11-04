@@ -155,9 +155,7 @@ public class MedicineCsvImportService : IMedicineCsvImportService
 
             string? description = !string.IsNullOrWhiteSpace(rawIndications)
                 ? rawIndications
-                : (!string.IsNullOrWhiteSpace(rawCategory)
-                    ? rawCategory
-                    : DoctorRx.Application.Common.MedicineClinicalKnowledge.GetClinicalIndication(name, genericName));
+                : (!string.IsNullOrWhiteSpace(rawCategory) ? rawCategory : null);
 
             if (existingDuplicates.Count > 0)
             {

@@ -246,6 +246,16 @@ namespace DoctorRx.Infrastructure.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("CancellationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("CancelledAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsSealed")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("ClinicalNotes")
                         .HasMaxLength(2000)
                         .HasColumnType("TEXT");

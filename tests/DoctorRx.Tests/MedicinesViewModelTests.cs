@@ -457,10 +457,11 @@ public class MedicinesViewModelTests
         Assert.Equal("Generic: Paracetamol", medWithDifferentGeneric.GenericFormulaDisplay);
         Assert.Equal("Pain and fever relief", medWithDifferentGeneric.DescriptionDisplay);
 
-        // When name and generic are identical (e.g. Acyclovir), it must NOT repeat "Formula: Acyclovir" or "Tablet formulation"
+        // When name and generic are identical (e.g. Acyclovir), it does not repeat redundant generic line
         var medWithSameGeneric = new MedicineDto(2, "Acyclovir", "Acyclovir", "Tablet", "400 mg", true);
-        Assert.Equal("Antiviral", medWithSameGeneric.GenericFormulaDisplay);
-        Assert.Contains("Herpes simplex", medWithSameGeneric.DescriptionDisplay);
+        Assert.Equal(string.Empty, medWithSameGeneric.GenericFormulaDisplay);
+        // Zero software-authored clinical content: empty description stays empty, never fabricated
+        Assert.Equal(string.Empty, medWithSameGeneric.DescriptionDisplay);
     }
 
     [Fact]

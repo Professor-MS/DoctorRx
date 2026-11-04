@@ -22,4 +22,5 @@ public interface IInvestigationService
     Task<IReadOnlyList<InvestigationRequestSummaryDto>> GetRequestsByPatientIdAsync(int patientId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<InvestigationRequestSummaryDto>> GetRecentRequestsAsync(int count = 50, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<InvestigationRequestSummaryDto>> SearchRequestsAsync(string? query, DateOnly? fromDate, DateOnly? toDate, int? patientId, int maxResults = 100, CancellationToken cancellationToken = default);
+    Task<Result> CancelInvestigationRequestAsync(int id, string reason, CancellationToken cancellationToken = default);
 }

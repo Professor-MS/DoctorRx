@@ -299,53 +299,15 @@
                            Foreground="{StaticResource SlateMutedBrush}"
                            AutomationProperties.Name="Prescriptions Pagination Summary" />
 
-                <!-- Pagination Control Buttons -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <!-- First Page -->
-                    <Button Style="{StaticResource SecondaryButton}"
-                            Command="{Binding FirstPageCommand}"
-                            Padding="8,5" Margin="0,0,4,0"
-                            ToolTip="First Page"
-                            AutomationProperties.Name="First Page Button">
-                        <TextBlock Text="&#171;" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
-                    </Button>
-
-                    <!-- Previous Page -->
-                    <Button Style="{StaticResource SecondaryButton}"
-                            Command="{Binding PreviousPageCommand}"
-                            Padding="8,5" Margin="0,0,8,0"
-                            ToolTip="Previous Page"
-                            AutomationProperties.Name="Previous Page Button">
-                        <Path Data="{StaticResource IconArrowBack}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" />
-                    </Button>
-
-                    <!-- Page Number Indicator -->
-                    <TextBlock VerticalAlignment="Center" Margin="0,0,8,0"
-                               FontSize="{StaticResource FontSizeCaption}" Foreground="{StaticResource SlateDarkBrush}">
-                        <Run Text="Page " />
-                        <Run Text="{Binding PageNumber, Mode=OneWay}" FontWeight="SemiBold" />
-                        <Run Text=" of " />
-                        <Run Text="{Binding TotalPages, Mode=OneWay}" FontWeight="SemiBold" />
-                    </TextBlock>
-
-                    <!-- Next Page -->
-                    <Button Style="{StaticResource SecondaryButton}"
-                            Command="{Binding NextPageCommand}"
-                            Padding="8,5" Margin="0,0,4,0"
-                            ToolTip="Next Page"
-                            AutomationProperties.Name="Next Page Button">
-                        <Path Data="{StaticResource IconArrowForward}" Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource SlateMediumBrush}" VerticalAlignment="Center" />
-                    </Button>
-
-                    <!-- Last Page -->
-                    <Button Style="{StaticResource SecondaryButton}"
-                            Command="{Binding LastPageCommand}"
-                            Padding="8,5"
-                            ToolTip="Last Page"
-                            AutomationProperties.Name="Last Page Button">
-                        <TextBlock Text="&#187;" FontWeight="Bold" FontSize="14" VerticalAlignment="Center" />
-                    </Button>
-                </StackPanel>
+                <!-- Load More Button -->
+                <Button Grid.Column="1"
+                        Style="{StaticResource SecondaryButton}"
+                        Command="{Binding LoadMoreCommand}"
+                        Padding="14,6"
+                        Visibility="{Binding HasMorePrescriptions, Converter={StaticResource BoolToVisConverter}}"
+                        AutomationProperties.Name="Load More Prescriptions Button">
+                    <TextBlock Text="Load More Prescriptions" FontWeight="SemiBold" FontSize="{StaticResource FontSizeCaption}" VerticalAlignment="Center" />
+                </Button>
             </Grid>
         </Border>
     </Grid>

@@ -637,16 +637,24 @@ public class MedicinesViewModel : ViewModelBase
         const string fileName = "pakistan_medicine_master.csv";
 
         var current = Directory.GetCurrentDirectory();
+        if (File.Exists(Path.Combine(current, "data", fileName)))
+            return Path.Combine(current, "data", fileName);
         if (File.Exists(Path.Combine(current, fileName)))
             return Path.Combine(current, fileName);
 
         var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+        if (File.Exists(Path.Combine(baseDir, "data", fileName)))
+            return Path.Combine(baseDir, "data", fileName);
         if (File.Exists(Path.Combine(baseDir, fileName)))
             return Path.Combine(baseDir, fileName);
 
         var dir = new DirectoryInfo(baseDir);
         for (int i = 0; i < 5 && dir != null; i++)
         {
+            var candidateData = Path.Combine(dir.FullName, "data", fileName);
+            if (File.Exists(candidateData))
+                return candidateData;
+
             var candidate = Path.Combine(dir.FullName, fileName);
             if (File.Exists(candidate))
                 return candidate;

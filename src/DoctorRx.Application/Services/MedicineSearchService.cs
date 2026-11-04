@@ -53,9 +53,7 @@ public class MedicineSearchService : IMedicineSearchService
                 m.Strength,
                 m.IsActive,
                 m.UsageCount,
-                !string.IsNullOrWhiteSpace(m.Description)
-                    ? m.Description
-                    : DoctorRx.Application.Common.MedicineClinicalKnowledge.GetClinicalIndication(m.Name, m.GenericName)
+                m.Description
             )).ToList();
         }
         catch (Exception ex)

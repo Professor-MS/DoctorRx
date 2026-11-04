@@ -65,7 +65,7 @@ public class PrescriptionHistoryViewModelTests
     }
 
     [Fact]
-    public async Task Pagination_NextPreviousFirstLast_UpdatesPageNumberAndCallsService()
+    public async Task Pagination_LoadMore_UpdatesPageNumber_AppendsItems_AndCallsService()
     {
         _prescriptionService.TotalCountToReturn = 150; // 3 pages of 50
         var vm = new PrescriptionHistoryViewModel(_prescriptionService, _navigationService, _dialogService, _sessionService, _printLauncher);
@@ -73,27 +73,20 @@ public class PrescriptionHistoryViewModelTests
 
         Assert.Equal(1, vm.PageNumber);
         Assert.Equal(3, vm.TotalPages);
-        Assert.True(vm.HasNextPage);
-        Assert.False(vm.HasPreviousPage);
+        Assert.True(vm.HasMorePrescriptions);
+        Assert.True(vm.CanLoadMore);
+        Assert.Equal(2, vm.Prescriptions.Count);
 
-        // Go to Next
-        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.NextPageCommand).ExecuteAsync(null);
+        // Load More (appends next page)
+        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.LoadMoreCommand).ExecuteAsync(null);
         Assert.Equal(2, vm.PageNumber);
-        Assert.True(vm.HasPreviousPage);
-        Assert.True(vm.HasNextPage);
+        Assert.Equal(4, vm.Prescriptions.Count);
+        Assert.True(vm.HasMorePrescriptions);
 
-        // Go to Last
-        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.LastPageCommand).ExecuteAsync(null);
-        Assert.Equal(3, vm.PageNumber);
-        Assert.False(vm.HasNextPage);
-
-        // Go to Prev
-        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.PreviousPageCommand).ExecuteAsync(null);
-        Assert.Equal(2, vm.PageNumber);
-
-        // Go to First
-        await ((CommunityToolkit.Mvvm.Input.IAsyncRelayCommand)vm.FirstPageCommand).ExecuteAsync(null);
+        // Filter change or clear resets to page 1
+        vm.ClearFiltersCommand.Execute(null);
         Assert.Equal(1, vm.PageNumber);
+        Assert.Equal(2, vm.Prescriptions.Count);
     }
 
     [Fact]

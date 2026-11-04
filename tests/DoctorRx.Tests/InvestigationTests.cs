@@ -431,4 +431,144 @@ public class InvestigationTests : IDisposable
         var patientRequests = await _investigationService.GetRequestsByPatientIdAsync(patient.Id);
         Assert.Equal(2, patientRequests.Count);
     }
+
+    [Fact]
+    public async Task AntiTamper_DirectSqlUpdate_ClinicalColumns_IsRejected()
+    {
+        // Arrange: Create patient & request
+        var patResult = await _patientService.CreatePatientAsync(new CreatePatientDto { Name = "Tamper Test", Age = 30, Gender = Gender.Male });
+        var req = await _investigationService.CreateInvestigationRequestAsync(new CreateInvestigationRequestDto
+        {
+            PatientId = patResult.Value!.Id,
+            ClinicalNotes = "Original clinical note",
+            Items = new List<CreateInvestigationRequestItemDto>
+            {
+                new() { InvestigationName = "Chest X-Ray (PA View)", Category = "Radiology & Imaging" }
+            }
+        });
+        Assert.True(req.IsSuccess);
+        int reqId = req.Value!.Id;
+
+        // Act & Assert 1: Raw SQL UPDATE of ClinicalNotes must be aborted by trigger
+        await using var conn = new SqliteConnection($"Data Source={_appPaths.DatabasePath}");
+        await conn.OpenAsync();
+
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"UPDATE InvestigationRequests SET ClinicalNotes = 'Tampered clinical note' WHERE Id = {reqId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Clinical and snapshot investigation request fields are immutable", ex.Message);
+        }
+
+        // Act & Assert 2: Raw SQL UPDATE of RequestNumber must be aborted
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"UPDATE InvestigationRequests SET RequestNumber = 'INV-TAMPERED-0001' WHERE Id = {reqId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Clinical and snapshot investigation request fields are immutable", ex.Message);
+        }
+
+        // Act & Assert 3: Raw SQL UPDATE of unsealing (IsSealed = 0) must be aborted
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"UPDATE InvestigationRequests SET IsSealed = 0 WHERE Id = {reqId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Sealed investigation request cannot be unsealed", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task AntiTamper_DirectSqlDelete_RequestAndItems_IsRejected()
+    {
+        // Arrange
+        var patResult = await _patientService.CreatePatientAsync(new CreatePatientDto { Name = "Delete Tamper", Age = 40, Gender = Gender.Female });
+        var req = await _investigationService.CreateInvestigationRequestAsync(new CreateInvestigationRequestDto
+        {
+            PatientId = patResult.Value!.Id,
+            Items = new List<CreateInvestigationRequestItemDto>
+            {
+                new() { InvestigationName = "Lipid Profile", Category = "Laboratory" }
+            }
+        });
+        Assert.True(req.IsSuccess);
+        int reqId = req.Value!.Id;
+        int itemId = req.Value!.Items[0].Id;
+
+        await using var conn = new SqliteConnection($"Data Source={_appPaths.DatabasePath}");
+        await conn.OpenAsync();
+
+        // Act & Assert 1: Cannot delete from InvestigationRequests
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"DELETE FROM InvestigationRequests WHERE Id = {reqId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Investigation requests cannot be deleted", ex.Message);
+        }
+
+        // Act & Assert 2: Cannot delete from InvestigationRequestItems
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"DELETE FROM InvestigationRequestItems WHERE Id = {itemId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Investigation request items cannot be deleted", ex.Message);
+        }
+
+        // Act & Assert 3: Cannot update InvestigationRequestItems
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"UPDATE InvestigationRequestItems SET InvestigationName = 'Tampered Test' WHERE Id = {itemId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Investigation request items cannot be updated", ex.Message);
+        }
+
+        // Act & Assert 4: Cannot insert new item into sealed request
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"INSERT INTO InvestigationRequestItems (RequestId, InvestigationName, Category, DisplayOrder, CreatedAtUtc) VALUES ({reqId}, 'New Test', 'Laboratory', 2, '2026-10-14T00:00:00Z');";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Cannot add items to a sealed or cancelled investigation request", ex.Message);
+        }
+    }
+
+    [Fact]
+    public async Task CancelInvestigationRequestAsync_RequiresReason_AndTransitionsStatus()
+    {
+        // Arrange
+        var patResult = await _patientService.CreatePatientAsync(new CreatePatientDto { Name = "Cancel Test", Age = 28, Gender = Gender.Male });
+        var req = await _investigationService.CreateInvestigationRequestAsync(new CreateInvestigationRequestDto
+        {
+            PatientId = patResult.Value!.Id,
+            Items = new List<CreateInvestigationRequestItemDto>
+            {
+                new() { InvestigationName = "Urine Routine Examination (Urine R/E)", Category = "Laboratory" }
+            }
+        });
+        Assert.True(req.IsSuccess);
+        int reqId = req.Value!.Id;
+
+        // Act 1: Attempt cancel with empty reason -> must fail
+        var failResult = await _investigationService.CancelInvestigationRequestAsync(reqId, "   ");
+        Assert.False(failResult.IsSuccess);
+        Assert.Contains("reason is required", failResult.ErrorMessage, StringComparison.OrdinalIgnoreCase);
+
+        // Act 2: Cancel with valid reason -> must succeed
+        var cancelResult = await _investigationService.CancelInvestigationRequestAsync(reqId, "Patient declined procedure");
+        Assert.True(cancelResult.IsSuccess);
+
+        // Assert: Verify state
+        var loaded = await _investigationService.GetRequestByIdAsync(reqId);
+        Assert.NotNull(loaded);
+        Assert.Equal("Cancelled", loaded!.Status);
+        Assert.Equal("Patient declined procedure", loaded.CancellationReason);
+
+        // Act 3: Attempting to modify cancelled request directly via SQL is blocked
+        await using var conn = new SqliteConnection($"Data Source={_appPaths.DatabasePath}");
+        await conn.OpenAsync();
+        await using (var cmd = conn.CreateCommand())
+        {
+            cmd.CommandText = $"UPDATE InvestigationRequests SET Status = 'Active' WHERE Id = {reqId};";
+            var ex = await Assert.ThrowsAsync<SqliteException>(() => cmd.ExecuteNonQueryAsync());
+            Assert.Contains("Investigation request is cancelled and cannot be modified", ex.Message);
+        }
+    }
 }

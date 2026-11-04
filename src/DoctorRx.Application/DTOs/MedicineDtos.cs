@@ -28,36 +28,11 @@ public record MedicineDto(
                 return $"Generic: {GenericName}";
             }
 
-            // When Brand name is the generic name (e.g. Acyclovir, Paracetamol, Metformin),
-            // show the drug class/category instead of redundantly repeating the same name!
-            var category = DoctorRx.Application.Common.MedicineClinicalKnowledge.GetTherapeuticCategory(Name, GenericName);
-            if (!string.IsNullOrWhiteSpace(category))
-            {
-                return category;
-            }
-
-            return "Formulary active substance";
+            return string.Empty;
         }
     }
 
-    public string DescriptionDisplay
-    {
-        get
-        {
-            if (!string.IsNullOrWhiteSpace(Description))
-            {
-                return Description;
-            }
-
-            var indication = DoctorRx.Application.Common.MedicineClinicalKnowledge.GetClinicalIndication(Name, GenericName);
-            if (!string.IsNullOrWhiteSpace(indication))
-            {
-                return indication;
-            }
-
-            return "Clinical indication as directed by physician";
-        }
-    }
+    public string DescriptionDisplay => !string.IsNullOrWhiteSpace(Description) ? Description : string.Empty;
 
     public bool HasLongDescription => (DescriptionDisplay?.Length ?? 0) > 60;
 
